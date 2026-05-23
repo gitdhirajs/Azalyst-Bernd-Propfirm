@@ -27,6 +27,33 @@ from dataclasses import asdict
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+# Load DISCORD_WEBHOOK_URL / DISCORD_USER_ID from .secrets.bat when launching
+# the scanner directly with `python run_scanner.py` (i.e. without going through
+# scan_markets.bat). The bat file format is `set NAME=VALUE` per line; we parse
+# those lines and inject any missing vars into os.environ so Discord posting
+# works regardless of launch method.
+def _load_secrets_from_bat() -> None:
+    secrets_path = SCRIPT_DIR / ".secrets.bat"
+    if not secrets_path.exists():
+        return
+    try:
+        with open(secrets_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line.lower().startswith("set "):
+                    continue
+                _, _, kv = line.partition(" ")
+                if "=" not in kv:
+                    continue
+                key, _, value = kv.partition("=")
+                key, value = key.strip(), value.strip()
+                if key and value and key not in os.environ:
+                    os.environ[key] = value
+    except OSError:
+        pass
+
+_load_secrets_from_bat()
+
 from BP_data_fetcher import DataFetcher, get_cftc_code
 from BP_rules_engine import RulesEngine
 from BP_paper_trader import PaperTrader
