@@ -1,0 +1,14 @@
+{
+  "balance": 100000.0,
+  "initial_balance": 100000.0,
+  "closed_pnl_total": 0.0,
+  "total_trades": 0,
+  "winning_trades": 0,
+  "losing_trades": 0,
+  "peak_balance": 100000.0,
+  "max_drawdown_pct": 0.0,
+  "daily_pnl": 0.0,
+  "daily_trades": 0,
+  "zone_memory": {},
+  "saved_at": "2026-05-26T19:19:24.933746"
+}

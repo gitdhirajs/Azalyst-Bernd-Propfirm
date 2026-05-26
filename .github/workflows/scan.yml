@@ -1,0 +1,86 @@
+name: Scan markets (hourly)
+
+# Runs the Azalyst Propfirm scanner every hour from a GitHub Actions runner.
+# The scanner produces paper signals for a simulated Fundingpips $100k
+# challenge account (5% daily / 10% total loss caps enforced in
+# BP_paper_trader.py). After scanning, it posts a Discord summary and
+# commits the updated state files (paper_trader_state, scan_results,
+# scan_history, discord_state) back to main so the next hourly run picks
+# up where this one left off.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   DISCORD_WEBHOOK_URL   -- Discord webhook for the channel to post to
+#   DISCORD_USER_ID       -- (optional) your Discord snowflake ID for @-pings
+
+on:
+  schedule:
+    - cron: '0 * * * *'            # every hour at minute :00 UTC
+  workflow_dispatch:               # manual trigger from the Actions tab
+
+# Only one scan at a time -- avoids two runs racing on the commit-back step.
+# Queue subsequent runs rather than cancel so we don't drop the cron beat.
+concurrency:
+  group: scan-markets
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write              # required to commit updated state files
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true   # keep the GITHUB_TOKEN for the push step
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'Propfirm Trading Dashboard/requirements.txt'
+
+      - name: Install dependencies
+        run: pip install -r "Propfirm Trading Dashboard/requirements.txt"
+
+      - name: Run scanner (headless)
+        working-directory: Propfirm Trading Dashboard
+        run: python run_scanner.py --no-open
+        # --no-open skips the browser launch + dashboard HTTP server.
+        # The scanner writes scan_results.json, scan_history.json, and
+        # paper_trader_state.json on disk; the next step picks them up.
+
+      - name: Post Discord summary
+        working-directory: Propfirm Trading Dashboard
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
+        run: python send_discord.py
+        # send_discord.py silently no-ops if DISCORD_WEBHOOK_URL is unset,
+        # so the workflow still succeeds even before you configure secrets.
+
+      - name: Commit updated state files
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # scan_results.json is intentionally NOT committed -- it's ~23MB
+          # (OHLCV cache for dashboard charts) and only needs to persist
+          # within this workflow run. The 3 files below are small and
+          # carry the state that must survive to the next hourly run.
+          git add -f \
+            "Propfirm Trading Dashboard/paper_trader_state.json" \
+            "Propfirm Trading Dashboard/scan_history.json" \
+            "Propfirm Trading Dashboard/discord_state.json" || true
+          if git diff --staged --quiet; then
+            echo "No state file changes to commit."
+          else
+            git commit -m "scan: hourly state update [skip ci]"
+            # Pull --rebase --autostash protects against the rare case where
+            # someone pushed between this run's checkout and this commit.
+            git pull --rebase --autostash origin main
+            git push
+          fi

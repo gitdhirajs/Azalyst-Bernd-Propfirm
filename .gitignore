@@ -28,11 +28,19 @@ Blueprint_Trading_System_COMPLETE_TEXTBOOK_v6.docx
 ALL_FILES_FOR_DEEPSEEK.txt
 gt_out.txt
 
-# --- Runtime / scanner state (regenerated on every run) ---
+# --- Runtime / scanner state ---
+# The 3 small state JSONs below are TRACKED in this repo because the
+# hourly GitHub Actions workflow (.github/workflows/scan.yml) commits
+# them back after each run so paper-account state, signal-diff state,
+# and trade history persist across runs. Local devs running the scanner
+# will see them modified -- DO NOT push local state from a dev machine;
+# only the github-actions[bot] commits these.
+#   Propfirm Trading Dashboard/paper_trader_state.json   (TRACKED, ~300 bytes)
+#   Propfirm Trading Dashboard/scan_history.json         (TRACKED, ~14 KB)
+#   Propfirm Trading Dashboard/discord_state.json        (TRACKED, ~200 bytes)
+# scan_results.json is regenerated every scan (~23 MB with OHLCV cache);
+# never committed -- the workflow reads it within a single run only.
 Propfirm Trading Dashboard/scan_results.json
-Propfirm Trading Dashboard/scan_history.json
-Propfirm Trading Dashboard/paper_trader_state.json
-Propfirm Trading Dashboard/discord_state.json
 Propfirm Trading Dashboard/*.log
 Propfirm Trading Dashboard/**/*.log
 Propfirm Trading Dashboard/*.lock
