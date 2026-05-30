@@ -2,25 +2,28 @@
   "balance": 100000.0,
   "initial_balance": 100000.0,
   "closed_pnl_total": 0.0,
-  "total_trades": 0,
+  "total_trades": 1,
   "winning_trades": 0,
-  "losing_trades": 0,
+  "losing_trades": 1,
   "peak_balance": 100000.0,
   "max_drawdown_pct": 0.0,
   "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_trades": 1,
   "today_starting_equity": 100000.0,
   "current_date": "2026-05-30",
   "account_blown": false,
-  "zone_memory": {},
-  "open_positions": [
+  "zone_memory": {
+    "8ac0705dca": true
+  },
+  "open_positions": [],
+  "trade_history": [
     {
       "id": "a9b9a038-b04",
       "symbol": "USDTRY=X",
       "direction": "short",
       "entry_price": 45.826069,
       "stop_price": 45.904564,
-      "current_stop": 45.904564,
+      "current_stop": 45.826069,
       "targets": [
         45.747574,
         45.669079,
@@ -29,20 +32,19 @@
       "position_size": 12723.592434,
       "risk_amount": 998.74,
       "entry_time": "2026-05-30T10:48:40.609115",
-      "status": "active",
+      "status": "closed",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "8ac0705dca",
-      "close_time": null,
-      "close_price": null,
+      "close_time": "2026-05-30T14:35:28.992320",
+      "close_price": 45.826069,
       "trade_r_multiple": 0.0,
       "notes": ""
     }
   ],
-  "trade_history": [],
-  "saved_at": "2026-05-30T10:48:40.609780"
+  "saved_at": "2026-05-30T14:35:28.992994"
 }
