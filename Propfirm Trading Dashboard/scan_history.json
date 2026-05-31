@@ -768,5 +768,24 @@
         "composite": 8.4
       }
     ]
+  },
+  {
+    "scan_time": "2026-05-31T10:25:04.189472",
+    "strategy": "daily",
+    "watchlist_scanned": 114,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "USDTRY=X",
+        "direction": "short",
+        "entry": 45.826069,
+        "composite": 8.4
+      }
+    ]
   }
 ]
