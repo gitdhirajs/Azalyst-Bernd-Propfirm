@@ -1,7 +1,9 @@
 {
   "signal_ids_seen": [
-    "USDTRY=X"
+    "bf527271-9a5"
   ],
-  "open_position_ids_seen": [],
-  "last_sent_at": "2026-05-30T14:35:30.943085+00:00"
+  "open_position_ids_seen": [
+    "bf527271-9a5"
+  ],
+  "last_sent_at": "2026-06-01T14:18:47.084125+00:00"
 }

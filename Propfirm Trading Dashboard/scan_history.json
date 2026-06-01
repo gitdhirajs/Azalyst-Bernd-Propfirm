@@ -856,5 +856,24 @@
     "win_rate": 0.0,
     "total_trades": 1,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-06-01T13:48:19.064550",
+    "strategy": "daily",
+    "watchlist_scanned": 114,
+    "signals_found": 1,
+    "auto_traded": 1,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "CRM",
+        "direction": "long",
+        "entry": 182.479996,
+        "composite": 10.1
+      }
+    ]
   }
 ]

@@ -15,7 +15,36 @@
   "zone_memory": {
     "8ac0705dca": true
   },
-  "open_positions": [],
+  "open_positions": [
+    {
+      "id": "bf527271-9a5",
+      "symbol": "CRM",
+      "direction": "long",
+      "entry_price": 182.479996,
+      "stop_price": 171.731092,
+      "current_stop": 171.731092,
+      "targets": [
+        193.228899,
+        203.977803,
+        214.726707
+      ],
+      "position_size": 93.0,
+      "risk_amount": 999.65,
+      "entry_time": "2026-06-01T14:18:45.216542",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "f5cce99360",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    }
+  ],
   "trade_history": [
     {
       "id": "a9b9a038-b04",
@@ -46,5 +75,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-06-01T05:46:54.020954"
+  "saved_at": "2026-06-01T14:18:45.217320"
 }
