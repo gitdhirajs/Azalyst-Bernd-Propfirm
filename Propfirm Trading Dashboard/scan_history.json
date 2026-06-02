@@ -925,5 +925,30 @@
         "composite": 9.6
       }
     ]
+  },
+  {
+    "scan_time": "2026-06-02T12:16:01.387660",
+    "strategy": "daily",
+    "watchlist_scanned": 114,
+    "signals_found": 2,
+    "auto_traded": 0,
+    "account_balance": 105478.95,
+    "closed_pnl": 6532.34,
+    "win_rate": 0.5,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "CRM",
+        "direction": "long",
+        "entry": 182.479996,
+        "composite": 10.1
+      },
+      {
+        "symbol": "ADBE",
+        "direction": "long",
+        "entry": 244.759995,
+        "composite": 9.6
+      }
+    ]
   }
 ]

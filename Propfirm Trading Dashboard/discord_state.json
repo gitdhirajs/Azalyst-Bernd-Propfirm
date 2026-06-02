@@ -1,6 +1,6 @@
 {
   "signal_ids_seen": [
-    "ef21af3d-5a4",
+    "CRM",
     "ADBE"
   ],
   "open_position_ids_seen": [
@@ -8,5 +8,5 @@
     "49ee78cb-a6c",
     "ef21af3d-5a4"
   ],
-  "last_sent_at": "2026-06-02T05:31:11.707311+00:00"
+  "last_sent_at": "2026-06-02T12:51:04.612055+00:00"
 }
