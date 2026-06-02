@@ -7,10 +7,10 @@
   "losing_trades": 1,
   "peak_balance": 108057.64583810157,
   "max_drawdown_pct": 0.0,
-  "daily_pnl": 4010.770258101564,
-  "daily_trades": 3,
-  "today_starting_equity": 100000.0,
-  "current_date": "2026-06-02",
+  "daily_pnl": 0.0,
+  "daily_trades": 0,
+  "today_starting_equity": 108057.64583810157,
+  "current_date": "2026-06-03",
   "account_blown": false,
   "zone_memory": {
     "8ac0705dca": true,
@@ -161,5 +161,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-06-02T17:38:48.289490"
+  "saved_at": "2026-06-02T22:53:06.634072"
 }
