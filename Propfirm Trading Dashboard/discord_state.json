@@ -1,12 +1,12 @@
 {
   "signal_ids_seen": [
-    "49ee78cb-a6c",
-    "ba25352a-45f"
+    "ef21af3d-5a4",
+    "ADBE"
   ],
   "open_position_ids_seen": [
     "bf527271-9a5",
     "49ee78cb-a6c",
-    "ba25352a-45f"
+    "ef21af3d-5a4"
   ],
-  "last_sent_at": "2026-06-01T21:16:43.605495+00:00"
+  "last_sent_at": "2026-06-02T05:31:11.707311+00:00"
 }
