@@ -1,9 +1,5 @@
 {
-  "signal_ids_seen": [
-    "CRM"
-  ],
-  "open_position_ids_seen": [
-    "ef21af3d-5a4"
-  ],
-  "last_sent_at": "2026-06-02T17:38:50.022140+00:00"
+  "signal_ids_seen": [],
+  "open_position_ids_seen": [],
+  "last_sent_at": "2026-06-03T20:39:23.177996+00:00"
 }

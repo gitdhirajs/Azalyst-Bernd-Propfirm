@@ -1,14 +1,14 @@
 {
-  "balance": 108057.64583810157,
+  "balance": 108584.34213410156,
   "initial_balance": 100000.0,
-  "closed_pnl_total": 8057.6458381015655,
-  "total_trades": 4,
-  "winning_trades": 3,
+  "closed_pnl_total": 8584.342134101566,
+  "total_trades": 5,
+  "winning_trades": 4,
   "losing_trades": 1,
-  "peak_balance": 108057.64583810157,
+  "peak_balance": 108584.34213410156,
   "max_drawdown_pct": 0.0,
-  "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_pnl": 526.6962960000005,
+  "daily_trades": 1,
   "today_starting_equity": 108057.64583810157,
   "current_date": "2026-06-03",
   "account_blown": false,
@@ -17,36 +17,7 @@
     "2d0acf5d61": true,
     "f5cce99360": true
   },
-  "open_positions": [
-    {
-      "id": "ef21af3d-5a4",
-      "symbol": "CRM",
-      "direction": "long",
-      "entry_price": 182.479996,
-      "stop_price": 171.731092,
-      "current_stop": 193.2289,
-      "targets": [
-        193.228899,
-        203.977803,
-        214.726707
-      ],
-      "position_size": 49.0,
-      "risk_amount": 1053.39,
-      "entry_time": "2026-06-02T05:31:09.773288",
-      "status": "active",
-      "realized_pnl": 1053.3925429999997,
-      "partial_taken": true,
-      "partial_qty": 49.0,
-      "partial_price": 203.977803,
-      "breakeven_triggered": true,
-      "trail_stop_level": 193.2289,
-      "zone_id": "f5cce99360",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    }
-  ],
+  "open_positions": [],
   "trade_history": [
     {
       "id": "a9b9a038-b04",
@@ -159,7 +130,35 @@
       "close_price": 198.8811008828125,
       "trade_r_multiple": 1.525839739829519,
       "notes": ""
+    },
+    {
+      "id": "ef21af3d-5a4",
+      "symbol": "CRM",
+      "direction": "long",
+      "entry_price": 182.479996,
+      "stop_price": 171.731092,
+      "current_stop": 193.2289,
+      "targets": [
+        193.228899,
+        203.977803,
+        214.726707
+      ],
+      "position_size": 49.0,
+      "risk_amount": 1053.39,
+      "entry_time": "2026-06-02T05:31:09.773288",
+      "status": "closed",
+      "realized_pnl": 526.6962960000005,
+      "partial_taken": true,
+      "partial_qty": 49.0,
+      "partial_price": 203.977803,
+      "breakeven_triggered": true,
+      "trail_stop_level": 193.2289,
+      "zone_id": "f5cce99360",
+      "close_time": "2026-06-03T20:39:21.363977",
+      "close_price": 193.2289,
+      "trade_r_multiple": 1.0,
+      "notes": ""
     }
   ],
-  "saved_at": "2026-06-03T13:32:22.569751"
+  "saved_at": "2026-06-03T20:39:21.364845"
 }
