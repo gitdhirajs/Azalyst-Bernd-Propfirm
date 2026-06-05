@@ -10,7 +10,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 108584.34213410156,
-  "current_date": "2026-06-05",
+  "current_date": "2026-06-06",
   "account_blown": false,
   "zone_memory": {
     "8ac0705dca": true,
@@ -33,6 +33,34 @@
       "position_size": 98240.980338,
       "risk_amount": 1078.0,
       "entry_time": "2026-06-05T18:41:26.994642",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "51f5f2eba4",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "adf3d47e-28e",
+      "symbol": "EURCAD=X",
+      "direction": "short",
+      "entry_price": 1.60802,
+      "stop_price": 1.618993,
+      "current_stop": 1.618993,
+      "targets": [
+        1.597047,
+        1.586075,
+        1.575102
+      ],
+      "position_size": 98299.490309,
+      "risk_amount": 1078.64,
+      "entry_time": "2026-06-05T22:26:11.122941",
       "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
@@ -189,5 +217,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-06-05T18:41:26.995802"
+  "saved_at": "2026-06-05T22:26:11.124157"
 }
