@@ -1182,5 +1182,24 @@
         "composite": 9.5
       }
     ]
+  },
+  {
+    "scan_time": "2026-06-06T10:22:38.727753",
+    "strategy": "daily",
+    "watchlist_scanned": 114,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 108584.34,
+    "closed_pnl": 8584.34,
+    "win_rate": 0.8,
+    "total_trades": 5,
+    "signals_summary": [
+      {
+        "symbol": "EURCAD=X",
+        "direction": "short",
+        "entry": 1.60802,
+        "composite": 9.5
+      }
+    ]
   }
 ]
