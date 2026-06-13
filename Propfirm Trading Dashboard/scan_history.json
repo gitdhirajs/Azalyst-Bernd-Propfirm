@@ -1636,5 +1636,17 @@
     "win_rate": 0.5,
     "total_trades": 8,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-06-13T04:52:13.445063",
+    "strategy": "daily",
+    "watchlist_scanned": 114,
+    "signals_found": 0,
+    "auto_traded": 0,
+    "account_balance": 105349.06,
+    "closed_pnl": 5349.06,
+    "win_rate": 0.5,
+    "total_trades": 8,
+    "signals_summary": []
   }
 ]
