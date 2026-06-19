@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-10T14:44:05.979941",
+  "generated_at": "2026-05-26T14:41:36.460142",
   "results": [
     {
       "case_index": 1,
@@ -11,7 +11,7 @@
       "htf": "1mo",
       "ltf": "1wk",
       "bernd": {
-        "bias": "long",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -29,13 +29,13 @@
           "cot": "bearish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "bearish"
         }
       },
       "verdict": {
-        "bias_match": false,
-        "bias_only_match": false,
+        "bias_match": true,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -70,8 +70,8 @@
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "bearish",
+          "valuation": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -106,20 +106,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -190,20 +190,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bearish",
-          "seasonality": "bearish",
+          "valuation": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -232,20 +232,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
-          "seasonality": "bullish",
+          "valuation": "bearish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -365,7 +365,7 @@
           "cot": "bearish",
           "cot_strength": "normal",
           "valuation": "neutral",
-          "seasonality": "bearish",
+          "seasonality": "neutral",
           "constituent": "bearish"
         }
       },
@@ -394,7 +394,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Microsoft coming from overvalued, now at mean \u2014 still room to run.",
+        "reasoning": "Microsoft coming from overvalued, now at mean \u00e2\u20ac\u201d still room to run.",
         "source_quote": "Microsoft is coming from overvalued, but now I also around the mean ... still most probably go further"
       },
       "system": {
@@ -406,8 +406,8 @@
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
-          "seasonality": "neutral",
+          "valuation": "bearish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -442,20 +442,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -484,20 +484,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
-          "seasonality": "bullish",
+          "valuation": "bearish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -533,7 +533,7 @@
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bearish",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -575,7 +575,7 @@
           "cot": "bearish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "neutral",
           "constituent": "bearish"
         }
       },
@@ -604,7 +604,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Bonds rallying alongside equities \u2014 valuation not turning overvalued; no short setup.",
+        "reasoning": "Bonds rallying alongside equities \u00e2\u20ac\u201d valuation not turning overvalued; no short setup.",
         "source_quote": "right now, I just don't see the short coming. ... we need the help of other Treasury bonds"
       },
       "system": {
@@ -700,7 +700,7 @@
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -862,7 +862,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "uptrend",
@@ -875,7 +875,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -911,7 +911,7 @@
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -946,20 +946,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -988,20 +988,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bearish",
-          "seasonality": "bearish",
+          "valuation": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1072,20 +1072,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "short",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "bearish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": false,
         "entry_close": null,
         "stop_close": null,
@@ -1118,10 +1118,10 @@
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
-          "cot": "bullish",
-          "cot_strength": "strong",
+          "cot": "neutral",
+          "cot_strength": "none",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -1159,11 +1159,11 @@
         "bias_only": "long",
         "bias_components": {
           "location": "bullish",
-          "trend": "downtrend",
+          "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -1202,10 +1202,10 @@
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
-          "cot": "bullish",
-          "cot_strength": "strong",
+          "cot": "neutral",
+          "cot_strength": "none",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -1240,20 +1240,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
-          "valuation": "neutral",
+          "valuation": "bearish",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1282,20 +1282,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "short",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "bearish",
           "cot_strength": "normal",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1330,8 +1330,8 @@
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bearish",
-          "seasonality": "bullish",
+          "valuation": "neutral",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -1402,13 +1402,13 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "High-quality monthly demand and undervalued \u2014 picture-perfect level into a strong April.",
+        "reasoning": "High-quality monthly demand and undervalued \u00e2\u20ac\u201d picture-perfect level into a strong April.",
         "source_quote": "still high quality monthly demand and we are undervalued is there any picture picture picture perfect lever"
       },
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
@@ -1421,7 +1421,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1457,7 +1457,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -1492,20 +1492,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "short",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1541,7 +1541,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -1583,7 +1583,7 @@
           "cot": "bullish",
           "cot_strength": "normal",
           "valuation": "neutral",
-          "seasonality": "bullish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -1612,26 +1612,26 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Nice flip level \u2014 only trade idea remaining for these stocks.",
+        "reasoning": "Nice flip level \u00e2\u20ac\u201d only trade idea remaining for these stocks.",
         "source_quote": "Google is also nice flip level, a really good level here on Google... the only trade idea that we have for these stocks."
       },
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bearish",
-          "seasonality": "bullish",
+          "valuation": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1676,7 +1676,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Dow overvalued \u2014 not healthy for longs; rather focus on Nasdaq.",
+        "reasoning": "Dow overvalued \u00e2\u20ac\u201d not healthy for longs; rather focus on Nasdaq.",
         "source_quote": "I want to just see here on the valuation, we are overvalued, this is of course not healthy on the Dow"
       },
       "system": {
@@ -1689,7 +1689,7 @@
           "cot": "bearish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -1735,7 +1735,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "long",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -1758,7 +1758,7 @@
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -1872,7 +1872,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
@@ -1885,7 +1885,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1930,26 +1930,26 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Not overvalued, very nice demand zone (also weekly) \u2014 ready to go long.",
+        "reasoning": "Not overvalued, very nice demand zone (also weekly) \u00e2\u20ac\u201d ready to go long.",
         "source_quote": "and video also not overvalued yet we are moving higher you see now this is really nice demand zone here definitely ready to go long"
       },
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bearish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -1978,20 +1978,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "downtrend",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -2014,7 +2014,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Dow overvalued \u2014 not shorting indices, waiting for retracement.",
+        "reasoning": "Dow overvalued \u00e2\u20ac\u201d not shorting indices, waiting for retracement.",
         "source_quote": "Dow. So maybe that and we are overvalued... I'm not, I'm not going to short the indices."
       },
       "system": {
@@ -2098,7 +2098,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Commercials getting more bullish, retailers getting bearish \u2014 perfect setup.",
+        "reasoning": "Commercials getting more bullish, retailers getting bearish \u00e2\u20ac\u201d perfect setup.",
         "source_quote": "commercials are smart money is getting more bullish and even the retailers are getting bearish this is like the perfect setup"
       },
       "system": {
@@ -2146,13 +2146,13 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
@@ -2182,7 +2182,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Behaves similar to last August \u2014 level on top of level scenario.",
+        "reasoning": "Behaves similar to last August \u00e2\u20ac\u201d level on top of level scenario.",
         "source_quote": "level on top of level scenario here I'm even tempted I'm even tempted to see"
       },
       "system": {
@@ -2314,20 +2314,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "neutral",
+          "valuation": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": false,
         "entry_close": null,
         "stop_close": null,
@@ -2363,7 +2363,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -2392,26 +2392,26 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Similar to gold \u2014 undervalued, expecting break to new highs by mid/end October.",
+        "reasoning": "Similar to gold \u00e2\u20ac\u201d undervalued, expecting break to new highs by mid/end October.",
         "source_quote": "What do we expect for silver similar to gold... I have no doubt that this will break to new highs"
       },
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "neutral",
+          "valuation": "bearish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -2434,7 +2434,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Daily bearish engulfing on S&P but valuation not yet overvalued \u2014 rule one: valuation.",
+        "reasoning": "Daily bearish engulfing on S&P but valuation not yet overvalued \u00e2\u20ac\u201d rule one: valuation.",
         "source_quote": "we have on the SMP a crazy daily... rule number one, valuation and then we can see and then I want to engage."
       },
       "system": {
@@ -2482,7 +2482,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "uptrend",
@@ -2495,7 +2495,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -2518,7 +2518,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Valuation not aligned for short \u2014 rule one is valuation.",
+        "reasoning": "Valuation not aligned for short \u00e2\u20ac\u201d rule one is valuation.",
         "source_quote": "if valuation is seen not in line, I'm just not allowed to go short. Me personally"
       },
       "system": {
@@ -2573,7 +2573,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -2650,20 +2650,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "bearish",
           "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -2783,7 +2783,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -2818,20 +2818,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
           "cot": "bullish",
           "cot_strength": "normal",
-          "valuation": "bullish",
-          "seasonality": "neutral",
+          "valuation": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -2944,7 +2944,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
@@ -2957,7 +2957,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -2980,7 +2980,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Retailers extremely bearish \u2014 historic confluence; weekly demand setting up for blind buy.",
+        "reasoning": "Retailers extremely bearish \u00e2\u20ac\u201d historic confluence; weekly demand setting up for blind buy.",
         "source_quote": "weekly, love to see price in that weekly, and then just buy... do a very tight stop here"
       },
       "system": {
@@ -3022,7 +3022,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Trend-follow once price comes back into a level \u2014 expecting new ATH.",
+        "reasoning": "Trend-follow once price comes back into a level \u00e2\u20ac\u201d expecting new ATH.",
         "source_quote": "once this goes higher then we discussed the new all time highs basically"
       },
       "system": {
@@ -3077,7 +3077,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
-          "seasonality": "bullish",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -3238,7 +3238,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
@@ -3251,7 +3251,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -3286,7 +3286,7 @@
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
@@ -3364,20 +3364,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
+          "valuation": "bullish",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -3412,8 +3412,8 @@
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "bearish",
+          "valuation": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -3532,14 +3532,14 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "short",
         "bias_components": {
           "location": "bearish",
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -3627,7 +3627,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
@@ -3640,7 +3640,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -3705,7 +3705,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "End-of-year rally \u2014 wait for retracement back into demand to go long.",
+        "reasoning": "End-of-year rally \u00e2\u20ac\u201d wait for retracement back into demand to go long.",
         "source_quote": "If we get a retracement back down in here on gold... we're going to go long"
       },
       "system": {
@@ -3717,7 +3717,7 @@
           "trend": "uptrend",
           "cot": "bearish",
           "cot_strength": "normal",
-          "valuation": "neutral",
+          "valuation": "bearish",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -3753,7 +3753,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
@@ -3766,7 +3766,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -3789,7 +3789,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Weekly demand and undervalued \u2014 every time undervalued nice moves on Baba.",
+        "reasoning": "Weekly demand and undervalued \u00e2\u20ac\u201d every time undervalued nice moves on Baba.",
         "source_quote": "Weekly demand and you see we are undervalued. And every time we are undervalued"
       },
       "system": {
@@ -3840,7 +3840,7 @@
         "bias_only": "long",
         "bias_components": {
           "location": "bullish",
-          "trend": "uptrend",
+          "trend": "downtrend",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
@@ -3868,30 +3868,30 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "long",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "First time extreme COT plus seasonal low \u2014 slowly approaching bottom.",
+        "reasoning": "First time extreme COT plus seasonal low \u00e2\u20ac\u201d slowly approaching bottom.",
         "source_quote": "first time you see here in an extreme plus seasonal law"
       },
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
-          "cot": "neutral",
-          "cot_strength": "none",
+          "cot": "bullish",
+          "cot_strength": "strong",
           "valuation": "neutral",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -3915,7 +3915,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "COT setting up nicely \u2014 smart money commercials getting bullish.",
+        "reasoning": "COT setting up nicely \u00e2\u20ac\u201d smart money commercials getting bullish.",
         "source_quote": "COT in particular on cotton is really setting up... the commercials here you also see what happens they're getting [bullish]."
       },
       "system": {
@@ -4053,7 +4053,7 @@
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
+          "valuation": "bullish",
           "seasonality": "bullish",
           "constituent": "neutral"
         }
@@ -4092,7 +4092,7 @@
         "bias_only": "long",
         "bias_components": {
           "location": "bullish",
-          "trend": "uptrend",
+          "trend": "downtrend",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
@@ -4179,7 +4179,7 @@
           "trend": "downtrend",
           "cot": "bullish",
           "cot_strength": "strong",
-          "valuation": "neutral",
+          "valuation": "bullish",
           "seasonality": "bullish",
           "constituent": "neutral"
         }
@@ -4218,7 +4218,7 @@
         "bias_only": "long",
         "bias_components": {
           "location": "bullish",
-          "trend": "uptrend",
+          "trend": "downtrend",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
@@ -4251,7 +4251,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Fundamentals horrible \u2014 retailers bullish, commercials bearish; no buy.",
+        "reasoning": "Fundamentals horrible \u00e2\u20ac\u201d retailers bullish, commercials bearish; no buy.",
         "source_quote": "based on these fundamentals I would not buy."
       },
       "system": {
@@ -4263,7 +4263,7 @@
           "trend": "uptrend",
           "cot": "bearish",
           "cot_strength": "strong",
-          "valuation": "neutral",
+          "valuation": "bearish",
           "seasonality": "bullish",
           "constituent": "neutral"
         }
@@ -4293,7 +4293,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Retailers super bullish, smart money bearish \u2014 no trade despite undervalued.",
+        "reasoning": "Retailers super bullish, smart money bearish \u00e2\u20ac\u201d no trade despite undervalued.",
         "source_quote": "the fundamentals are really, really bad... there's no trade for me."
       },
       "system": {
@@ -4335,26 +4335,26 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Same retailer-bullish problem as gold \u2014 no trade.",
+        "reasoning": "Same retailer-bullish problem as gold \u00e2\u20ac\u201d no trade.",
         "source_quote": "the same is applicable here on silver, the retailers. They're just screaming long."
       },
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "short",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
           "cot": "bearish",
           "cot_strength": "strong",
-          "valuation": "neutral",
+          "valuation": "bullish",
           "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": true,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -4377,7 +4377,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Cotton may come down \u2014 bearish trade idea in agricultural markets.",
+        "reasoning": "Cotton may come down \u00e2\u20ac\u201d bearish trade idea in agricultural markets.",
         "source_quote": "cotton might come down."
       },
       "system": {
@@ -4419,7 +4419,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Beginning-of-January trade idea \u2014 Apple is the long pick.",
+        "reasoning": "Beginning-of-January trade idea \u00e2\u20ac\u201d Apple is the long pick.",
         "source_quote": "I like to look at Apple, and Apple is compared to some other stocks and also to NASDAQ"
       },
       "system": null,
@@ -4453,7 +4453,7 @@
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -4538,7 +4538,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -4580,7 +4580,7 @@
           "cot": "bearish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -4621,7 +4621,7 @@
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
+          "valuation": "bullish",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -4651,7 +4651,7 @@
         "entry": null,
         "stop": null,
         "target": null,
-        "reasoning": "Reacting from weekly demand; retailers bullish, getting undervalued \u2014 expecting downside.",
+        "reasoning": "Reacting from weekly demand; retailers bullish, getting undervalued \u00e2\u20ac\u201d expecting downside.",
         "source_quote": "we are reacting from that weekly zone retailers now getting bullish we would expect a move to the downside."
       },
       "system": {
@@ -4699,7 +4699,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
@@ -4789,8 +4789,8 @@
           "trend": "uptrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bearish",
-          "seasonality": "bullish",
+          "valuation": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -4867,7 +4867,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "short",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
@@ -4880,7 +4880,7 @@
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -4898,7 +4898,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "long",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -4909,7 +4909,7 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "short",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
@@ -4921,7 +4921,7 @@
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -5024,7 +5024,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "short",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -5047,7 +5047,7 @@
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -5126,7 +5126,7 @@
           "cot": "bearish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -5150,7 +5150,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "short",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -5173,7 +5173,7 @@
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -5192,7 +5192,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "short",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -5215,7 +5215,7 @@
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -5234,7 +5234,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "long",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -5251,13 +5251,13 @@
           "trend": "sideways",
           "cot": "bearish",
           "cot_strength": "strong",
-          "valuation": "bearish",
-          "seasonality": "neutral",
+          "valuation": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -5276,7 +5276,7 @@
       "htf": "1wk",
       "ltf": "1d",
       "bernd": {
-        "bias": "long",
+        "bias": "neutral",
         "zone_level": null,
         "entry": null,
         "stop": null,
@@ -5287,19 +5287,19 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "short",
         "bias_components": {
           "location": "neutral",
           "trend": "downtrend",
           "cot": "bearish",
           "cot_strength": "normal",
           "valuation": "bearish",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
-        "bias_match": false,
+        "bias_match": true,
         "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
@@ -5377,7 +5377,7 @@
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -5419,7 +5419,7 @@
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -5461,7 +5461,7 @@
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "neutral",
+          "valuation": "bullish",
           "seasonality": "neutral",
           "constituent": "neutral"
         }
@@ -5545,8 +5545,8 @@
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "bearish",
+          "valuation": "neutral",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -5587,8 +5587,8 @@
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "bearish",
+          "valuation": "neutral",
+          "seasonality": "neutral",
           "constituent": "neutral"
         }
       },
@@ -5623,20 +5623,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -5665,20 +5665,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -5714,7 +5714,7 @@
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -5756,7 +5756,7 @@
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -5836,11 +5836,11 @@
         "bias_only": "long",
         "bias_components": {
           "location": "bullish",
-          "trend": "downtrend",
+          "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -5878,11 +5878,11 @@
         "bias_only": "long",
         "bias_components": {
           "location": "bullish",
-          "trend": "downtrend",
+          "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -6001,20 +6001,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bearish",
-          "seasonality": "bullish",
+          "valuation": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -6050,7 +6050,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -6092,7 +6092,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -6134,7 +6134,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -6176,7 +6176,7 @@
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
@@ -6211,20 +6211,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "bullish",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
-          "seasonality": "neutral",
+          "valuation": "bearish",
+          "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -6253,20 +6253,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "short",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -6295,20 +6295,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "short",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -6337,20 +6337,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "short",
+        "bias_only": "long",
         "bias_components": {
           "location": "bearish",
           "trend": "sideways",
           "cot": "bullish",
           "cot_strength": "strong",
           "valuation": "neutral",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -6428,7 +6428,7 @@
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "neutral",
-          "seasonality": "neutral",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
@@ -6463,20 +6463,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "neutral",
+        "bias_only": "long",
         "bias_components": {
           "location": "bullish",
           "trend": "downtrend",
           "cot": "neutral",
           "cot_strength": "none",
           "valuation": "bullish",
-          "seasonality": "bearish",
+          "seasonality": "bullish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": false,
+        "bias_only_match": true,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,
@@ -6505,20 +6505,20 @@
       "system": {
         "direction": "neutral",
         "no_signal_reason": "no qualified zone or bias mismatch (bias_only shows directional analysis)",
-        "bias_only": "long",
+        "bias_only": "neutral",
         "bias_components": {
           "location": "neutral",
           "trend": "sideways",
           "cot": "neutral",
           "cot_strength": "none",
-          "valuation": "bullish",
+          "valuation": "neutral",
           "seasonality": "bearish",
           "constituent": "neutral"
         }
       },
       "verdict": {
         "bias_match": false,
-        "bias_only_match": true,
+        "bias_only_match": false,
         "zone_match": null,
         "entry_close": null,
         "stop_close": null,

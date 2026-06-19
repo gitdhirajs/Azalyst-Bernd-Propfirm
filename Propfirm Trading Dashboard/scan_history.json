@@ -675,1314 +675,152 @@
     ]
   },
   {
-    "scan_time": "2026-05-30T10:18:38.086317",
-    "strategy": "daily",
+    "scan_time": "2026-06-03T18:38:47.703483",
+    "strategy": "weekly",
     "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 1,
+    "signals_found": 5,
+    "auto_traded": 3,
     "account_balance": 100000.0,
     "closed_pnl": 0.0,
     "win_rate": 0.0,
     "total_trades": 0,
     "signals_summary": [
       {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-30T14:05:41.166674",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-30T17:30:51.280876",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-30T21:15:29.395432",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-31T04:52:34.026157",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-31T10:25:04.189472",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-31T14:12:02.794121",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-31T17:31:13.469927",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-05-31T21:15:59.549509",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "USDTRY=X",
-        "direction": "short",
-        "entry": 45.826069,
-        "composite": 8.4
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-01T05:16:55.335288",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-01T13:48:19.064550",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 1,
-    "account_balance": 100000.0,
-    "closed_pnl": 0.0,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "CRM",
+        "symbol": "EURCHF=X",
         "direction": "long",
-        "entry": 182.479996,
-        "composite": 10.1
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-01T20:35:50.856363",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 2,
-    "auto_traded": 2,
-    "account_balance": 100000.0,
-    "closed_pnl": 999.65,
-    "win_rate": 0.0,
-    "total_trades": 1,
-    "signals_summary": [
-      {
-        "symbol": "CRM",
-        "direction": "long",
-        "entry": 182.479996,
-        "composite": 10.1
+        "entry": 0.914874,
+        "composite": 7.8
       },
       {
-        "symbol": "ADBE",
+        "symbol": "GBPCHF=X",
         "direction": "long",
-        "entry": 244.759995,
-        "composite": 9.6
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-02T05:01:10.275303",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 2,
-    "auto_traded": 1,
-    "account_balance": 105478.95,
-    "closed_pnl": 5478.95,
-    "win_rate": 0.5,
-    "total_trades": 2,
-    "signals_summary": [
-      {
-        "symbol": "CRM",
-        "direction": "long",
-        "entry": 182.479996,
-        "composite": 10.1
+        "entry": 1.060509,
+        "composite": 7.05
       },
       {
-        "symbol": "ADBE",
-        "direction": "long",
-        "entry": 244.759995,
-        "composite": 9.6
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-02T12:16:01.387660",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 2,
-    "auto_traded": 0,
-    "account_balance": 105478.95,
-    "closed_pnl": 6532.34,
-    "win_rate": 0.5,
-    "total_trades": 2,
-    "signals_summary": [
-      {
-        "symbol": "CRM",
-        "direction": "long",
-        "entry": 182.479996,
-        "composite": 10.1
+        "symbol": "USDHKD=X",
+        "direction": "short",
+        "entry": 7.824778,
+        "composite": 4.5
       },
       {
-        "symbol": "ADBE",
+        "symbol": "USDPLN=X",
         "direction": "long",
-        "entry": 244.759995,
-        "composite": 9.6
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-02T16:57:49.684952",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108057.65,
-    "closed_pnl": 8057.65,
-    "win_rate": 0.75,
-    "total_trades": 4,
-    "signals_summary": [
+        "entry": 3.6603,
+        "composite": 8.5
+      },
       {
-        "symbol": "CRM",
+        "symbol": "NG=F",
         "direction": "long",
-        "entry": 182.479996,
+        "entry": 2.823,
         "composite": 9.8
       }
     ]
   },
   {
-    "scan_time": "2026-06-02T22:28:36.231766",
-    "strategy": "daily",
+    "scan_time": "2026-06-08T17:32:57.170850",
+    "strategy": "weekly",
     "watchlist_scanned": 114,
-    "signals_found": 0,
+    "signals_found": 2,
     "auto_traded": 0,
-    "account_balance": 108057.65,
-    "closed_pnl": 8057.65,
-    "win_rate": 0.75,
-    "total_trades": 4,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-03T05:17:52.902684",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108057.65,
-    "closed_pnl": 8057.65,
-    "win_rate": 0.75,
-    "total_trades": 4,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-03T12:51:15.093654",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108057.65,
-    "closed_pnl": 8057.65,
-    "win_rate": 0.75,
-    "total_trades": 4,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-03T19:58:19.486307",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-03T22:33:48.202516",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-04T05:05:52.400569",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-04T11:26:31.290093",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-04T15:45:00.289405",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-04T18:30:02.294411",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-04T21:54:08.672540",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-05T04:48:07.865553",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-05T11:36:39.751671",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-05T15:29:15.135458",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-05T18:10:59.971481",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 1,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
     "signals_summary": [
       {
-        "symbol": "EURCAD=X",
+        "symbol": "USDMXN=X",
         "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.7
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-05T21:44:29.270045",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 1,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
+        "entry": 17.235846,
+        "composite": 9.1
+      },
       {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.7
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-06T04:20:34.002555",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 1,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
+        "symbol": "NG=F",
+        "direction": "long",
+        "entry": 2.823,
         "composite": 9.5
       }
     ]
   },
   {
-    "scan_time": "2026-06-06T10:22:38.727753",
-    "strategy": "daily",
+    "scan_time": "2026-06-17T13:14:35.829862",
+    "strategy": "monthly",
     "watchlist_scanned": 114,
-    "signals_found": 1,
+    "signals_found": 3,
     "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
     "signals_summary": [
       {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
+        "symbol": "NG=F",
+        "direction": "long",
+        "entry": 3.391388,
+        "composite": 8.6
+      },
+      {
+        "symbol": "CT=F",
+        "direction": "long",
+        "entry": 63.253189,
+        "composite": 9.2
+      },
+      {
+        "symbol": "CRM",
+        "direction": "long",
+        "entry": 160.75,
+        "composite": 8.6
       }
     ]
   },
   {
-    "scan_time": "2026-06-06T14:08:20.103405",
-    "strategy": "daily",
+    "scan_time": "2026-06-17T13:14:35.829862",
+    "strategy": "weekly",
     "watchlist_scanned": 114,
     "signals_found": 1,
     "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
     "signals_summary": [
       {
-        "symbol": "EURCAD=X",
+        "symbol": "AUDUSD=X",
         "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
+        "entry": 0.716885,
+        "composite": 7.3
       }
     ]
   },
   {
-    "scan_time": "2026-06-06T17:35:33.195029",
+    "scan_time": "2026-06-17T13:43:06.652346",
     "strategy": "daily",
+    "watchlist_scanned": 114,
+    "signals_found": 0,
+    "auto_traded": 0,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": []
+  },
+  {
+    "scan_time": "2026-06-17T16:46:27.613588",
+    "strategy": "weekly",
     "watchlist_scanned": 114,
     "signals_found": 1,
     "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
     "signals_summary": [
       {
-        "symbol": "EURCAD=X",
+        "symbol": "AUDUSD=X",
         "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
+        "entry": 0.716885,
+        "composite": 7.3
       }
     ]
-  },
-  {
-    "scan_time": "2026-06-06T21:18:52.208167",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-07T04:56:42.052043",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-07T10:36:48.811064",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-07T14:21:04.227728",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-07T17:41:09.733913",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-07T21:36:38.169136",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.7
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-08T05:02:14.453638",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 1,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": [
-      {
-        "symbol": "EURCAD=X",
-        "direction": "short",
-        "entry": 1.60802,
-        "composite": 9.5
-      }
-    ]
-  },
-  {
-    "scan_time": "2026-06-08T12:42:59.477633",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-08T18:35:57.523532",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-08T22:01:59.677709",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-09T04:36:05.938163",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-09T11:31:49.560700",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-09T15:28:01.258988",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-09T18:21:25.855000",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-09T21:59:31.276158",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-10T04:49:30.310581",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-10T11:48:35.710638",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-10T16:09:19.947889",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-10T18:42:36.929279",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-10T22:20:44.952469",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-11T04:59:25.848163",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-11T12:18:29.560733",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-11T19:13:18.810126",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-11T22:17:02.063012",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-12T05:04:28.496348",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 108584.34,
-    "closed_pnl": 8584.34,
-    "win_rate": 0.8,
-    "total_trades": 5,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-12T11:53:34.555400",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-12T15:40:02.784706",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-12T18:20:24.265105",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-12T22:01:19.720211",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-13T04:52:13.445063",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-13T10:39:05.490503",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-13T14:27:11.955349",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-13T17:45:56.312072",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-13T21:38:48.612508",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-14T05:08:35.938173",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-14T11:09:11.142967",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-14T14:29:11.071435",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-14T17:48:36.264775",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-14T21:40:36.781758",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-15T05:28:36.855266",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-15T14:35:37.585195",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-15T19:56:37.461384",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-15T22:29:21.499013",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-16T05:34:25.290763",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-16T13:04:48.069250",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-16T19:50:45.200669",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-16T22:22:37.612431",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-17T05:17:17.794194",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-17T12:31:04.561805",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-17T18:35:32.240141",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-17T22:14:43.812318",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-18T05:02:51.045795",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-18T11:58:13.645656",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-18T15:55:35.800499",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-18T18:36:31.576960",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-18T22:25:41.210711",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-19T05:25:30.350026",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
-  },
-  {
-    "scan_time": "2026-06-19T12:18:16.591472",
-    "strategy": "daily",
-    "watchlist_scanned": 114,
-    "signals_found": 0,
-    "auto_traded": 0,
-    "account_balance": 105349.06,
-    "closed_pnl": 5349.06,
-    "win_rate": 0.5,
-    "total_trades": 8,
-    "signals_summary": []
   }
 ]
