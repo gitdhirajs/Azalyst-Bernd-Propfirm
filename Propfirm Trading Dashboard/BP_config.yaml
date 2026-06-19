@@ -83,7 +83,7 @@ instrument_specs:
 #   Crypto entries are pinned to ['daily'] only -- weekly bars on crypto
 #   are too few/volatile to be meaningful per the methodology audit.
 # ------------------------------------------------------------
-active_strategy: "daily"
+active_strategy: "weekly"
 default_strategies: ["weekly", "daily"]
 
 watchlist:

@@ -49,7 +49,8 @@ jobs:
 
       - name: Run scanner (headless)
         working-directory: Propfirm Trading Dashboard
-        run: python run_scanner.py --no-open
+        run: python run_scanner.py --no-open --strategy weekly
+        # --strategy weekly: Bernd's PRIMARY income strategy (HTF=1wk, LTF=1d).
         # --no-open skips the browser launch + dashboard HTTP server.
         # The scanner writes scan_results.json, scan_history.json, and
         # paper_trader_state.json on disk; the next step picks them up.
