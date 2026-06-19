@@ -411,31 +411,31 @@ class RulesEngine:
             logger.info(f"[{symbol}] Decision matrix: equilibrium + sideways -> no edge, skip")
             return None
 
-        # == STEP 5: Entry Trigger (a candlestick pattern at the zone is required) ==
+        # == STEP 5: Entry Trigger ==
+        # Phase 44 (true-clone redesign): Bernd places E1 PENDING LIMIT ORDERS
+        # at zone proximal without waiting for price to arrive or a candle pattern.
+        # Rule #4 ("never anticipate a zone") means never trade before the zone
+        # FORMS — it does NOT mean wait for price to arrive before placing the order.
+        # The old "if not in_zone: return None" gate was blocking 80%+ of real
+        # Bernd trades. Now we always fire E1 when a qualified zone exists, marking
+        # pending vs immediate so the paper trader and dashboard can distinguish.
         pattern_signal = self._check_entry_pattern(ltf_df, best_zone)
-        if pattern_signal is None:
-            # Fall back to a "zone limit" entry only when the most recent
-            # candle is sitting inside the zone -- otherwise the trade is
-            # premature and we wait. This honours rule #4 ("never anticipate").
-            last = ltf_df.iloc[-1]
-            zone_dir_str = best_zone['zone_type']
-            in_zone = (
-                zone_dir_str == 'demand'
-                and last['low']  <= best_zone['proximal']
-                and last['low']  >= best_zone['distal']
-            ) or (
-                zone_dir_str == 'supply'
-                and last['high'] >= best_zone['proximal']
-                and last['high'] <= best_zone['distal']
-            )
-            if not in_zone:
-                logger.info(f"[{symbol}] Price has not arrived at zone yet -- no signal")
-                return None
 
-            # Entry style per textbook Ch 6:
-            #   Entry 1 (proximal):  limit at proximal -- always fills, deeper drawdown
-            #   Entry 2 (midpoint):  limit at 50% of zone -- better R:R, may miss
-            # Default = proximal; flip to midpoint when prefer_midpoint_entry.
+        last = ltf_df.iloc[-1]
+        zone_dir_str = best_zone['zone_type']
+        in_zone = (
+            zone_dir_str == 'demand'
+            and last['low']  <= best_zone['proximal']
+            and last['low']  >= best_zone['distal']
+        ) or (
+            zone_dir_str == 'supply'
+            and last['high'] >= best_zone['proximal']
+            and last['high'] <= best_zone['distal']
+        )
+
+        if pattern_signal is None:
+            # E1/E2: limit order at zone proximal (pending if price not yet there,
+            # immediate fill if price is inside the zone).
             zone_height = abs(best_zone['proximal'] - best_zone['distal'])
             if zone_dir_str == 'demand':
                 entry = (best_zone['proximal'] + best_zone['distal']) / 2.0 if prefer_midpoint_entry else best_zone['proximal']
@@ -446,6 +446,8 @@ class RulesEngine:
                 stop = best_zone['distal'] + 0.33 * zone_height
                 direction = 'short'
             targets = self._calculate_targets(entry, stop, direction)
+            _entry_type = 'E2' if prefer_midpoint_entry else 'E1'
+            _pending_order = not in_zone
         else:
             entry = pattern_signal['entry_price']
             stop = pattern_signal['stop_price']
@@ -455,6 +457,8 @@ class RulesEngine:
                 pattern_signal['target_r2'],
                 pattern_signal['target_r3']
             ]
+            _entry_type = 'E3b'
+            _pending_order = False
 
         # == STEP 6: Trade Management ==
         # Determine trade context for position-size adjustment.
@@ -548,6 +552,9 @@ class RulesEngine:
         signal = {
             'symbol': symbol,
             'direction': direction,
+            'entry_type': _entry_type,           # E1/E2 (pending limit) or E3b (pattern confirmed)
+            'pending_order': _pending_order,     # True = price hasn't reached zone yet
+            'price_at_zone': in_zone,            # True = price currently inside zone
             'entry_price': round(entry, 6),
             'stop_price': round(stop, 6),
             'targets': [round(t, 6) for t in targets],
@@ -2029,8 +2036,22 @@ class RulesEngine:
                 if cot_fires:
                     # The Valuation veto still applies (Rule #1): if val actively
                     # opposes the COT direction, return hold.
+                    # Phase 43 Fix-B: Exception for precious_metals — val=bearish veto
+                    # is NOT applied when COT-is-king fires bullish for Gold/Silver/Platinum.
+                    # Chapter 018 (Phase 41 chunk-3 frame audit): Bernd explicitly states
+                    # PM Valuation accuracy is "maybe even less than 50%".
+                    # Root cause: during rate-hike regimes ZB (30yr bonds) falls alongside
+                    # Gold, producing a spurious "overvalued vs bonds" reading even as
+                    # Commercials accumulate (the bond-induced Valuation freeze, Phase 7).
+                    # Same principle as Phase 42 Silver Fix-4 — extended to all PMs under
+                    # COT-king. Fix-1 (line below) already prevents PM bearish signals.
                     if cot_direction == 'bullish' and val == 'bearish':
-                        return 'hold'
+                        if asset_class != 'precious_metals':
+                            return 'hold'
+                        logger.info(
+                            "Phase 43 Fix-B: PM val=bearish not vetoing COT-is-king "
+                            "(Ch.018: PM Valuation <50% accurate; bond-induced freeze)"
+                        )
                     if cot_direction == 'bearish' and val == 'bullish':
                         return 'hold'
                     logger.info(
