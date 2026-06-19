@@ -1,7 +1,7 @@
 {
   "balance": 100000.0,
   "initial_balance": 100000.0,
-  "closed_pnl_total": 0.0,
+  "closed_pnl_total": 997.3630120180536,
   "total_trades": 0,
   "winning_trades": 0,
   "losing_trades": 0,
@@ -10,7 +10,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 100000.0,
-  "current_date": "2026-06-17",
+  "current_date": "2026-06-19",
   "account_blown": false,
   "zone_memory": {},
   "open_positions": [
@@ -20,22 +20,22 @@
       "direction": "long",
       "entry_price": 0.914874,
       "stop_price": 0.910396,
-      "current_stop": 0.914874,
+      "current_stop": 0.9213220254631043,
       "targets": [
         0.919352,
         0.923831,
         0.928309
       ],
-      "position_size": 222700.237137,
+      "position_size": 111350.1185685,
       "risk_amount": 997.25,
       "entry_time": "2026-06-03T18:52:48.581991",
       "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
+      "realized_pnl": 997.3630120180536,
+      "partial_taken": true,
+      "partial_qty": 111350.1185685,
+      "partial_price": 0.923831,
       "breakeven_triggered": true,
-      "trail_stop_level": null,
+      "trail_stop_level": 0.9213220254631043,
       "zone_id": "1a828214c2",
       "close_time": null,
       "close_price": null,
@@ -100,5 +100,5 @@
     }
   ],
   "trade_history": [],
-  "saved_at": "2026-06-17T17:04:21.548233"
+  "saved_at": "2026-06-19T19:07:50.036274"
 }
