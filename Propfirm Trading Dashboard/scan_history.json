@@ -834,5 +834,534 @@
     "win_rate": 0.0,
     "total_trades": 0,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-06-20T04:51:48.875307",
+    "strategy": "daily",
+    "watchlist_scanned": 167,
+    "signals_found": 86,
+    "auto_traded": 2,
+    "account_balance": 106769.25,
+    "closed_pnl": 6769.25,
+    "win_rate": 1.0,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "AUDCHF=X",
+        "direction": "short",
+        "entry": 0.59301,
+        "composite": 5.8
+      },
+      {
+        "symbol": "USDSEK=X",
+        "direction": "short",
+        "entry": 10.62337,
+        "composite": 5.7
+      },
+      {
+        "symbol": "GC=F",
+        "direction": "long",
+        "entry": 2708.5,
+        "composite": 9.3
+      },
+      {
+        "symbol": "SI=F",
+        "direction": "long",
+        "entry": 23.763,
+        "composite": 10.3
+      },
+      {
+        "symbol": "PL=F",
+        "direction": "long",
+        "entry": 1015.400024,
+        "composite": 8.8
+      },
+      {
+        "symbol": "PA=F",
+        "direction": "long",
+        "entry": 1430.5,
+        "composite": 8.6
+      },
+      {
+        "symbol": "NG=F",
+        "direction": "long",
+        "entry": 2.197,
+        "composite": 9.4
+      },
+      {
+        "symbol": "HO=F",
+        "direction": "long",
+        "entry": 2.256,
+        "composite": 10.3
+      },
+      {
+        "symbol": "CT=F",
+        "direction": "short",
+        "entry": 81.599998,
+        "composite": 9.5
+      },
+      {
+        "symbol": "KC=F",
+        "direction": "long",
+        "entry": 209.300003,
+        "composite": 9.6
+      },
+      {
+        "symbol": "RTY=F",
+        "direction": "long",
+        "entry": 2554.800049,
+        "composite": 9.4
+      },
+      {
+        "symbol": "ZB=F",
+        "direction": "long",
+        "entry": 120.40625,
+        "composite": 8.4
+      },
+      {
+        "symbol": "BTC-USD",
+        "direction": "long",
+        "entry": 42126.125,
+        "composite": 9.0
+      },
+      {
+        "symbol": "XRP-USD",
+        "direction": "long",
+        "entry": 0.519227,
+        "composite": 10.1
+      },
+      {
+        "symbol": "SOL-USD",
+        "direction": "long",
+        "entry": 32.776436,
+        "composite": 9.9
+      },
+      {
+        "symbol": "DOGE-USD",
+        "direction": "long",
+        "entry": 0.06011,
+        "composite": 9.5
+      },
+      {
+        "symbol": "MSFT",
+        "direction": "long",
+        "entry": 321.320007,
+        "composite": 9.9
+      },
+      {
+        "symbol": "NFLX",
+        "direction": "long",
+        "entry": 31.006001,
+        "composite": 10.0
+      },
+      {
+        "symbol": "ORCL",
+        "direction": "long",
+        "entry": 90.849998,
+        "composite": 9.5
+      },
+      {
+        "symbol": "CRM",
+        "direction": "long",
+        "entry": 149.600006,
+        "composite": 9.8
+      },
+      {
+        "symbol": "MA",
+        "direction": "long",
+        "entry": 329.470001,
+        "composite": 10.1
+      },
+      {
+        "symbol": "CVX",
+        "direction": "long",
+        "entry": 116.510002,
+        "composite": 10.3
+      },
+      {
+        "symbol": "UNH",
+        "direction": "long",
+        "entry": 281.359985,
+        "composite": 9.0
+      },
+      {
+        "symbol": "WMT",
+        "direction": "long",
+        "entry": 89.760002,
+        "composite": 8.95
+      },
+      {
+        "symbol": "COST",
+        "direction": "long",
+        "entry": 500.790009,
+        "composite": 10.1
+      },
+      {
+        "symbol": "GILD",
+        "direction": "long",
+        "entry": 70.809998,
+        "composite": 9.6
+      },
+      {
+        "symbol": "MRNA",
+        "direction": "long",
+        "entry": 25.01,
+        "composite": 9.7
+      },
+      {
+        "symbol": "LMT",
+        "direction": "long",
+        "entry": 365.179993,
+        "composite": 9.9
+      },
+      {
+        "symbol": "NOC",
+        "direction": "long",
+        "entry": 373.809998,
+        "composite": 9.3
+      },
+      {
+        "symbol": "NKE",
+        "direction": "long",
+        "entry": 62.490002,
+        "composite": 8.6
+      },
+      {
+        "symbol": "SPGI",
+        "direction": "long",
+        "entry": 319.309998,
+        "composite": 9.4
+      },
+      {
+        "symbol": "SLB",
+        "direction": "long",
+        "entry": 36.939999,
+        "composite": 10.1
+      },
+      {
+        "symbol": "OXY",
+        "direction": "long",
+        "entry": 29.190001,
+        "composite": 9.6
+      },
+      {
+        "symbol": "DVN",
+        "direction": "long",
+        "entry": 32.73,
+        "composite": 9.25
+      },
+      {
+        "symbol": "T",
+        "direction": "long",
+        "entry": 20.709999,
+        "composite": 10.3
+      },
+      {
+        "symbol": "SHOP",
+        "direction": "long",
+        "entry": 77.480003,
+        "composite": 10.1
+      },
+      {
+        "symbol": "COIN",
+        "direction": "long",
+        "entry": 109.25,
+        "composite": 9.5
+      },
+      {
+        "symbol": "PLTR",
+        "direction": "long",
+        "entry": 112.779999,
+        "composite": 9.7
+      },
+      {
+        "symbol": "UBER",
+        "direction": "long",
+        "entry": 48.139999,
+        "composite": 10.1
+      },
+      {
+        "symbol": "SMCI",
+        "direction": "long",
+        "entry": 7.94,
+        "composite": 9.5
+      },
+      {
+        "symbol": "NVO",
+        "direction": "long",
+        "entry": 54.625,
+        "composite": 8.8
+      },
+      {
+        "symbol": "BABA",
+        "direction": "long",
+        "entry": 86.099998,
+        "composite": 9.6
+      },
+      {
+        "symbol": "PDD",
+        "direction": "long",
+        "entry": 53.09,
+        "composite": 9.9
+      },
+      {
+        "symbol": "GBPUSD=X",
+        "direction": "long",
+        "entry": 1.259969,
+        "composite": 10.1
+      },
+      {
+        "symbol": "NZDUSD=X",
+        "direction": "long",
+        "entry": 0.562525,
+        "composite": 9.9
+      },
+      {
+        "symbol": "GBPCHF=X",
+        "direction": "short",
+        "entry": 1.13337,
+        "composite": 10.3
+      },
+      {
+        "symbol": "AUDCHF=X",
+        "direction": "short",
+        "entry": 0.57186,
+        "composite": 9.9
+      },
+      {
+        "symbol": "CHFJPY=X",
+        "direction": "long",
+        "entry": 194.048004,
+        "composite": 9.3
+      },
+      {
+        "symbol": "USDPLN=X",
+        "direction": "short",
+        "entry": 4.32698,
+        "composite": 9.9
+      },
+      {
+        "symbol": "USDSEK=X",
+        "direction": "short",
+        "entry": 10.45145,
+        "composite": 9.85
+      },
+      {
+        "symbol": "USDNOK=X",
+        "direction": "short",
+        "entry": 10.97919,
+        "composite": 10.3
+      },
+      {
+        "symbol": "GC=F",
+        "direction": "long",
+        "entry": 2664.800049,
+        "composite": 9.7
+      },
+      {
+        "symbol": "SI=F",
+        "direction": "long",
+        "entry": 23.459999,
+        "composite": 10.3
+      },
+      {
+        "symbol": "PL=F",
+        "direction": "long",
+        "entry": 1028.0,
+        "composite": 10.3
+      },
+      {
+        "symbol": "PA=F",
+        "direction": "long",
+        "entry": 911.0,
+        "composite": 10.0
+      },
+      {
+        "symbol": "HO=F",
+        "direction": "long",
+        "entry": 2.0687,
+        "composite": 9.6
+      },
+      {
+        "symbol": "RB=F",
+        "direction": "long",
+        "entry": 1.9089,
+        "composite": 9.9
+      },
+      {
+        "symbol": "ZS=F",
+        "direction": "long",
+        "entry": 1045.75,
+        "composite": 10.3
+      },
+      {
+        "symbol": "ZL=F",
+        "direction": "long",
+        "entry": 43.27,
+        "composite": 10.3
+      },
+      {
+        "symbol": "CT=F",
+        "direction": "long",
+        "entry": 76.589996,
+        "composite": 9.5
+      },
+      {
+        "symbol": "KC=F",
+        "direction": "long",
+        "entry": 201.5,
+        "composite": 10.3
+      },
+      {
+        "symbol": "NQ=F",
+        "direction": "long",
+        "entry": 19478.5,
+        "composite": 10.1
+      },
+      {
+        "symbol": "BTC-USD",
+        "direction": "long",
+        "entry": 58100.972656,
+        "composite": 10.3
+      },
+      {
+        "symbol": "XRP-USD",
+        "direction": "long",
+        "entry": 0.489721,
+        "composite": 10.3
+      },
+      {
+        "symbol": "AAPL",
+        "direction": "long",
+        "entry": 257.880005,
+        "composite": 10.0
+      },
+      {
+        "symbol": "META",
+        "direction": "long",
+        "entry": 303.820007,
+        "composite": 10.3
+      },
+      {
+        "symbol": "AMZN",
+        "direction": "long",
+        "entry": 131.430496,
+        "composite": 10.3
+      },
+      {
+        "symbol": "NFLX",
+        "direction": "long",
+        "entry": 57.956001,
+        "composite": 9.65
+      },
+      {
+        "symbol": "TSLA",
+        "direction": "long",
+        "entry": 198.470001,
+        "composite": 10.3
+      },
+      {
+        "symbol": "ORCL",
+        "direction": "long",
+        "entry": 127.360001,
+        "composite": 9.6
+      },
+      {
+        "symbol": "MA",
+        "direction": "long",
+        "entry": 369.619995,
+        "composite": 9.3
+      },
+      {
+        "symbol": "XOM",
+        "direction": "long",
+        "entry": 104.334999,
+        "composite": 9.6
+      },
+      {
+        "symbol": "CVX",
+        "direction": "long",
+        "entry": 167.240005,
+        "composite": 10.3
+      },
+      {
+        "symbol": "WMT",
+        "direction": "long",
+        "entry": 50.83337,
+        "composite": 9.7
+      },
+      {
+        "symbol": "COST",
+        "direction": "long",
+        "entry": 877.445007,
+        "composite": 10.3
+      },
+      {
+        "symbol": "BA",
+        "direction": "long",
+        "entry": 161.272507,
+        "composite": 10.3
+      },
+      {
+        "symbol": "MRK",
+        "direction": "long",
+        "entry": 104.050003,
+        "composite": 9.6
+      },
+      {
+        "symbol": "GILD",
+        "direction": "long",
+        "entry": 78.800003,
+        "composite": 10.3
+      },
+      {
+        "symbol": "LMT",
+        "direction": "long",
+        "entry": 440.359985,
+        "composite": 9.6
+      },
+      {
+        "symbol": "NOC",
+        "direction": "long",
+        "entry": 444.019989,
+        "composite": 9.6
+      },
+      {
+        "symbol": "SLB",
+        "direction": "long",
+        "entry": 36.275002,
+        "composite": 10.3
+      },
+      {
+        "symbol": "EOG",
+        "direction": "long",
+        "entry": 126.654999,
+        "composite": 9.6
+      },
+      {
+        "symbol": "VZ",
+        "direction": "long",
+        "entry": 38.060001,
+        "composite": 10.3
+      },
+      {
+        "symbol": "TMUS",
+        "direction": "long",
+        "entry": 149.240005,
+        "composite": 10.3
+      },
+      {
+        "symbol": "UBER",
+        "direction": "long",
+        "entry": 46.665001,
+        "composite": 9.7
+      },
+      {
+        "symbol": "BABA",
+        "direction": "long",
+        "entry": 91.275002,
+        "composite": 10.3
+      }
+    ]
   }
 ]
