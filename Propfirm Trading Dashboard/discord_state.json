@@ -1,11 +1,11 @@
 {
   "signal_ids_seen": [
-    "AUDUSD=X"
+    "USDHKD=X"
   ],
   "open_position_ids_seen": [
     "d978140a-40b",
     "a2b4b774-b59",
     "af46bb0d-06f"
   ],
-  "last_sent_at": "2026-06-19T09:10:20.561751+00:00"
+  "last_sent_at": "2026-06-22T06:18:07.216894+00:00"
 }
