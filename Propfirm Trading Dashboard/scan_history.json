@@ -985,5 +985,24 @@
         "composite": 4.5
       }
     ]
+  },
+  {
+    "scan_time": "2026-06-22T13:56:06.509340",
+    "strategy": "daily",
+    "watchlist_scanned": 167,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 99998.37,
+    "closed_pnl": -1.63,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "USDHKD=X",
+        "direction": "short",
+        "entry": 7.827265,
+        "composite": 4.5
+      }
+    ]
   }
 ]

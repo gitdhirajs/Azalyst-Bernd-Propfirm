@@ -1,18 +1,20 @@
 {
-  "balance": 100000.0,
+  "balance": 99998.36751703938,
   "initial_balance": 100000.0,
-  "closed_pnl_total": 997.3630120180536,
-  "total_trades": 0,
+  "closed_pnl_total": -1.6324829606138564,
+  "total_trades": 1,
   "winning_trades": 0,
-  "losing_trades": 0,
+  "losing_trades": 1,
   "peak_balance": 100000.0,
-  "max_drawdown_pct": 0.0,
-  "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "max_drawdown_pct": 0.0016324829606164711,
+  "daily_pnl": -998.9954949786675,
+  "daily_trades": 1,
   "today_starting_equity": 100000.0,
   "current_date": "2026-06-22",
   "account_blown": false,
-  "zone_memory": {},
+  "zone_memory": {
+    "c4ea13fa7b": true
+  },
   "open_positions": [
     {
       "id": "d978140a-40b",
@@ -69,7 +71,9 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
-    },
+    }
+  ],
+  "trade_history": [
     {
       "id": "af46bb0d-06f",
       "symbol": "USDHKD=X",
@@ -85,20 +89,19 @@
       "position_size": 69043.852027,
       "risk_amount": 999.0,
       "entry_time": "2026-06-03T18:52:48.583007",
-      "status": "active",
-      "realized_pnl": 0.0,
+      "status": "closed",
+      "realized_pnl": -998.9954949786675,
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "c4ea13fa7b",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
+      "close_time": "2026-06-22T13:56:06.502195",
+      "close_price": 7.839247,
+      "trade_r_multiple": -1.0,
       "notes": ""
     }
   ],
-  "trade_history": [],
-  "saved_at": "2026-06-22T06:18:04.727128"
+  "saved_at": "2026-06-22T14:44:45.897819"
 }
