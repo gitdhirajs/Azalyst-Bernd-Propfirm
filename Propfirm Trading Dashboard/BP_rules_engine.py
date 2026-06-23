@@ -2186,14 +2186,23 @@ class RulesEngine:
         # shorts against CHF undervaluation: "zone arrival is more immediate
         # than the Valuation reading." Counter-trend gate (Step 3) and zone
         # direction matching still apply downstream.
+        # Phase 48: the HQ zone-arrival soft-veto may override Rule #1 ONLY for
+        # COUNTER-TREND / reversal setups -- its documented purpose (Phase 38
+        # GAP-27) is "156w COT historic extreme + counter-trend setup", e.g. a
+        # 6S=F supply short fading CHF undervaluation. It must NOT override the
+        # valuation veto on a plain WITH-trend setup (e.g. AUDUSD short in a
+        # downtrend with val=bullish) -- that is a straight Rule #1 violation.
+        # With-trend = proposed agrees with trend; block the override there.
         if proposed == 'bullish' and val == 'bearish':
-            if not _hq_zone_arrival:
-                return 'hold'  # hard veto — standard Rule #1
-            logger.info(f"Phase 23 T4: HQ zone arrival ({zone_composite:.1f}) overrides Val=bearish veto")
+            _override_ok = _hq_zone_arrival and trend != 'uptrend'   # allow only counter-trend/sideways
+            if not _override_ok:
+                return 'hold'  # hard veto — Rule #1
+            logger.info(f"Phase 23 T4: HQ counter-trend zone arrival ({zone_composite:.1f}) overrides Val=bearish veto")
         if proposed == 'bearish' and val == 'bullish':
-            if not _hq_zone_arrival:
-                return 'hold'  # hard veto — standard Rule #1
-            logger.info(f"Phase 23 T4: HQ zone arrival ({zone_composite:.1f}) overrides Val=bullish veto")
+            _override_ok = _hq_zone_arrival and trend != 'downtrend'  # allow only counter-trend/sideways
+            if not _override_ok:
+                return 'hold'  # hard veto — Rule #1
+            logger.info(f"Phase 23 T4: HQ counter-trend zone arrival ({zone_composite:.1f}) overrides Val=bullish veto")
 
         # Step 3 — Counter-trend safety gate (prop-firm protection).
         # Bernd does take counter-trend setups but requires overwhelming
