@@ -1,6 +1,6 @@
 {
   "signal_ids_seen": [
-    "b30179fd-f21",
+    "EURAUD=X",
     "EURCHF=X",
     "GBPAUD=X",
     "PLTR"
@@ -10,5 +10,5 @@
     "af7c57a4-9fb",
     "b30179fd-f21"
   ],
-  "last_sent_at": "2026-06-23T15:32:33.857698+00:00"
+  "last_sent_at": "2026-06-23T18:27:28.255140+00:00"
 }

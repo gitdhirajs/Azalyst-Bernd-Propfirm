@@ -1147,5 +1147,42 @@
         "composite": 9.7
       }
     ]
+  },
+  {
+    "scan_time": "2026-06-23T18:15:11.763313",
+    "strategy": "weekly",
+    "watchlist_scanned": 167,
+    "signals_found": 4,
+    "auto_traded": 0,
+    "account_balance": 100730.83,
+    "closed_pnl": 730.83,
+    "win_rate": 0.5,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "EURAUD=X",
+        "direction": "long",
+        "entry": 1.648056,
+        "composite": 9.7
+      },
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      },
+      {
+        "symbol": "GBPAUD=X",
+        "direction": "long",
+        "entry": 1.88342,
+        "composite": 7.05
+      },
+      {
+        "symbol": "PLTR",
+        "direction": "long",
+        "entry": 112.779999,
+        "composite": 9.7
+      }
+    ]
   }
 ]
