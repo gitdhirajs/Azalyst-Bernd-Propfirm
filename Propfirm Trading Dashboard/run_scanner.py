@@ -226,6 +226,145 @@ PAPER_STATE_FILE    = SCRIPT_DIR / "paper_trader_state.json"
 DASHBOARD_FILE      = SCRIPT_DIR / "dashboard.html"
 
 
+# ---------------------------------------------------------------------------
+# Profiles -- isolate independent paper-trading tracks (Phase 47)
+# ---------------------------------------------------------------------------
+# Each "profile" is one paper-trading track with its OWN config + state files,
+# so two runners never clobber each other's state:
+#
+#   fundingpips (DEFAULT): prop-firm gating ON. Reproduces the ORIGINAL
+#       filenames byte-for-byte (suffix="") so the 4-hourly scan.yml and all
+#       existing .bat / automation are completely unchanged when --profile is
+#       omitted.
+#   allcoins: prop-firm gating OFF, expanded watchlist, take every signal.
+#       Writes *_allcoins.json state + a slim committable signals artifact
+#       (scan_results_allcoins_slim.json) for the TradingView Ideas workflow.
+#
+# The allcoins config is an OVERRIDE layer deep-merged over BP_config.yaml so
+# all the Phase 1-46 methodology settings stay DRY in one place.
+PROFILES = {
+    "fundingpips": {"config": "BP_config.yaml",          "suffix": ""},
+    "allcoins":    {"config": "BP_config_allcoins.yaml", "suffix": "_allcoins"},
+}
+
+PROFILE_NAME   = "fundingpips"
+PROFILE_SUFFIX = ""
+PROFILE_CONFIG = "BP_config.yaml"
+
+
+def _deep_merge(base: Dict, ov: Optional[Dict]) -> Dict:
+    """Recursively merge override dict `ov` over `base`. Nested dicts merge;
+    scalars and lists in `ov` replace those in `base`."""
+    out = dict(base)
+    for k, v in (ov or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _apply_profile() -> None:
+    """Parse --profile / --config / --state-suffix from argv and rebind the
+    module-level state-file globals so every reader (save_results,
+    load/save_paper_trader_state, the lock, the per-strategy log) is
+    profile-aware.
+
+    MUST be called at the very top of main(), BEFORE _acquire_lock(), so the
+    lock file itself is profile-specific and the two tracks can run
+    concurrently without one blocking the other.
+    """
+    global PROFILE_NAME, PROFILE_SUFFIX, PROFILE_CONFIG
+    global SCAN_RESULTS_FILE, SCAN_HISTORY_FILE, PAPER_STATE_FILE, LOCK_FILE
+
+    name = "fundingpips"
+    if "--profile" in sys.argv:
+        try:
+            name = sys.argv[sys.argv.index("--profile") + 1].lower()
+        except (IndexError, ValueError):
+            print(f"{RED}--profile requires a value ({'|'.join(PROFILES)}){RESET}")
+            sys.exit(1)
+    prof = PROFILES.get(name)
+    if prof is None:
+        print(f"{RED}Unknown profile '{name}'. Choose one of: {list(PROFILES)}{RESET}")
+        sys.exit(1)
+
+    suffix = prof["suffix"]
+    config = prof["config"]
+    # Explicit escape hatches override the profile mapping (testing / one-offs).
+    if "--state-suffix" in sys.argv:
+        try:
+            suffix = sys.argv[sys.argv.index("--state-suffix") + 1]
+        except (IndexError, ValueError):
+            pass
+    if "--config" in sys.argv:
+        try:
+            config = sys.argv[sys.argv.index("--config") + 1]
+        except (IndexError, ValueError):
+            pass
+
+    PROFILE_NAME   = name
+    PROFILE_SUFFIX = suffix
+    PROFILE_CONFIG = config
+
+    SCAN_RESULTS_FILE = SCRIPT_DIR / f"scan_results{suffix}.json"
+    SCAN_HISTORY_FILE = SCRIPT_DIR / f"scan_history{suffix}.json"
+    PAPER_STATE_FILE  = SCRIPT_DIR / f"paper_trader_state{suffix}.json"
+    LOCK_FILE         = SCRIPT_DIR / f".scanner{suffix}.lock"
+
+
+def _load_profile_config() -> Dict:
+    """Load BP_config.yaml as the base, then (for non-default profiles)
+    deep-merge the profile's override file over it and append `watchlist_extra`
+    to the watchlist. Keeps all methodology settings DRY in BP_config.yaml."""
+    base_path = SCRIPT_DIR / "BP_config.yaml"
+    if not base_path.exists():
+        print(f"{RED}ERROR: Base config not found at {base_path}{RESET}")
+        sys.exit(1)
+    with open(base_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    if PROFILE_CONFIG and PROFILE_CONFIG != "BP_config.yaml":
+        ov_path = Path(PROFILE_CONFIG)
+        if not ov_path.is_absolute():
+            ov_path = SCRIPT_DIR / PROFILE_CONFIG
+        if not ov_path.exists():
+            print(f"{RED}ERROR: Profile override config not found at {ov_path}{RESET}")
+            sys.exit(1)
+        with open(ov_path, "r", encoding="utf-8") as f:
+            overrides = yaml.safe_load(f) or {}
+        extra = overrides.pop("watchlist_extra", None) or []
+        config = _deep_merge(config, overrides)
+        if extra:
+            config["watchlist"] = (config.get("watchlist") or []) + extra
+        logger.info(
+            f"Profile '{PROFILE_NAME}': merged {ov_path.name} over base "
+            f"(+{len(extra)} extra symbols)"
+        )
+    return config
+
+
+def _write_slim_artifact(results: Dict) -> None:
+    """Write a slim, committable subset of the scan results (signals + account
+    summary, WITHOUT the ~30MB ohlcv_cache / indicators) for downstream
+    consumers like the TradingView Ideas workflow. Only called for non-default
+    profiles so the FundingPips run stays byte-for-byte unchanged."""
+    keep = [
+        "scan_time", "scan_duration_sec", "strategy", "htf", "ltf",
+        "watchlist_scanned", "signals_found", "auto_traded",
+        "signals", "errors", "account", "positions",
+    ]
+    slim = {k: results.get(k) for k in keep}
+    slim["profile"] = PROFILE_NAME
+    slim["engine_accuracy"] = 0.74  # Phase 41 forward-price accuracy (tier framing)
+    slim_path = SCRIPT_DIR / f"scan_results{PROFILE_SUFFIX}_slim.json"
+    with open(slim_path, "w", encoding="utf-8") as f:
+        json.dump(slim, f, indent=2, default=str)
+    n = len(slim.get("signals") or [])
+    logger.info(f"Slim artifact written to {slim_path} ({n} signals)")
+    print(f"  {GREEN}Slim artifact: {slim_path.name} ({n} signals){RESET}")
+
+
 # ===================================================================
 # Helper: load / save paper trader state for persistence
 # ===================================================================
@@ -625,6 +764,11 @@ def scan_symbol(
     if signal:
         signal["asset_class"] = ac
         signal["display_name"] = name
+        # Store current LTF close so display can show distance-to-zone
+        try:
+            signal["current_price"] = float(ohlcv[ltf]["close"].iloc[-1])
+        except Exception:
+            signal["current_price"] = 0.0
         out["signal"] = signal
 
     # 6. Build indicator timeseries for the dashboard (always, even when no signal)
@@ -1014,20 +1158,29 @@ def print_summary(results: Dict) -> None:
     signals = results.get("signals", [])
     if signals:
         print(f"  {BOLD}{GREEN}--- SIGNALS ---{RESET}")
-        print(f"  {'Symbol':<10} {'Dir':<6} {'Entry':<12} {'Stop':<12} {'T1':<12} {'Score':<6}")
-        print(f"  {'-'*58}")
+        print(f"  {'Symbol':<10} {'Dir':<6} {'Status':<12} {'CurPrice':<12} {'Entry':<12} {'Stop':<12} {'T1':<12} {'Dist%':<8} {'Score':<6}")
+        print(f"  {'-'*90}")
         for s in signals:
             direction = s.get("direction", "?")
             color = GREEN if direction == "long" else RED
             targets = s.get("targets", [0, 0, 0])
             t1 = targets[0] if targets else 0
             composite = s.get("qualifier_scores", {}).get("composite", 0)
+            pending = s.get("pending_order", False)
+            cur_price = s.get("current_price", 0)
+            entry = s.get("entry_price", 0)
+            dist_pct = abs(cur_price - entry) / cur_price * 100 if cur_price else 0
+            status_color = YELLOW if pending else GREEN
+            status_label = "PENDING" if pending else "AT ZONE"
             print(
                 f"  {s.get('symbol','?'):<10} "
                 f"{color}{direction.upper():<6}{RESET} "
-                f"{s.get('entry_price',0):<12.4f} "
+                f"{status_color}{status_label:<12}{RESET} "
+                f"{cur_price:<12.4f} "
+                f"{entry:<12.4f} "
                 f"{s.get('stop_price',0):<12.4f} "
                 f"{t1:<12.4f} "
+                f"{dist_pct:<8.1f} "
                 f"{composite:<6.1f}"
             )
         print()
@@ -1079,6 +1232,13 @@ def main():
     print(f"{BOLD}{CYAN}============================================{RESET}")
     print()
 
+    # ---- Resolve profile FIRST (rebinds state-file globals incl. LOCK_FILE) ----
+    # Must run before _acquire_lock() so the lock is profile-specific and the
+    # FundingPips + all-coins tracks can run concurrently.
+    _apply_profile()
+    if PROFILE_NAME != "fundingpips":
+        print(f"  {MAGENTA}Profile: {PROFILE_NAME}  (state suffix '{PROFILE_SUFFIX}'){RESET}")
+
     # ---- Process lock: abort immediately if another scanner is running ----
     if not _acquire_lock():
         print(f"{RED}ERROR: Another scanner is already running.{RESET}")
@@ -1087,16 +1247,9 @@ def main():
         sys.exit(1)
     atexit.register(_release_lock)  # always clean up, even on crash
 
-    # ---- Load config ----
-    config_path = SCRIPT_DIR / "BP_config.yaml"
-    if not config_path.exists():
-        print(f"{RED}ERROR: Config file not found at {config_path}{RESET}")
-        sys.exit(1)
-
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-
-    logger.info(f"Config loaded from {config_path}")
+    # ---- Load config (profile-aware: base BP_config.yaml + optional override) ----
+    config = _load_profile_config()
+    logger.info(f"Config loaded for profile '{PROFILE_NAME}'")
 
     # ---- CLI override: --strategy <weekly|daily|monthly|intraday> ----
     # Lets the operator run a one-off scan on a different timeframe pair without
@@ -1127,7 +1280,9 @@ def main():
     _root.addHandler(_con)
 
     _active_strategy = config.get("active_strategy", "daily")
-    _strat_log_path  = SCRIPT_DIR / f"scanner_{_active_strategy}.log"
+    # Suffix the per-strategy log with the profile so two concurrent runners
+    # (which both open the log in mode='w') don't truncate each other's logs.
+    _strat_log_path  = SCRIPT_DIR / f"scanner_{_active_strategy}{PROFILE_SUFFIX}.log"
     _strat_fh = logging.FileHandler(_strat_log_path, encoding="utf-8", mode="w")
     _strat_fh.setFormatter(_fmt)
     _root.addHandler(_strat_fh)
@@ -1163,57 +1318,25 @@ def main():
         else:
             server_thread = _start_server_in_background(SCRIPT_DIR, port=8765)
 
-    # ---- Multi-strategy: build list of strategies to run ----
-    # --all-strategies runs each strategy listed in default_strategies
-    # sequentially and merges all signals into one scan_results.json.
-    # This lets GitHub and local produce weekly + daily signals in one pass.
-    _run_all = "--all-strategies" in sys.argv
-    _strategies_to_run = (
-        config.get("default_strategies", ["weekly", "daily"])
-        if _run_all
-        else [config.get("active_strategy", "weekly")]
-    )
-    if _run_all:
-        print(f"  {CYAN}Multi-strategy mode: running {_strategies_to_run}{RESET}")
-        print()
-
-    # ---- Run scan(s) ----
-    _all_signals: List[Dict] = []
-    _final_results = None
-    for _strat in _strategies_to_run:
-        config["active_strategy"] = _strat
-        if _run_all:
-            print(f"{BOLD}{CYAN}{'=' * 60}{RESET}")
-            print(f"{BOLD}{CYAN}  Strategy pass: {_strat.upper()}{RESET}")
-            print(f"{BOLD}{CYAN}{'=' * 60}{RESET}")
-        try:
-            _r = scan_all_markets(config, watchlist)
-        except Exception as exc:
-            logger.error(f"Fatal scan error ({_strat}): {traceback.format_exc()}")
-            print(f"\n{RED}FATAL ERROR ({_strat}): {exc}{RESET}")
-            if not _run_all:
-                if server_thread is not None:
-                    server_thread.shutdown()
-                sys.exit(1)
-            continue
-        _all_signals.extend(_r.get("signals", []))
-        _final_results = _r
-
-    if _final_results is None:
-        print(f"\n{RED}No scan completed successfully.{RESET}")
+    # ---- Run scan ----
+    try:
+        results = scan_all_markets(config, watchlist)
+    except Exception as exc:
+        logger.error(f"Fatal scan error: {traceback.format_exc()}")
+        print(f"\n{RED}FATAL ERROR: {exc}{RESET}")
         if server_thread is not None:
             server_thread.shutdown()
         sys.exit(1)
 
-    # Merge signals from all strategy passes into the final result dict
-    _final_results["signals"] = _all_signals
-    _final_results["signals_found"] = len(_all_signals)
-    if _run_all:
-        _final_results["strategies_run"] = _strategies_to_run
-    results = _final_results
-
     # ---- Save results ----
     save_results(results)
+
+    # ---- Slim committable artifact (non-default profiles only) ----
+    # The full scan_results.json carries a ~30MB OHLCV cache and is never
+    # committed. The slim file (signals + account summary) is what the
+    # TradingView Ideas workflow reads from the all-coins GitHub runner.
+    if PROFILE_SUFFIX:
+        _write_slim_artifact(results)
 
     # ---- Print summary ----
     print_summary(results)
@@ -1227,10 +1350,15 @@ def main():
         try:
             import subprocess
             print(f"  {CYAN}Sending Discord notification...{RESET}")
+            # Pass the profile suffix so send_discord.py reads THIS profile's
+            # scan_results / discord_state (not the FundingPips defaults).
+            _denv = os.environ.copy()
+            _denv["AZALYST_STATE_SUFFIX"] = PROFILE_SUFFIX
             subprocess.run(
                 [sys.executable, str(SCRIPT_DIR / "send_discord.py"), "--always-send"],
                 check=False,
                 cwd=str(SCRIPT_DIR),
+                env=_denv,
             )
         except Exception as exc:
             logger.warning(f"Discord notification failed: {exc}")

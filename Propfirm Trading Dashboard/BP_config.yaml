@@ -13,8 +13,8 @@
 # 5% max daily loss, 10% max total loss. Profit target is informational
 # only (no enforcement) -- the engine blocks trades on loss-cap breach,
 # not on profit-target attainment.
-#   Phase 1: profit_target_pct: 8.0
-#   Phase 2: profit_target_pct: 5.0   <-- current default
+#   Phase 1: profit_target_pct: 8.0   <-- current (Stage 1 challenge)
+#   Phase 2: profit_target_pct: 5.0   (after passing Stage 1)
 #   Funded: profit_target_pct: 0.0    (no target)
 # ------------------------------------------------------------
 prop_firm:
@@ -22,7 +22,7 @@ prop_firm:
   account_size: 100000.0
   max_daily_loss_usd: 5000.0     # Maximum Daily Loss (resets each session)
   max_total_loss_usd: 10000.0    # Maximum Loss (lifetime drawdown limit)
-  profit_target_pct: 5.0         # Phase 2 default; informational, not enforced
+  profit_target_pct: 8.0         # Stage 1 (Phase 1): 8% target; change to 5.0 for Stage 2
   daily_reset_hour_utc: 22       # 17:00 NY time = 22:00 UTC (give-or-take DST)
 
 risk:
@@ -358,6 +358,47 @@ stop_loss:
   breakeven_at_half_target: true     # Aggressive: BE at half-way to T1 (Bernd's live)
   partial_take_r: 2.0
   full_take_r: 3.0
+
+# ============================================================
+# ENTRY DISTANCE GATE -- Phase 46 (2026-06-23)
+# ============================================================
+# Phase 44 removed the in_zone gate so the engine fires E1 PENDING limit
+# orders at zone proximal even when price is not yet there. Without a cap
+# the live scanner flagged historical zones 30-60% away from current price
+# (Silver entry 23.76 while spot 62.37, BTC entry 42k while spot 62k, etc.)
+# Bernd places limit orders for zones price is approaching, not zones that
+# are years away. We re-introduce a distance cap measured in R-multiples
+# of the stop distance (= zone height + Fib extension), so the cap scales
+# with each asset's volatility automatically.
+#
+#   pending signal allowed if  |close - entry| / |stop - entry|  <=  max_r
+#
+# Tuning rationale per income strategy (HTF bar size determines arrival window):
+#   weekly  (HTF=1wk): allow up to 3R -- price often takes weeks to arrive
+#   daily   (HTF=1d):  allow up to 2R -- shorter window, tighter cap
+#   monthly (HTF=1mo): allow up to 5R -- multi-month positions, wider zones
+#   intraday(HTF=60m): allow up to 1.5R -- entries must be very close
+# default_max_r is used when income_strategy is missing.
+# ------------------------------------------------------------
+entry_distance:
+  # Primary cap: R-multiples of the stop distance (scales with volatility).
+  default_max_r: 3.0
+  max_r_to_entry_pending:
+    weekly:   3.0
+    daily:    2.0
+    monthly:  5.0
+    intraday: 1.5
+  # Secondary cap: raw % distance from current price to entry. Catches the
+  # WIDE-zone blind spot of the R cap -- e.g. an equity weekly demand zone so
+  # wide that price sitting 23% away is still <3R. A signal is rejected if it
+  # exceeds EITHER cap. A weekly income limit waits for a pullback of a few
+  # %, not 15-25%; deeper than this is a historical zone, not an approach.
+  default_max_pct: 15.0
+  max_pct_to_entry:
+    weekly:   15.0
+    daily:    8.0
+    monthly:  25.0
+    intraday: 4.0
 
 cot:
   lookback_weeks: 52

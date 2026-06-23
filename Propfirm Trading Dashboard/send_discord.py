@@ -77,8 +77,12 @@ def _resolve_data_dir() -> Path:
     return SCRIPT_DIR
 
 DATA_DIR   = _resolve_data_dir()
-SCAN_FILE  = DATA_DIR / "scan_results.json"
-STATE_FILE = DATA_DIR / "discord_state.json"
+# Profile-aware filenames: run_scanner.py sets AZALYST_STATE_SUFFIX (e.g.
+# "_allcoins") so this reads the right profile's state. Empty suffix (the
+# default FundingPips track) preserves the original filenames byte-for-byte.
+_STATE_SUFFIX = os.environ.get("AZALYST_STATE_SUFFIX", "")
+SCAN_FILE  = DATA_DIR / f"scan_results{_STATE_SUFFIX}.json"
+STATE_FILE = DATA_DIR / f"discord_state{_STATE_SUFFIX}.json"
 
 # Discord hard-limits a single message to 2000 chars (or 6000 in an embed
 # description).  We stay well under by truncating the open-positions and

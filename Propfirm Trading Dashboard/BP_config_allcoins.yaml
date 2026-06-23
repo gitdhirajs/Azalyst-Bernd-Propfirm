@@ -1,0 +1,520 @@
+# ============================================================
+# BP_config_allcoins.yaml  --  ALL-COINS profile OVERRIDE layer
+# ============================================================
+# Deep-merged OVER BP_config.yaml by run_scanner.py when invoked with
+#   python run_scanner.py --profile allcoins
+# Carries ONLY the deltas from the FundingPips base config:
+#   * prop_firm.enabled: false        -> no challenge gating
+#   * risk: unlimited positions/caps  -> take EVERY qualifying signal
+#   * active_strategy: weekly         -> matches the TradingView Ideas default
+#   * watchlist_extra: [...]          -> validated global expansion appended
+#                                        to the base ~170-symbol watchlist
+# All Phase 1-46 methodology settings (zones, COT, valuation, seasonality,
+# entry_distance, ...) are inherited from BP_config.yaml -- DO NOT copy them
+# here. Regenerate with:  python _gen_allcoins_config.py
+# ============================================================
+
+prop_firm:
+  enabled: false
+risk:
+  account_balance: 100000.0
+  max_open_positions: 99999
+  max_daily_loss_pct: 1000000.0
+  max_total_loss_pct: 1000000.0
+active_strategy: weekly
+watchlist_extra:
+- symbol: TRX-USD
+  name: TRXUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: ATOM-USD
+  name: ATOMUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: ETC-USD
+  name: ETCUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: XLM-USD
+  name: XLMUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: ALGO-USD
+  name: ALGOUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: FIL-USD
+  name: FILUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: NEAR-USD
+  name: NEARUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: APT-USD
+  name: APTUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: ARB-USD
+  name: ARBUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: OP-USD
+  name: OPUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: INJ-USD
+  name: INJUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: HBAR-USD
+  name: HBARUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: VET-USD
+  name: VETUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: ICP-USD
+  name: ICPUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: AAVE-USD
+  name: AAVEUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: MKR-USD
+  name: MKRUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: SAND-USD
+  name: SANDUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: MANA-USD
+  name: MANAUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: AXS-USD
+  name: AXSUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: RUNE-USD
+  name: RUNEUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: FTM-USD
+  name: FTMUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: XTZ-USD
+  name: XTZUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: THETA-USD
+  name: THETAUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: EOS-USD
+  name: EOSUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: NEO-USD
+  name: NEOUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: ZEC-USD
+  name: ZECUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: DASH-USD
+  name: DASHUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: CHZ-USD
+  name: CHZUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: SHIB-USD
+  name: SHIBUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: WIF-USD
+  name: WIFUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: MATIC-USD
+  name: MATICUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: UNI-USD
+  name: UNIUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: LDO-USD
+  name: LDOUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: STX-USD
+  name: STXUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: TIA-USD
+  name: TIAUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: SEI-USD
+  name: SEIUSD
+  asset_class: crypto
+  strategies:
+  - daily
+- symbol: SAP
+  name: SAP (SAP SE)
+  asset_class: equities
+- symbol: NVS
+  name: NVS (Novartis)
+  asset_class: equities
+- symbol: AZN
+  name: AZN (AstraZeneca)
+  asset_class: equities
+- symbol: SHEL
+  name: SHEL (Shell)
+  asset_class: equities
+- symbol: BP
+  name: BP (BP plc)
+  asset_class: equities
+- symbol: HSBC
+  name: HSBC (HSBC)
+  asset_class: equities
+- symbol: UL
+  name: UL (Unilever)
+  asset_class: equities
+- symbol: TTE
+  name: TTE (TotalEnergies)
+  asset_class: equities
+- symbol: SNY
+  name: SNY (Sanofi)
+  asset_class: equities
+- symbol: DEO
+  name: DEO (Diageo)
+  asset_class: equities
+- symbol: RIO
+  name: RIO (Rio Tinto)
+  asset_class: equities
+- symbol: BHP
+  name: BHP (BHP Group)
+  asset_class: equities
+- symbol: GSK
+  name: GSK (GSK plc)
+  asset_class: equities
+- symbol: BTI
+  name: BTI (British Am Tobacco)
+  asset_class: equities
+- symbol: ING
+  name: ING (ING Groep)
+  asset_class: equities
+- symbol: E
+  name: E (Eni)
+  asset_class: equities
+- symbol: STLA
+  name: STLA (Stellantis)
+  asset_class: equities
+- symbol: PHG
+  name: PHG (Philips)
+  asset_class: equities
+- symbol: BUD
+  name: BUD (AB InBev)
+  asset_class: equities
+- symbol: TM
+  name: TM (Toyota)
+  asset_class: equities
+- symbol: SONY
+  name: SONY (Sony)
+  asset_class: equities
+- symbol: NIO
+  name: NIO (NIO Inc)
+  asset_class: equities
+- symbol: XPEV
+  name: XPEV (XPeng)
+  asset_class: equities
+- symbol: LI
+  name: LI (Li Auto)
+  asset_class: equities
+- symbol: BIDU
+  name: BIDU (Baidu)
+  asset_class: equities
+- symbol: NTES
+  name: NTES (NetEase)
+  asset_class: equities
+- symbol: TCOM
+  name: TCOM (Trip.com)
+  asset_class: equities
+- symbol: HMC
+  name: HMC (Honda)
+  asset_class: equities
+- symbol: MUFG
+  name: MUFG (Mitsubishi UFJ)
+  asset_class: equities
+- symbol: INFY
+  name: INFY (Infosys)
+  asset_class: equities
+- symbol: IBN
+  name: IBN (ICICI Bank)
+  asset_class: equities
+- symbol: HDB
+  name: HDB (HDFC Bank)
+  asset_class: equities
+- symbol: WIT
+  name: WIT (Wipro)
+  asset_class: equities
+- symbol: BRK-B
+  name: BRK.B (Berkshire)
+  asset_class: equities
+- symbol: PG
+  name: PG (Procter & Gamble)
+  asset_class: equities
+- symbol: HD
+  name: HD (Home Depot)
+  asset_class: equities
+- symbol: LOW
+  name: LOW (Lowe's)
+  asset_class: equities
+- symbol: TGT
+  name: TGT (Target)
+  asset_class: equities
+- symbol: CMCSA
+  name: CMCSA (Comcast)
+  asset_class: equities
+- symbol: NEE
+  name: NEE (NextEra)
+  asset_class: equities
+- symbol: DUK
+  name: DUK (Duke Energy)
+  asset_class: equities
+- symbol: SO
+  name: SO (Southern Co)
+  asset_class: equities
+- symbol: LIN
+  name: LIN (Linde)
+  asset_class: equities
+- symbol: APD
+  name: APD (Air Products)
+  asset_class: equities
+- symbol: SHW
+  name: SHW (Sherwin-Williams)
+  asset_class: equities
+- symbol: FCX
+  name: FCX (Freeport)
+  asset_class: equities
+- symbol: NEM
+  name: NEM (Newmont)
+  asset_class: equities
+- symbol: DE
+  name: DE (Deere)
+  asset_class: equities
+- symbol: UPS
+  name: UPS (UPS)
+  asset_class: equities
+- symbol: FDX
+  name: FDX (FedEx)
+  asset_class: equities
+- symbol: GD
+  name: GD (General Dynamics)
+  asset_class: equities
+- symbol: MMM
+  name: MMM (3M)
+  asset_class: equities
+- symbol: EMR
+  name: EMR (Emerson)
+  asset_class: equities
+- symbol: ETN
+  name: ETN (Eaton)
+  asset_class: equities
+- symbol: ITW
+  name: ITW (Illinois Tool)
+  asset_class: equities
+- symbol: TXN
+  name: TXN (Texas Instr)
+  asset_class: equities
+- symbol: ADI
+  name: ADI (Analog Devices)
+  asset_class: equities
+- symbol: MCHP
+  name: MCHP (Microchip)
+  asset_class: equities
+- symbol: KLAC
+  name: KLAC (KLA Corp)
+  asset_class: equities
+- symbol: LRCX
+  name: LRCX (Lam Research)
+  asset_class: equities
+- symbol: SNPS
+  name: SNPS (Synopsys)
+  asset_class: equities
+- symbol: CDNS
+  name: CDNS (Cadence)
+  asset_class: equities
+- symbol: NOW
+  name: NOW (ServiceNow)
+  asset_class: equities
+- symbol: INTU
+  name: INTU (Intuit)
+  asset_class: equities
+- symbol: PANW
+  name: PANW (Palo Alto)
+  asset_class: equities
+- symbol: FTNT
+  name: FTNT (Fortinet)
+  asset_class: equities
+- symbol: ZS
+  name: ZS (Zscaler)
+  asset_class: equities
+- symbol: NET
+  name: NET (Cloudflare)
+  asset_class: equities
+- symbol: SNOW
+  name: SNOW (Snowflake)
+  asset_class: equities
+- symbol: DDOG
+  name: DDOG (Datadog)
+  asset_class: equities
+- symbol: MDB
+  name: MDB (MongoDB)
+  asset_class: equities
+- symbol: RBLX
+  name: RBLX (Roblox)
+  asset_class: equities
+- symbol: U
+  name: U (Unity)
+  asset_class: equities
+- symbol: PINS
+  name: PINS (Pinterest)
+  asset_class: equities
+- symbol: SNAP
+  name: SNAP (Snap)
+  asset_class: equities
+- symbol: AFRM
+  name: AFRM (Affirm)
+  asset_class: equities
+- symbol: DASH
+  name: DASH (DoorDash)
+  asset_class: equities
+- symbol: RIVN
+  name: RIVN (Rivian)
+  asset_class: equities
+- symbol: LCID
+  name: LCID (Lucid)
+  asset_class: equities
+- symbol: F
+  name: F (Ford)
+  asset_class: equities
+- symbol: GM
+  name: GM (General Motors)
+  asset_class: equities
+- symbol: DAL
+  name: DAL (Delta)
+  asset_class: equities
+- symbol: UAL
+  name: UAL (United Airlines)
+  asset_class: equities
+- symbol: CCL
+  name: CCL (Carnival)
+  asset_class: equities
+- symbol: ^NSEI
+  name: IN50 (Nifty 50)
+  asset_class: equity_indices
+- symbol: ^BSESN
+  name: INSENSEX (BSE Sensex)
+  asset_class: equity_indices
+- symbol: ^BVSP
+  name: BR (Bovespa)
+  asset_class: equity_indices
+- symbol: ^GSPTSE
+  name: CA60 (TSX)
+  asset_class: equity_indices
+- symbol: ^KS11
+  name: KR (KOSPI)
+  asset_class: equity_indices
+- symbol: ^TWII
+  name: TW (Taiwan)
+  asset_class: equity_indices
+- symbol: ^MXX
+  name: MX (IPC Mexico)
+  asset_class: equity_indices
+- symbol: ^STI
+  name: SG (Straits Times)
+  asset_class: equity_indices
+- symbol: ^JKSE
+  name: ID (Jakarta)
+  asset_class: equity_indices
+- symbol: ^AORD
+  name: AU-ORD (All Ordinaries)
+  asset_class: equity_indices
+- symbol: USDDKK=X
+  name: USDDKK
+  asset_class: forex
+- symbol: USDHUF=X
+  name: USDHUF
+  asset_class: forex
+- symbol: USDCZK=X
+  name: USDCZK
+  asset_class: forex
+- symbol: USDINR=X
+  name: USDINR
+  asset_class: forex
+- symbol: USDTHB=X
+  name: USDTHB
+  asset_class: forex
+- symbol: EURTRY=X
+  name: EURTRY
+  asset_class: forex
+- symbol: EURPLN=X
+  name: EURPLN
+  asset_class: forex
+- symbol: EURHUF=X
+  name: EURHUF
+  asset_class: forex
+- symbol: EURNOK=X
+  name: EURNOK
+  asset_class: forex
+- symbol: EURSEK=X
+  name: EURSEK
+  asset_class: forex
+- symbol: GBPSEK=X
+  name: GBPSEK
+  asset_class: forex

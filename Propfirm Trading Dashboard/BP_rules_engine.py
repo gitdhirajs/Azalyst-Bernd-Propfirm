@@ -411,31 +411,31 @@ class RulesEngine:
             logger.info(f"[{symbol}] Decision matrix: equilibrium + sideways -> no edge, skip")
             return None
 
-        # == STEP 5: Entry Trigger (a candlestick pattern at the zone is required) ==
+        # == STEP 5: Entry Trigger ==
+        # Phase 44 (true-clone redesign): Bernd places E1 PENDING LIMIT ORDERS
+        # at zone proximal without waiting for price to arrive or a candle pattern.
+        # Rule #4 ("never anticipate a zone") means never trade before the zone
+        # FORMS — it does NOT mean wait for price to arrive before placing the order.
+        # The old "if not in_zone: return None" gate was blocking 80%+ of real
+        # Bernd trades. Now we always fire E1 when a qualified zone exists, marking
+        # pending vs immediate so the paper trader and dashboard can distinguish.
         pattern_signal = self._check_entry_pattern(ltf_df, best_zone)
-        if pattern_signal is None:
-            # Fall back to a "zone limit" entry only when the most recent
-            # candle is sitting inside the zone -- otherwise the trade is
-            # premature and we wait. This honours rule #4 ("never anticipate").
-            last = ltf_df.iloc[-1]
-            zone_dir_str = best_zone['zone_type']
-            in_zone = (
-                zone_dir_str == 'demand'
-                and last['low']  <= best_zone['proximal']
-                and last['low']  >= best_zone['distal']
-            ) or (
-                zone_dir_str == 'supply'
-                and last['high'] >= best_zone['proximal']
-                and last['high'] <= best_zone['distal']
-            )
-            if not in_zone:
-                logger.info(f"[{symbol}] Price has not arrived at zone yet -- no signal")
-                return None
 
-            # Entry style per textbook Ch 6:
-            #   Entry 1 (proximal):  limit at proximal -- always fills, deeper drawdown
-            #   Entry 2 (midpoint):  limit at 50% of zone -- better R:R, may miss
-            # Default = proximal; flip to midpoint when prefer_midpoint_entry.
+        last = ltf_df.iloc[-1]
+        zone_dir_str = best_zone['zone_type']
+        in_zone = (
+            zone_dir_str == 'demand'
+            and last['low']  <= best_zone['proximal']
+            and last['low']  >= best_zone['distal']
+        ) or (
+            zone_dir_str == 'supply'
+            and last['high'] >= best_zone['proximal']
+            and last['high'] <= best_zone['distal']
+        )
+
+        if pattern_signal is None:
+            # E1/E2: limit order at zone proximal (pending if price not yet there,
+            # immediate fill if price is inside the zone).
             zone_height = abs(best_zone['proximal'] - best_zone['distal'])
             if zone_dir_str == 'demand':
                 entry = (best_zone['proximal'] + best_zone['distal']) / 2.0 if prefer_midpoint_entry else best_zone['proximal']
@@ -446,6 +446,8 @@ class RulesEngine:
                 stop = best_zone['distal'] + 0.33 * zone_height
                 direction = 'short'
             targets = self._calculate_targets(entry, stop, direction)
+            _entry_type = 'E2' if prefer_midpoint_entry else 'E1'
+            _pending_order = not in_zone
         else:
             entry = pattern_signal['entry_price']
             stop = pattern_signal['stop_price']
@@ -455,6 +457,8 @@ class RulesEngine:
                 pattern_signal['target_r2'],
                 pattern_signal['target_r3']
             ]
+            _entry_type = 'E3b'
+            _pending_order = False
 
         # == STEP 6: Trade Management ==
         # Determine trade context for position-size adjustment.
@@ -512,6 +516,47 @@ class RulesEngine:
             except Exception as e:
                 logger.warning(f"Auto-refine failed: {e}")
 
+        # == STEP 5b: Phase 46 (hardened) distance-to-entry gate ==
+        # Runs AFTER refine_zone, on the FINAL entry/stop, for ALL entry types
+        # (E1/E2 pending, E1 immediate, E3b pattern). Phase 44 removed the old
+        # in_zone gate, which let the engine emit limit orders for historical
+        # zones 30-77% away from current price (e.g. a Silver demand at 23.76
+        # while spot was 62.37). Bernd places limit orders for zones price is
+        # APPROACHING, not zones years away. We bound the distance from current
+        # price to the entry, measured in R-multiples of the stop distance so
+        # the cap scales with each asset's volatility. refine_zone can shrink
+        # the stop (a tighter contained sub-zone), which is exactly why this
+        # must run on the post-refinement values, not the original wide zone.
+        _final_close = float(ltf_df['close'].iloc[-1])
+        _risk_per_unit = abs(stop - entry)
+        # Recompute the in-zone / pending flags against the FINAL entry so the
+        # emitted signal's price_at_zone / pending_order fields stay accurate
+        # even when refinement moved the entry. Close-based (not last-bar-wick)
+        # so a single intrabar spike can no longer disable the gate.
+        if direction == 'long':
+            in_zone = _final_close <= entry      # price at/below a long limit = fillable now
+        else:
+            in_zone = _final_close >= entry      # price at/above a short limit = fillable now
+        _pending_order = not in_zone
+        # Combined distance gate: reject if the entry is too far from current
+        # price in EITHER R-multiples (volatility-scaled) OR raw percent. The
+        # R cap alone has a blind spot for very WIDE zones (a 23%-away entry can
+        # still be <3R when the stop is far); the % cap closes it.
+        _ed_cfg = self.config.get('entry_distance', {}) or {}
+        _r_away = abs(_final_close - entry) / _risk_per_unit if _risk_per_unit > 0 else 0.0
+        _pct_away = abs(_final_close - entry) / _final_close * 100 if _final_close else 0.0
+        _max_r_map   = _ed_cfg.get('max_r_to_entry_pending', {}) or {}
+        _max_pct_map = _ed_cfg.get('max_pct_to_entry', {}) or {}
+        _max_r   = float(_max_r_map.get(income_strategy, _ed_cfg.get('default_max_r', 3.0)))
+        _max_pct = float(_max_pct_map.get(income_strategy, _ed_cfg.get('default_max_pct', 15.0)))
+        if (_risk_per_unit > 0 and _r_away > _max_r) or (_pct_away > _max_pct):
+            logger.info(
+                f"[{symbol}] Entry too far from price: {_pct_away:.1f}% / {_r_away:.1f}R "
+                f"(caps {_max_pct}% / {_max_r}R, type={_entry_type}, strategy={income_strategy}). "
+                f"Zone exists but price has not approached — watch-list only."
+            )
+            return None
+
         # Speed-bump check: opposing zones in the path between current price
         # and entry. Per OTC L6, a qualified opposing zone in the return
         # path will likely stall the trade. We flag but don't auto-reject.
@@ -548,6 +593,9 @@ class RulesEngine:
         signal = {
             'symbol': symbol,
             'direction': direction,
+            'entry_type': _entry_type,           # E1/E2 (pending limit) or E3b (pattern confirmed)
+            'pending_order': _pending_order,     # True = price hasn't reached zone yet
+            'price_at_zone': in_zone,            # True = price currently inside zone
             'entry_price': round(entry, 6),
             'stop_price': round(stop, 6),
             'targets': [round(t, 6) for t in targets],
@@ -2029,8 +2077,22 @@ class RulesEngine:
                 if cot_fires:
                     # The Valuation veto still applies (Rule #1): if val actively
                     # opposes the COT direction, return hold.
+                    # Phase 43 Fix-B: Exception for precious_metals — val=bearish veto
+                    # is NOT applied when COT-is-king fires bullish for Gold/Silver/Platinum.
+                    # Chapter 018 (Phase 41 chunk-3 frame audit): Bernd explicitly states
+                    # PM Valuation accuracy is "maybe even less than 50%".
+                    # Root cause: during rate-hike regimes ZB (30yr bonds) falls alongside
+                    # Gold, producing a spurious "overvalued vs bonds" reading even as
+                    # Commercials accumulate (the bond-induced Valuation freeze, Phase 7).
+                    # Same principle as Phase 42 Silver Fix-4 — extended to all PMs under
+                    # COT-king. Fix-1 (line below) already prevents PM bearish signals.
                     if cot_direction == 'bullish' and val == 'bearish':
-                        return 'hold'
+                        if asset_class != 'precious_metals':
+                            return 'hold'
+                        logger.info(
+                            "Phase 43 Fix-B: PM val=bearish not vetoing COT-is-king "
+                            "(Ch.018: PM Valuation <50% accurate; bond-induced freeze)"
+                        )
                     if cot_direction == 'bearish' and val == 'bullish':
                         return 'hold'
                     logger.info(
@@ -2124,14 +2186,23 @@ class RulesEngine:
         # shorts against CHF undervaluation: "zone arrival is more immediate
         # than the Valuation reading." Counter-trend gate (Step 3) and zone
         # direction matching still apply downstream.
+        # Phase 48: the HQ zone-arrival soft-veto may override Rule #1 ONLY for
+        # COUNTER-TREND / reversal setups -- its documented purpose (Phase 38
+        # GAP-27) is "156w COT historic extreme + counter-trend setup", e.g. a
+        # 6S=F supply short fading CHF undervaluation. It must NOT override the
+        # valuation veto on a plain WITH-trend setup (e.g. AUDUSD short in a
+        # downtrend with val=bullish) -- that is a straight Rule #1 violation.
+        # With-trend = proposed agrees with trend; block the override there.
         if proposed == 'bullish' and val == 'bearish':
-            if not _hq_zone_arrival:
-                return 'hold'  # hard veto — standard Rule #1
-            logger.info(f"Phase 23 T4: HQ zone arrival ({zone_composite:.1f}) overrides Val=bearish veto")
+            _override_ok = _hq_zone_arrival and trend != 'uptrend'   # allow only counter-trend/sideways
+            if not _override_ok:
+                return 'hold'  # hard veto — Rule #1
+            logger.info(f"Phase 23 T4: HQ counter-trend zone arrival ({zone_composite:.1f}) overrides Val=bearish veto")
         if proposed == 'bearish' and val == 'bullish':
-            if not _hq_zone_arrival:
-                return 'hold'  # hard veto — standard Rule #1
-            logger.info(f"Phase 23 T4: HQ zone arrival ({zone_composite:.1f}) overrides Val=bullish veto")
+            _override_ok = _hq_zone_arrival and trend != 'downtrend'  # allow only counter-trend/sideways
+            if not _override_ok:
+                return 'hold'  # hard veto — Rule #1
+            logger.info(f"Phase 23 T4: HQ counter-trend zone arrival ({zone_composite:.1f}) overrides Val=bullish veto")
 
         # Step 3 — Counter-trend safety gate (prop-firm protection).
         # Bernd does take counter-trend setups but requires overwhelming

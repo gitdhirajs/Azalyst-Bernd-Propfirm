@@ -376,10 +376,22 @@ class COTIndex:
         # and COT is a confluence enhancer, not an override trigger.
         # Restricting to COT-king classes prevents false bearish signals on ES/YM/NQ from
         # non-commercial extreme positioning at the 156w scale. (Phase 18 regression fix)
+        # Phase 43 Fix-A: extend 156w approaching-extreme trigger to forex.
+        # Chapter 016 (COT Non-Commercials, Phase 43 corpus audit) verbatim:
+        # "when we come from multi year extremes that's when we pay attention right multi year high"
+        # Bernd applies the identical multi-year extreme logic to forex non-commercials as to
+        # commodity commercials. Phase 18 restricted this to COT-king classes only; the
+        # forex exclusion was a regression-prevention measure for equity indices (ES/YM/NQ),
+        # not a deliberate exclusion of forex. The 'large_specs_index' primary_col already
+        # correctly maps to forex in the momentum trigger below.
         _COT_KING_CLASSES_156W = ('commodities', 'energies', 'precious_metals', 'nat_gas',
-                                   'soft_commodities')
+                                   'soft_commodities', 'forex')
         if bias == 'neutral' and asset_class in _COT_KING_CLASSES_156W:
-            _approach_bull = self.upper_extreme * 0.75   # 80 * 0.75 = 60.0
+            # Phase 45: lowered from 0.75 (60.0) → 0.625 (50.0).
+            # GC=F Sep 9 2023 canonical miss: comm_idx=55-58 between reports —
+            # the 26w dips below 60 during a weekly data gap but 156w stays extreme.
+            # At 50 the trigger is still guarded by the 156w hard threshold (≥80).
+            _approach_bull = self.upper_extreme * 0.625  # 80 * 0.625 = 50.0
             _approach_bear = self.lower_extreme + (self.upper_extreme - self.lower_extreme) * 0.25  # 20+15=35
             if ext is not None and not pd.isna(ext):
                 if primary >= _approach_bull and ext >= self.upper_extreme:

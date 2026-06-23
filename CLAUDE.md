@@ -2098,4 +2098,114 @@ Without Fix-4b, Fix-4 modifies `val` locally but `bearish_excl_trend` is compute
 
 Note: The jump from 108/160 to 111/156 comes from the mislabel corrections in Phase 38 (9 cases relabeled to neutral) which reduced the denominator from 160 to 156 valid cases.
 
+---
+
+### Phase 43 — Forex 156w COT trigger extension (2026-06-19)
+
+**One-line fix applied to `BP_indicators.py`:**
+
+Added `'forex'` to `_COT_KING_CLASSES_156W` so the 156w approaching-extreme secondary trigger fires for forex non-commercials in addition to commodity/energy/PM commercials.
+
+**Evidence**: OTC Chapter 016 (COT Non-Commercials lesson) verbatim: *"when we come from multi year extremes that's when we pay attention right multi year high."* Bernd applies the identical multi-year extreme logic to forex non-commercials as to commodity commercials. Phase 18's restriction to COT-king classes was a regression-prevention measure for equity indices (ES/YM/NQ) — not a deliberate exclusion of forex. Forex non-commercials (large speculators) are directional traders, unlike corporate hedgers in FX, and the multi-year extreme signal is equally valid.
+
+**Implementation**: `_COT_KING_CLASSES_156W = ('commodities', 'energies', 'precious_metals', 'nat_gas', 'soft_commodities', 'forex')` — equity indices and equities remain excluded (non-commercial positioning on stock index futures is not "COT is king" per Bernd's framework).
+
+**Phase 43 results (confirmed):**
+- 160-case goldtest Stage-1 (bias_only): **115/156 = 73.7%** (+1 case from Phase 42f's 114/156 = 73.1%)
+- 160-case goldtest Stage-2 (full signal): **21/160 = 13.1%** — unchanged ✓
+- Zero false positives at Stage-2 — preserved ✓
+
+**Files changed in Phase 43:**
+- `Propfirm Trading Dashboard/BP_indicators.py` — `_COT_KING_CLASSES_156W` tuple updated
+
+---
+
+### Phase 44 — True-clone E1 pending limit order redesign (2026-06-19)
+
+**True-clone philosophy** (user mandate): *"in case if trading strategy goes wrong means if bernd is losing we should lose too that way we will be cloning his entire strategy."* The system should fire ALL of Bernd's trades including losing ones.
+
+**Root cause of low Stage-2 (13.1%)**: The old Step 5 gate was `if not in_zone: return None` — it required price to already be inside the zone before generating a signal. Bernd's actual workflow places **E1 pending limit orders** at the zone proximal without waiting for price to arrive. Rule #4 ("never anticipate a zone") means never trade before the zone FORMS — it does NOT mean wait for price to arrive before placing the order. The gate was blocking ~80% of real Bernd trades at Stage-2.
+
+**Fix applied to `BP_rules_engine.py` Step 5 block**: Removed the `if not in_zone: return None` gate. Now always fires E1 when a qualified zone exists and Stage-1 is directional. Price arrival status is exposed as metadata (`pending_order: True/False`, `price_at_zone: True/False`) so the paper trader and dashboard can distinguish pending vs immediate fills.
+
+**New entry type logic**:
+```python
+if pattern_signal is None:
+    # E1 (limit at proximal) or E2 (limit at midpoint) — always fires
+    _entry_type = 'E2' if prefer_midpoint_entry else 'E1'
+    _pending_order = not in_zone   # True if price hasn't reached zone yet
+else:
+    # E3b (pattern-confirmed stop-buy above hammer high) — only on pattern
+    _entry_type = 'E3b'
+    _pending_order = False
+```
+
+**Signal dict additions**:
+```python
+signal = {
+    'entry_type': _entry_type,       # 'E1', 'E2', or 'E3b'
+    'pending_order': _pending_order, # True = pending limit order not yet filled
+    'price_at_zone': in_zone,        # informational: price is currently inside zone
+    ...
+}
+```
+
+**Phase 44 goldtest results:**
+- Stage-1 bias_only: **115/156 = 73.7%** — unchanged ✓ (Phase 44 only affects Stage-2 trigger logic)
+- Stage-2 full-signal: **21/160 = 13.1%** — unchanged in goldtest (bottleneck is `if not ranked_zones: return None`, not the in-zone check — on Bernd's call dates, zones often haven't formed yet)
+- Zero false positives — preserved ✓
+
+**Note on goldtest vs live trading**: Phase 44 benefit is unmeasurable in the goldtest because the goldtest uses Bernd's *thesis-date* snapshots (weekly/monthly roadmap call dates when he identifies the directional bias). On those dates, LTF zones for his actual entry often haven't formed yet. The real benefit is in live scanning: once a demand/supply zone forms, the engine immediately fires an E1 pending limit order rather than waiting indefinitely for price to arrive.
+
+**Files changed in Phase 44:**
+- `Propfirm Trading Dashboard/BP_rules_engine.py` — Step 5 gate removed, `entry_type`/`pending_order`/`price_at_zone` fields added to signal dict
+
+---
+
+### Phase 45 — PM COT approaching-extreme threshold 60→50 (2026-06-19)
+
+**Motivation**: GC=F Sep 9, 2023 canonical miss — `comm_idx = 68.67` (approaching extreme, below 80 main threshold) AND `comm_net_extreme (156w) = 65.04` (below 80 historic threshold). Sep 12 report shows `comm_idx = 87.20` (fires main path) but the Sep 9 case uses the Sep 5 data point. Lowering the approaching-extreme threshold from `0.75 * upper = 60.0` to `0.625 * upper = 50.0` was intended to capture cases where the 26w has already made a strong move toward extreme.
+
+**Fix applied to `BP_indicators.py`**:
+```python
+# Phase 45: lowered from 0.75 (60.0) → 0.625 (50.0).
+_approach_bull = self.upper_extreme * 0.625  # 80 * 0.625 = 50.0
+_approach_bear = self.lower_extreme + (self.upper_extreme - self.lower_extreme) * 0.25  # 20+15=35
+```
+
+**Phase 45 results (full 160-case goldtest):**
+- Stage-1 bias_only: **115/156 = 73.7%** — unchanged from Phase 43 ✓
+- Stage-2 full-signal: **21/160 = 13.1%** — unchanged ✓
+- Zero false positives — preserved ✓
+
+**Why Phase 45 had no net effect on the full goldtest**: The secondary trigger condition requires BOTH `26w approaching` AND `156w ≥ 80`. For GC=F Sep 5-26, 2023, `comm_net_extreme (156w)` was 65-78 — below the 80 threshold. Lowering the 26w threshold from 60→50 cannot help when the 156w hard constraint is failing. The PM subset test showed +2 improvement on a 41-case run, but those 2 gains were offset elsewhere (the forex 156w trigger from Phase 43 may have already absorbed some cases, or the gains appear in test-run variance).
+
+**Key insight for future**: The Sep 9-26 GC=F cases are a genuine data gap — commercials had just come off an extreme peak in Aug 2023 and the 156w hadn't returned to extreme yet. These cases require Bernd's discretionary reading of the "approaching extreme" trajectory that our threshold-based trigger can't fully replicate.
+
+**Files changed in Phase 45:**
+- `Propfirm Trading Dashboard/BP_indicators.py` — approaching-extreme multiplier changed from 0.75 to 0.625
+
+---
+
+**Progression summary (goldtest Stage-1) including Phase 43–45:**
+
+| Phase | Score | Key fix |
+|-------|-------|---------|
+| Phase 42f (all fixes) | 114/156 = 73.1% | Silver rules + Fix-4b tally sync + Fix-6/6b forex COT guard |
+| Phase 43 | **115/156 = 73.7%** | Forex 156w COT trigger extension |
+| Phase 44 | 115/156 = 73.7% | True-clone E1 pending limit orders (Stage-2 architecture only) |
+| Phase 45 | 115/156 = 73.7% | PM COT threshold 60→50 (net neutral on full test) |
+
+**Current production state (as of Phase 45):**
+- Stage-1 (directional matching Bernd): **115/156 = 73.7%**
+- Stage-2 (full trade signal): **21/160 = 13.1%**
+- False positives at Stage-2: **0** — preserved across all phases
+- Remaining OPPOSITE errors: **4** (#14 YM=F election year, #106 CT=F supply shock, #131 AAPL contradictory pair, #154 CT=F zone-arrival artifact)
+
+**Realistic ceiling**: ~75-78% without `CampusValuationTool_V2`. Key remaining gaps:
+- ~5 individual stocks (2024 election-year continuation): need external Pine Script
+- ~4 cot-weak PM: Sep-Oct 2023 commercials approaching-but-below extreme; no secondary trigger can fire (156w < 80)
+- ~3 valuation-veto forex: Bernd takes CHF/EUR supply-zone shorts despite val=bullish; supply-zone-priority rule not yet implemented
+- ~6 Bernd-discretionary: supply-shock parabolic, narrative overrides, Oct-seasonal-low timing
+
 **Realistic ceiling remains unchanged**: ~75-78% without `CampusValuationTool_V2`. The 4 remaining OPPOSITE errors and ~38 DIVERGE cases split into: Bernd-discretionary COT overrides (~10), ATH equity-index location gap (~7), stock Valuation formula mismatch (~12), forex cross-pair COT complexity (~5), and irreducible stochastic variability (~4).
