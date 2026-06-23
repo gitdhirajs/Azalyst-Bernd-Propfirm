@@ -1,14 +1,14 @@
 {
   "signal_ids_seen": [
-    "AUDUSD=X",
-    "EURGBP=X",
-    "EURAUD=X",
-    "EURCHF=X"
+    "b30179fd-f21",
+    "EURCHF=X",
+    "GBPAUD=X",
+    "PLTR"
   ],
   "open_position_ids_seen": [
-    "d978140a-40b",
     "a2b4b774-b59",
-    "af7c57a4-9fb"
+    "af7c57a4-9fb",
+    "b30179fd-f21"
   ],
-  "last_sent_at": "2026-06-23T05:16:59.001113+00:00"
+  "last_sent_at": "2026-06-23T15:32:33.857698+00:00"
 }

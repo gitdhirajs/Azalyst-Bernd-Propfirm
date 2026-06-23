@@ -1,49 +1,22 @@
 {
-  "balance": 99998.36751703938,
+  "balance": 100730.8311795663,
   "initial_balance": 100000.0,
-  "closed_pnl_total": -1.6324829606138564,
-  "total_trades": 1,
-  "winning_trades": 0,
+  "closed_pnl_total": 730.8311795663014,
+  "total_trades": 2,
+  "winning_trades": 1,
   "losing_trades": 1,
-  "peak_balance": 100000.0,
+  "peak_balance": 100730.8311795663,
   "max_drawdown_pct": 0.0016324829606164711,
-  "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_pnl": 732.4636625269153,
+  "daily_trades": 1,
   "today_starting_equity": 99998.36751703938,
   "current_date": "2026-06-23",
   "account_blown": false,
   "zone_memory": {
-    "c4ea13fa7b": true
+    "c4ea13fa7b": true,
+    "1a828214c2": true
   },
   "open_positions": [
-    {
-      "id": "d978140a-40b",
-      "symbol": "EURCHF=X",
-      "direction": "long",
-      "entry_price": 0.914874,
-      "stop_price": 0.910396,
-      "current_stop": 0.9214520231933594,
-      "targets": [
-        0.919352,
-        0.923831,
-        0.928309
-      ],
-      "position_size": 111350.1185685,
-      "risk_amount": 997.25,
-      "entry_time": "2026-06-03T18:52:48.581991",
-      "status": "active",
-      "realized_pnl": 997.3630120180536,
-      "partial_taken": true,
-      "partial_qty": 111350.1185685,
-      "partial_price": 0.923831,
-      "breakeven_triggered": true,
-      "trail_stop_level": 0.9214520231933594,
-      "zone_id": "1a828214c2",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    },
     {
       "id": "a2b4b774-b59",
       "symbol": "GBPCHF=X",
@@ -99,6 +72,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "b30179fd-f21",
+      "symbol": "EURAUD=X",
+      "direction": "long",
+      "entry_price": 1.645374,
+      "stop_price": 1.626546,
+      "current_stop": 1.626546,
+      "targets": [
+        1.664201,
+        1.683028,
+        1.701856
+      ],
+      "position_size": 53349.963546,
+      "risk_amount": 1004.47,
+      "entry_time": "2026-06-23T15:32:31.542248",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "8f509b04e7",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -129,7 +130,35 @@
       "close_price": 7.839247,
       "trade_r_multiple": -1.0,
       "notes": ""
+    },
+    {
+      "id": "d978140a-40b",
+      "symbol": "EURCHF=X",
+      "direction": "long",
+      "entry_price": 0.914874,
+      "stop_price": 0.910396,
+      "current_stop": 0.9214520231933594,
+      "targets": [
+        0.919352,
+        0.923831,
+        0.928309
+      ],
+      "position_size": 111350.1185685,
+      "risk_amount": 997.25,
+      "entry_time": "2026-06-03T18:52:48.581991",
+      "status": "closed",
+      "realized_pnl": 732.4636625269153,
+      "partial_taken": true,
+      "partial_qty": 111350.1185685,
+      "partial_price": 0.923831,
+      "breakeven_triggered": true,
+      "trail_stop_level": 0.9214520231933594,
+      "zone_id": "1a828214c2",
+      "close_time": "2026-06-23T15:32:31.541997",
+      "close_price": 0.9214520231933594,
+      "trade_r_multiple": 1.468964536257136,
+      "notes": ""
     }
   ],
-  "saved_at": "2026-06-23T12:34:32.605510"
+  "saved_at": "2026-06-23T15:32:31.543228"
 }
