@@ -2,12 +2,12 @@
   "signal_ids_seen": [
     "EURCHF=X",
     "USDPLN=X",
-    "PLTR"
+    "MSFT"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "b30179fd-f21"
   ],
-  "last_sent_at": "2026-06-24T04:45:40.784654+00:00"
+  "last_sent_at": "2026-06-24T21:57:47.468185+00:00"
 }
