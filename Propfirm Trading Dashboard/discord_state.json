@@ -1,6 +1,8 @@
 {
   "signal_ids_seen": [
     "EURCHF=X",
+    "GBPAUD=X",
+    "CADJPY=X",
     "MSFT",
     "DIS"
   ],
@@ -9,5 +11,5 @@
     "af7c57a4-9fb",
     "b30179fd-f21"
   ],
-  "last_sent_at": "2026-06-25T15:26:39.434051+00:00"
+  "last_sent_at": "2026-06-25T22:05:06.588479+00:00"
 }
