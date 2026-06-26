@@ -1,15 +1,13 @@
 {
   "signal_ids_seen": [
-    "EURAUD=X",
-    "EURCHF=X",
-    "GBPAUD=X",
-    "MSFT",
-    "DIS"
+    "77e14bee-a12",
+    "DIS",
+    "NVO"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
-    "b30179fd-f21"
+    "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-26T04:50:05.983890+00:00"
+  "last_sent_at": "2026-06-26T14:59:23.077684+00:00"
 }
