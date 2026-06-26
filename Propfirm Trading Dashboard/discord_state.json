@@ -1,13 +1,13 @@
 {
   "signal_ids_seen": [
-    "77e14bee-a12",
+    "EURCHF=X",
     "DIS",
-    "NVO"
+    "SPGI"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-26T14:59:23.077684+00:00"
+  "last_sent_at": "2026-06-26T18:15:57.538595+00:00"
 }
