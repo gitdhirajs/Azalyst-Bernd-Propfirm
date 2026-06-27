@@ -1879,5 +1879,192 @@
         "composite": 9.9
       }
     ]
+  },
+  {
+    "scan_time": "2026-06-27T07:29:34.524553",
+    "strategy": "weekly",
+    "watchlist_scanned": 167,
+    "signals_found": 29,
+    "auto_traded": 0,
+    "account_balance": 101724.9,
+    "closed_pnl": 1724.9,
+    "win_rate": 0.3333,
+    "total_trades": 3,
+    "signals_summary": [
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      },
+      {
+        "symbol": "MSFT",
+        "direction": "long",
+        "entry": 321.320007,
+        "composite": 9.9
+      },
+      {
+        "symbol": "META",
+        "direction": "long",
+        "entry": 272.660004,
+        "composite": 9.5
+      },
+      {
+        "symbol": "NFLX",
+        "direction": "long",
+        "entry": 31.006001,
+        "composite": 10.0
+      },
+      {
+        "symbol": "ORCL",
+        "direction": "long",
+        "entry": 90.849998,
+        "composite": 9.5
+      },
+      {
+        "symbol": "MA",
+        "direction": "long",
+        "entry": 329.470001,
+        "composite": 10.1
+      },
+      {
+        "symbol": "CVX",
+        "direction": "long",
+        "entry": 116.510002,
+        "composite": 10.3
+      },
+      {
+        "symbol": "WMT",
+        "direction": "long",
+        "entry": 89.760002,
+        "composite": 8.95
+      },
+      {
+        "symbol": "COST",
+        "direction": "long",
+        "entry": 500.790009,
+        "composite": 10.1
+      },
+      {
+        "symbol": "DIS",
+        "direction": "long",
+        "entry": 96.5,
+        "composite": 9.6
+      },
+      {
+        "symbol": "GILD",
+        "direction": "long",
+        "entry": 70.809998,
+        "composite": 9.6
+      },
+      {
+        "symbol": "MRNA",
+        "direction": "long",
+        "entry": 25.01,
+        "composite": 9.7
+      },
+      {
+        "symbol": "LMT",
+        "direction": "long",
+        "entry": 365.179993,
+        "composite": 9.9
+      },
+      {
+        "symbol": "NOC",
+        "direction": "long",
+        "entry": 373.809998,
+        "composite": 9.3
+      },
+      {
+        "symbol": "NKE",
+        "direction": "long",
+        "entry": 62.490002,
+        "composite": 8.6
+      },
+      {
+        "symbol": "BLK",
+        "direction": "long",
+        "entry": 645.640015,
+        "composite": 10.0
+      },
+      {
+        "symbol": "SPGI",
+        "direction": "long",
+        "entry": 319.309998,
+        "composite": 9.4
+      },
+      {
+        "symbol": "SLB",
+        "direction": "long",
+        "entry": 36.939999,
+        "composite": 10.1
+      },
+      {
+        "symbol": "OXY",
+        "direction": "long",
+        "entry": 29.190001,
+        "composite": 9.6
+      },
+      {
+        "symbol": "DVN",
+        "direction": "long",
+        "entry": 32.73,
+        "composite": 9.25
+      },
+      {
+        "symbol": "T",
+        "direction": "long",
+        "entry": 20.709999,
+        "composite": 10.3
+      },
+      {
+        "symbol": "TMUS",
+        "direction": "long",
+        "entry": 123.129997,
+        "composite": 8.6
+      },
+      {
+        "symbol": "SHOP",
+        "direction": "long",
+        "entry": 77.480003,
+        "composite": 10.1
+      },
+      {
+        "symbol": "COIN",
+        "direction": "long",
+        "entry": 109.25,
+        "composite": 9.5
+      },
+      {
+        "symbol": "PLTR",
+        "direction": "long",
+        "entry": 10.14,
+        "composite": 9.5
+      },
+      {
+        "symbol": "SMCI",
+        "direction": "long",
+        "entry": 7.94,
+        "composite": 9.5
+      },
+      {
+        "symbol": "NVO",
+        "direction": "long",
+        "entry": 54.625,
+        "composite": 8.8
+      },
+      {
+        "symbol": "BABA",
+        "direction": "long",
+        "entry": 86.099998,
+        "composite": 9.6
+      },
+      {
+        "symbol": "PDD",
+        "direction": "long",
+        "entry": 53.09,
+        "composite": 9.9
+      }
+    ]
   }
 ]
