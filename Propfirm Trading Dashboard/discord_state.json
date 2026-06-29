@@ -1,39 +1,14 @@
 {
   "signal_ids_seen": [
-    "EURCHF=X",
-    "MSFT",
-    "META",
-    "NFLX",
-    "ORCL",
-    "MA",
-    "CVX",
-    "WMT",
-    "COST",
-    "DIS",
-    "GILD",
-    "MRNA",
-    "LMT",
-    "NOC",
-    "NKE",
-    "BLK",
-    "SPGI",
-    "SLB",
-    "OXY",
-    "DVN",
-    "T",
-    "TMUS",
-    "SHOP",
-    "COIN",
-    "PLTR",
-    "SMCI",
-    "NVO",
-    "BABA",
-    "PDD"
+    "USDSGD=X",
+    "USDHKD=X",
+    "USDPLN=X",
+    "DIS"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-27T04:24:43.620243+00:00"
+  "last_sent_at": "2026-06-29T05:08:12.046365+00:00"
 }
