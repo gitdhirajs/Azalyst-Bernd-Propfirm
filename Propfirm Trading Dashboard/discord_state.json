@@ -3,6 +3,7 @@
     "USDSGD=X",
     "USDHKD=X",
     "USDPLN=X",
+    "MSFT",
     "DIS"
   ],
   "open_position_ids_seen": [
@@ -10,5 +11,5 @@
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-29T05:08:12.046365+00:00"
+  "last_sent_at": "2026-06-29T18:36:13.927586+00:00"
 }
