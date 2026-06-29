@@ -1,8 +1,8 @@
 {
   "signal_ids_seen": [
-    "USDSGD=X",
-    "USDHKD=X",
-    "USDPLN=X",
+    "EURCHF=X",
+    "GBPAUD=X",
+    "GBPCHF=X",
     "MSFT",
     "DIS"
   ],
@@ -11,5 +11,5 @@
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-29T18:36:13.927586+00:00"
+  "last_sent_at": "2026-06-29T21:56:06.439609+00:00"
 }
