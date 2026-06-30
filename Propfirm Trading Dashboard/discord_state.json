@@ -1,15 +1,13 @@
 {
   "signal_ids_seen": [
     "EURCHF=X",
-    "GBPAUD=X",
-    "GBPCHF=X",
-    "MSFT",
-    "DIS"
+    "DIS",
+    "T"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-29T21:56:06.439609+00:00"
+  "last_sent_at": "2026-06-30T14:55:32.456947+00:00"
 }
