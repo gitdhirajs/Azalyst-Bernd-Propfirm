@@ -10,7 +10,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 100730.8311795663,
-  "current_date": "2026-06-29",
+  "current_date": "2026-06-30",
   "account_blown": false,
   "zone_memory": {
     "c4ea13fa7b": true,
@@ -52,7 +52,7 @@
       "direction": "short",
       "entry_price": 0.716885,
       "stop_price": 0.730691,
-      "current_stop": 0.702653541809082,
+      "current_stop": 0.7012329843101501,
       "targets": [
         0.703079,
         0.689272,
@@ -67,7 +67,7 @@
       "partial_qty": 36000.0,
       "partial_price": 0.689272,
       "breakeven_triggered": true,
-      "trail_stop_level": 0.702653541809082,
+      "trail_stop_level": 0.7012329843101501,
       "zone_id": "6ef4bc7b55",
       "close_time": null,
       "close_price": null,
@@ -189,5 +189,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-06-29T21:56:03.818299"
+  "saved_at": "2026-06-30T04:46:31.932851"
 }
