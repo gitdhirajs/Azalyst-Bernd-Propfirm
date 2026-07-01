@@ -1,13 +1,14 @@
 {
   "signal_ids_seen": [
     "EURCHF=X",
-    "DIS",
-    "T"
+    "GBPAUD=X",
+    "CL=F",
+    "SPGI"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-06-30T14:55:32.456947+00:00"
+  "last_sent_at": "2026-07-01T15:22:45.201820+00:00"
 }
