@@ -2,6 +2,7 @@
   "signal_ids_seen": [
     "EURCHF=X",
     "GBPAUD=X",
+    "GBPCHF=X",
     "CL=F",
     "SPGI"
   ],
@@ -10,5 +11,5 @@
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-07-01T15:22:45.201820+00:00"
+  "last_sent_at": "2026-07-01T22:00:09.223247+00:00"
 }

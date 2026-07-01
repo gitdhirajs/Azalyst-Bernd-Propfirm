@@ -9,8 +9,8 @@
   "max_drawdown_pct": 0.0016324829606164711,
   "daily_pnl": 0.0,
   "daily_trades": 0,
-  "today_starting_equity": 100730.8311795663,
-  "current_date": "2026-07-01",
+  "today_starting_equity": 101724.8991795663,
+  "current_date": "2026-07-02",
   "account_blown": false,
   "zone_memory": {
     "c4ea13fa7b": true,
@@ -189,5 +189,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-01T18:26:14.967482"
+  "saved_at": "2026-07-01T22:00:06.621357"
 }
