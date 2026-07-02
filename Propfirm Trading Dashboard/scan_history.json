@@ -2961,5 +2961,54 @@
         "composite": 8.8
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-02T14:29:33.395641",
+    "strategy": "weekly",
+    "watchlist_scanned": 167,
+    "signals_found": 6,
+    "auto_traded": 0,
+    "account_balance": 101724.9,
+    "closed_pnl": 1724.9,
+    "win_rate": 0.3333,
+    "total_trades": 3,
+    "signals_summary": [
+      {
+        "symbol": "USDJPY=X",
+        "direction": "short",
+        "entry": 161.758078,
+        "composite": 6.65
+      },
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      },
+      {
+        "symbol": "CADJPY=X",
+        "direction": "short",
+        "entry": 115.117996,
+        "composite": 7.35
+      },
+      {
+        "symbol": "CL=F",
+        "direction": "long",
+        "entry": 58.470001,
+        "composite": 9.2
+      },
+      {
+        "symbol": "SPGI",
+        "direction": "long",
+        "entry": 404.064977,
+        "composite": 8.8
+      },
+      {
+        "symbol": "NVO",
+        "direction": "long",
+        "entry": 44.684999,
+        "composite": 9.9
+      }
+    ]
   }
 ]
