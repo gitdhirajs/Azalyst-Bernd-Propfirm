@@ -1,16 +1,15 @@
 {
   "signal_ids_seen": [
-    "USDJPY=X",
-    "EURCHF=X",
-    "CADJPY=X",
+    "USDSGD=X",
+    "USDHKD=X",
+    "USDPLN=X",
     "CL=F",
-    "SPGI",
-    "NVO"
+    "ZC=F"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-07-02T14:41:28.287829+00:00"
+  "last_sent_at": "2026-07-06T04:51:11.763334+00:00"
 }
