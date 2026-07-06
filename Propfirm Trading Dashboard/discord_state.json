@@ -1,8 +1,7 @@
 {
   "signal_ids_seen": [
-    "USDSGD=X",
-    "USDHKD=X",
-    "USDPLN=X",
+    "EURCHF=X",
+    "GBPCHF=X",
     "CL=F",
     "NVO"
   ],
@@ -11,5 +10,5 @@
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-07-06T18:35:42.954104+00:00"
+  "last_sent_at": "2026-07-06T21:59:48.871288+00:00"
 }
