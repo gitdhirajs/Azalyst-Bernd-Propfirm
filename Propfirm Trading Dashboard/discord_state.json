@@ -3,13 +3,12 @@
     "USDSGD=X",
     "USDHKD=X",
     "USDPLN=X",
-    "CL=F",
-    "ZC=F"
+    "NVO"
   ],
   "open_position_ids_seen": [
     "a2b4b774-b59",
     "af7c57a4-9fb",
     "77e14bee-a12"
   ],
-  "last_sent_at": "2026-07-06T04:51:11.763334+00:00"
+  "last_sent_at": "2026-07-06T16:07:53.374860+00:00"
 }
