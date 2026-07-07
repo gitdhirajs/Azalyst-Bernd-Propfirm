@@ -146,7 +146,7 @@ def header_block(scan_time_iso: Optional[str]) -> str:
     else:
         ts = datetime.now(timezone.utc)
     return (
-        "AZALYST PROPFIRM SCANNER  —  HOURLY UPDATE\n"
+        "AZALYST PROPFIRM SCANNER  —  4-HOUR UPDATE\n"
         f"{ts.strftime('%d %b %Y  %H:%M UTC')}\n"
     )
 
@@ -341,7 +341,7 @@ def footer_block(scan: Dict) -> str:
     err = len(scan.get("errors", []))
     return (
         "Azalyst Propfirm  |  Simulated paper trades.  Not financial advice.\n"
-        f"{n} symbols scanned  •  {err} errors  •  next scan in ~1h"
+        f"{n} symbols scanned  •  {err} errors  •  next scan in ~4h"
     )
 
 
