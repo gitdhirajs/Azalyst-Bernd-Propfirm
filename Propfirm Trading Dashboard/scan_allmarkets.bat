@@ -31,11 +31,15 @@ echo.
 echo === Azalyst ALL-MARKETS scan (profile: allmarkets, $5k/1%%, take-all) ===
 echo.
 
+:: Prefer the project venv python (has all deps); fall back to PATH python.
+set "PYEXE=python"
+if exist ".venv\Scripts\python.exe" set "PYEXE=.venv\Scripts\python.exe"
+
 :: --profile allmarkets  -> BP_config_allmarkets.yaml + *_allmarkets state files
 :: --no-open             -> headless (no dashboard browser/server)
 :: run_scanner.py auto-posts to Discord using DISCORD_WEBHOOK_URL (set above)
 :: with the correct _allmarkets state suffix.
-python run_scanner.py --profile allmarkets --no-open
+"%PYEXE%" run_scanner.py --profile allmarkets --no-open
 
 echo.
 echo === Scan complete. Signals (if any) were posted to your Discord channel. ===
