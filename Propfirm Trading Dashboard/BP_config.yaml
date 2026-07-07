@@ -2,37 +2,50 @@
 # ==========================================
 
 # ============================================================
-# FUNDINGPIPS-STYLE PROP FIRM RULES
+# FUNDINGPIPS 1-STEP CHALLENGE -- $5,000 account (Phase 1)
 # ============================================================
-# When enabled, the paper trader simulates a Fundingpips challenge
-# account: $100k starting balance, $5k max daily loss, $10k max total
-# loss. Trades that would breach either limit at submit time are
-# blocked. Daily window resets at 17:00 New York time (22:00 UTC).
+# Configured to mirror the user's live FundingPips 1-Step evaluation:
+#   Account #2015868, One Step, Phase 1, MatchTrader.
+#   The FP dashboard DISPLAYS everything in INR (Rs 4.5 lakh) but the
+#   account BASE CURRENCY IS USD $5,000 -- the Rs figures are just a ~90:1
+#   display conversion (Rs 450,000 bal / Rs 13,500 daily / Rs 27,000 total /
+#   Rs 45,000 target). Market data + all sizing here are in USD, so we
+#   configure everything in USD and let the platform show you rupees.
 #
-# Default preset = Phase 2 (verification): 5% profit target,
-# 5% max daily loss, 10% max total loss. Profit target is informational
-# only (no enforcement) -- the engine blocks trades on loss-cap breach,
-# not on profit-target attainment.
-#   Phase 1: profit_target_pct: 8.0   <-- current (Stage 1 challenge)
-#   Phase 2: profit_target_pct: 5.0   (after passing Stage 1)
-#   Funded: profit_target_pct: 0.0    (no target)
+#   Account size ........ $5,000
+#   Max daily loss ...... $150   (3% of 5,000)   -> Rs 13,500 on the FP panel
+#   Max total loss ...... $300   (6% static)     -> Rs 27,000 on the FP panel
+#   Profit target ....... $500   (10%)           -> Rs 45,000 on the FP panel
+#   Min trading days .... 3      (enforced by FP, not here)
+#
+# When enabled, the paper trader blocks any trade that would breach the
+# daily or total loss cap at submit time -- exactly what the broker does.
+# Daily window resets at daily_reset_hour_utc (confirm against the
+# "Resets In" countdown on your FP dashboard and adjust if it differs).
+# Profit target is informational only (no enforcement) -- the engine blocks
+# trades on a loss-cap breach, not on profit-target attainment.
+#   Phase 1 (now):     profit_target_pct: 10.0   <-- 1-Step target ($500)
+#   Funded (passed):   profit_target_pct: 0.0    (no target)
+# NOTE: after you pass, update account_size + both caps to your funded size.
 # ------------------------------------------------------------
 prop_firm:
   enabled: true
-  account_size: 100000.0
-  max_daily_loss_usd: 5000.0     # Maximum Daily Loss (resets each session)
-  max_total_loss_usd: 10000.0    # Maximum Loss (lifetime drawdown limit)
-  profit_target_pct: 8.0         # Stage 1 (Phase 1): 8% target; change to 5.0 for Stage 2
-  daily_reset_hour_utc: 22       # 17:00 NY time = 22:00 UTC (give-or-take DST)
+  account_size: 5000.0
+  max_daily_loss_usd: 150.0      # 3% of 5,000  = FP "Maximum Daily Loss" (Rs 13,500)
+  max_total_loss_usd: 300.0      # 6% static     = FP "Maximum Loss"       (Rs 27,000)
+  profit_target_pct: 10.0        # 1-Step target = 10% ($500 / Rs 45,000)
+  daily_reset_hour_utc: 22       # 17:00 NY = 22:00 UTC. Confirm vs FP "Resets In" timer.
 
 risk:
   # Used as fallback when prop_firm.enabled is false. When prop_firm is on,
-  # `prop_firm.account_size` overrides this.
-  account_balance: 100000.0
-  risk_per_trade_pct: 1.0          # Standard / with-trend setups (= $1,000 per trade on $100k)
-  reduced_risk_pct: 0.5            # Counter-trend & anticipatory setups (HAI Module 4)
-  max_daily_loss_pct: 5.0
-  max_total_loss_pct: 10.0
+  # `prop_firm.account_size` overrides account_balance for the paper trader.
+  account_balance: 5000.0
+  risk_per_trade_pct: 1.0          # 1% = $50 risk per trade on $5,000 (your choice)
+  reduced_risk_pct: 0.5            # Counter-trend & anticipatory: 0.5% = $25 (HAI Module 4)
+  max_daily_loss_pct: 3.0          # 1-Step daily cap (matches prop_firm.max_daily_loss_usd)
+  max_total_loss_pct: 6.0          # 1-Step static total cap (matches prop_firm.max_total_loss_usd)
+  # NB: 3 concurrent trades x 1% = 3% = the ENTIRE daily loss cap. If all three
+  # hit stop the same day, the daily limit is reached. Lower to 2 for more buffer.
   max_open_positions: 3
 
 # ============================================================
@@ -156,18 +169,6 @@ watchlist:
   - { symbol: "HO=F", name: "HEATOIL (Heating Oil)", asset_class: "energies" }
   - { symbol: "RB=F", name: "GASOLINE (RBOB)",       asset_class: "energies" }
 
-  # ── AGRICULTURAL GRAINS (Commercials COT 52w; ROC=30) ─────────
-  - { symbol: "ZC=F", name: "CORN (Corn)",           asset_class: "commodities" }
-  - { symbol: "ZW=F", name: "WHEAT (Wheat)",         asset_class: "commodities" }
-  - { symbol: "ZS=F", name: "SOYBEAN (Soybeans)",    asset_class: "commodities" }
-  - { symbol: "ZL=F", name: "SOYOIL (Soybean Oil)",  asset_class: "commodities" }
-  - { symbol: "CT=F", name: "COTTON (Cotton #2)",    asset_class: "commodities" }
-
-  # ── TROPICAL SOFTS (Non-Commercials divergence 26w) ───────────
-  - { symbol: "KC=F", name: "COFFEE (Coffee C)",     asset_class: "commodities" }
-  - { symbol: "CC=F", name: "COCOA (Cocoa)",         asset_class: "soft_commodities" }
-  - { symbol: "SB=F", name: "SUGAR (Sugar #11)",     asset_class: "soft_commodities" }
-
   # ── EQUITY INDICES (FP: US + global indices) ────────────────
   - { symbol: "ES=F",      name: "US500 (S&P 500)",       asset_class: "equity_indices" }
   - { symbol: "NQ=F",      name: "US100 (Nasdaq 100)",    asset_class: "equity_indices" }
@@ -183,10 +184,6 @@ watchlist:
   - { symbol: "^STOXX50E", name: "EU50 (Euro Stoxx)",     asset_class: "equity_indices" }
   - { symbol: "^SSMI",     name: "SUI30 (SMI)",           asset_class: "equity_indices" }
 
-  # ── INTEREST RATES (cross-asset gates; not always FP-tradable) ──
-  - { symbol: "ZB=F", name: "USB30Y (30Y Bonds)", asset_class: "interest_rates" }
-  - { symbol: "ZN=F", name: "USB10Y (10Y Notes)", asset_class: "interest_rates" }
-
   # ── CRYPTO (FP: ~10-12 majors) -- pinned to DAILY only ──────
   - { symbol: "BTC-USD",  name: "BTCUSD",  asset_class: "crypto", cot_symbol: "BTC=F", strategies: ["daily"] }
   - { symbol: "ETH-USD",  name: "ETHUSD",  asset_class: "crypto", cot_symbol: "ETH=F", strategies: ["daily"] }
@@ -199,125 +196,6 @@ watchlist:
   - { symbol: "LINK-USD", name: "LINKUSD", asset_class: "crypto", strategies: ["daily"] }
   - { symbol: "AVAX-USD", name: "AVAXUSD", asset_class: "crypto", strategies: ["daily"] }
   - { symbol: "DOGE-USD", name: "DOGEUSD", asset_class: "crypto", strategies: ["daily"] }
-
-  # ── MEGA-CAP STOCKS (Phase 6 dual-gate + 8-stock NQ basket) ───
-  # Required as INPUTS to the methodology even when not directly tradable on FP.
-  # Comment out if you only want symbols you can execute.
-  - { symbol: "AAPL",  name: "AAPL (Apple)",       asset_class: "equities" }
-  - { symbol: "MSFT",  name: "MSFT (Microsoft)",   asset_class: "equities" }
-  - { symbol: "GOOG",  name: "GOOG (Alphabet)",    asset_class: "equities" }
-  - { symbol: "META",  name: "META (Meta)",        asset_class: "equities" }
-  - { symbol: "AMZN",  name: "AMZN (Amazon)",      asset_class: "equities" }
-  - { symbol: "NFLX",  name: "NFLX (Netflix)",     asset_class: "equities" }
-  - { symbol: "TSLA",  name: "TSLA (Tesla)",       asset_class: "equities" }
-  - { symbol: "NVDA",  name: "NVDA (Nvidia)",      asset_class: "equities" }
-
-  # ── SEMICONDUCTORS & TECH ───────────────────────────────────────
-  - { symbol: "AMD",   name: "AMD (AMD)",           asset_class: "equities" }
-  - { symbol: "INTC",  name: "INTC (Intel)",        asset_class: "equities" }
-  - { symbol: "QCOM",  name: "QCOM (Qualcomm)",     asset_class: "equities" }
-  - { symbol: "AVGO",  name: "AVGO (Broadcom)",     asset_class: "equities" }
-  - { symbol: "MU",    name: "MU (Micron)",         asset_class: "equities" }
-  - { symbol: "AMAT",  name: "AMAT (Appl. Materials)", asset_class: "equities" }
-  - { symbol: "TSM",   name: "TSM (TSMC)",          asset_class: "equities" }
-  - { symbol: "ORCL",  name: "ORCL (Oracle)",       asset_class: "equities" }
-  - { symbol: "CRM",   name: "CRM (Salesforce)",    asset_class: "equities" }
-  - { symbol: "ADBE",  name: "ADBE (Adobe)",        asset_class: "equities" }
-
-  # ── FINANCIALS ─────────────────────────────────────────────────
-  - { symbol: "JPM",   name: "JPM (JPMorgan)",      asset_class: "equities" }
-  - { symbol: "GS",    name: "GS (Goldman Sachs)",  asset_class: "equities" }
-  - { symbol: "BAC",   name: "BAC (Bank of America)", asset_class: "equities" }
-  - { symbol: "MS",    name: "MS (Morgan Stanley)",  asset_class: "equities" }
-  - { symbol: "V",     name: "V (Visa)",             asset_class: "equities" }
-  - { symbol: "MA",    name: "MA (Mastercard)",      asset_class: "equities" }
-
-  # ── ENERGY STOCKS ──────────────────────────────────────────────
-  - { symbol: "XOM",   name: "XOM (ExxonMobil)",    asset_class: "equities" }
-  - { symbol: "CVX",   name: "CVX (Chevron)",       asset_class: "equities" }
-
-  # ── HEALTHCARE ─────────────────────────────────────────────────
-  - { symbol: "UNH",   name: "UNH (UnitedHealth)",  asset_class: "equities" }
-  - { symbol: "JNJ",   name: "JNJ (J&J)",           asset_class: "equities" }
-  - { symbol: "LLY",   name: "LLY (Eli Lilly)",     asset_class: "equities" }
-
-  # ── CONSUMER / INDUSTRIAL ──────────────────────────────────────
-  - { symbol: "WMT",   name: "WMT (Walmart)",       asset_class: "equities" }
-  - { symbol: "COST",  name: "COST (Costco)",       asset_class: "equities" }
-  - { symbol: "DIS",   name: "DIS (Disney)",        asset_class: "equities" }
-  - { symbol: "BA",    name: "BA (Boeing)",         asset_class: "equities" }
-  - { symbol: "CAT",   name: "CAT (Caterpillar)",   asset_class: "equities" }
-
-  # ── PHARMA / BIOTECH ───────────────────────────────────────────
-  - { symbol: "PFE",   name: "PFE (Pfizer)",        asset_class: "equities" }
-  - { symbol: "MRK",   name: "MRK (Merck)",         asset_class: "equities" }
-  - { symbol: "ABBV",  name: "ABBV (AbbVie)",       asset_class: "equities" }
-  - { symbol: "GILD",  name: "GILD (Gilead)",       asset_class: "equities" }
-  - { symbol: "BIIB",  name: "BIIB (Biogen)",       asset_class: "equities" }
-  - { symbol: "REGN",  name: "REGN (Regeneron)",    asset_class: "equities" }
-  - { symbol: "MRNA",  name: "MRNA (Moderna)",      asset_class: "equities" }
-
-  # ── DEFENSE / AEROSPACE ────────────────────────────────────────
-  - { symbol: "LMT",   name: "LMT (Lockheed)",      asset_class: "equities" }
-  - { symbol: "RTX",   name: "RTX (Raytheon)",      asset_class: "equities" }
-  - { symbol: "NOC",   name: "NOC (Northrop)",       asset_class: "equities" }
-  - { symbol: "GE",    name: "GE (GE Aerospace)",   asset_class: "equities" }
-  - { symbol: "HON",   name: "HON (Honeywell)",     asset_class: "equities" }
-
-  # ── CONSUMER BRANDS (high TV idea engagement) ──────────────────
-  - { symbol: "KO",    name: "KO (Coca-Cola)",      asset_class: "equities" }
-  - { symbol: "PEP",   name: "PEP (PepsiCo)",       asset_class: "equities" }
-  - { symbol: "MCD",   name: "MCD (McDonald's)",    asset_class: "equities" }
-  - { symbol: "SBUX",  name: "SBUX (Starbucks)",    asset_class: "equities" }
-  - { symbol: "NKE",   name: "NKE (Nike)",          asset_class: "equities" }
-  - { symbol: "LULU",  name: "LULU (Lululemon)",    asset_class: "equities" }
-
-  # ── MORE FINANCIALS ────────────────────────────────────────────
-  - { symbol: "WFC",   name: "WFC (Wells Fargo)",   asset_class: "equities" }
-  - { symbol: "C",     name: "C (Citigroup)",       asset_class: "equities" }
-  - { symbol: "AXP",   name: "AXP (Amex)",          asset_class: "equities" }
-  - { symbol: "BLK",   name: "BLK (BlackRock)",     asset_class: "equities" }
-  - { symbol: "SCHW",  name: "SCHW (Schwab)",       asset_class: "equities" }
-  - { symbol: "SPGI",  name: "SPGI (S&P Global)",   asset_class: "equities" }
-
-  # ── ENERGY STOCKS ──────────────────────────────────────────────
-  - { symbol: "SLB",   name: "SLB (Schlumberger)",  asset_class: "equities" }
-  - { symbol: "OXY",   name: "OXY (Occidental)",    asset_class: "equities" }
-  - { symbol: "EOG",   name: "EOG (EOG Resources)", asset_class: "equities" }
-  - { symbol: "DVN",   name: "DVN (Devon Energy)",  asset_class: "equities" }
-
-  # ── TELECOM ────────────────────────────────────────────────────
-  - { symbol: "T",     name: "T (AT&T)",             asset_class: "equities" }
-  - { symbol: "VZ",    name: "VZ (Verizon)",         asset_class: "equities" }
-  - { symbol: "TMUS",  name: "TMUS (T-Mobile)",      asset_class: "equities" }
-
-  # ── GROWTH / FINTECH / DISRUPTORS (high TradingView traction) ──
-  - { symbol: "SHOP",  name: "SHOP (Shopify)",       asset_class: "equities" }
-  - { symbol: "PYPL",  name: "PYPL (PayPal)",        asset_class: "equities" }
-  - { symbol: "COIN",  name: "COIN (Coinbase)",      asset_class: "equities" }
-  - { symbol: "CRWD",  name: "CRWD (Crowdstrike)",   asset_class: "equities" }
-  - { symbol: "PLTR",  name: "PLTR (Palantir)",      asset_class: "equities" }
-  - { symbol: "UBER",  name: "UBER (Uber)",          asset_class: "equities" }
-  - { symbol: "ABNB",  name: "ABNB (Airbnb)",        asset_class: "equities" }
-  - { symbol: "SOFI",  name: "SOFI (SoFi)",          asset_class: "equities" }
-  - { symbol: "HOOD",  name: "HOOD (Robinhood)",     asset_class: "equities" }
-  - { symbol: "ARM",   name: "ARM (ARM Holdings)",   asset_class: "equities" }
-  - { symbol: "SMCI",  name: "SMCI (SuperMicro)",    asset_class: "equities" }
-
-  # ── INTERNATIONAL / GLOBAL ADRs ────────────────────────────────
-  - { symbol: "ASML",  name: "ASML (ASML)",          asset_class: "equities" }
-  - { symbol: "NVO",   name: "NVO (Novo Nordisk)",   asset_class: "equities" }
-  - { symbol: "BABA",  name: "BABA (Alibaba)",       asset_class: "equities" }
-  - { symbol: "JD",    name: "JD (JD.com)",          asset_class: "equities" }
-  - { symbol: "PDD",   name: "PDD (Pinduoduo)",      asset_class: "equities" }
-
-  # ── MORE AGRICULTURAL FUTURES ──────────────────────────────────
-  - { symbol: "ZM=F",  name: "SOYMEAL (Soybean Meal)",  asset_class: "commodities" }
-  - { symbol: "OJ=F",  name: "OJ (Orange Juice)",        asset_class: "soft_commodities" }
-  - { symbol: "LE=F",  name: "CATTLE (Live Cattle)",     asset_class: "commodities" }
-  - { symbol: "HE=F",  name: "HOGS (Lean Hogs)",         asset_class: "commodities" }
-  - { symbol: "GF=F",  name: "FEEDCATTLE (Feeder Cattle)", asset_class: "commodities" }
-  - { symbol: "LBS=F", name: "LUMBER (Random Length Lumber)", asset_class: "commodities" }
 
 zone_detection:
   leg_in_min_candles: 3

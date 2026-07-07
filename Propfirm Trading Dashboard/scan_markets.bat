@@ -26,7 +26,7 @@ title Azalyst Propfirm Scanner [%STRATEGY%]
 echo ============================================
 echo   Azalyst Propfirm - Local Scanner
 echo   Strategy: %STRATEGY%
-echo   $100k account / $5k daily / $10k total
+echo   $5,000 account / $150 daily / $300 total (FundingPips 1-Step)
 echo ============================================
 echo.
 echo Starting scan at %date% %time%
