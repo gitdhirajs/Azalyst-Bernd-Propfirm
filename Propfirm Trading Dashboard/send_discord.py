@@ -199,6 +199,19 @@ def account_block(account: Dict) -> str:
             f"Account Status       :{status:>12}",
         ]
 
+        target_pct = pf.get("profit_target_pct")
+        if target_pct:
+            days = pf.get("days_elapsed")
+            progress = pf.get("progress_to_target_pct")
+            target_equity = pf.get("target_equity", 0)
+            day_str = f"Day {days}" if days is not None else "Day ?"
+            progress_str = f"{progress:.1f}%" if progress is not None else "?%"
+            lines += [
+                LINE,
+                f"Challenge Target     :{target_pct:>10.1f}%   ({m(target_equity).strip()})",
+                f"Progress to Target   : {progress_str:>9}  ({day_str} since reset)",
+            ]
+
     return "\n".join(lines)
 
 

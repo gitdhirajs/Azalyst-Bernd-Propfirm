@@ -436,6 +436,7 @@ def load_paper_trader_state(trader: PaperTrader) -> None:
         trader.today_starting_equity = state.get("today_starting_equity", trader.balance)
         trader.current_date      = state.get("current_date", trader.current_date)
         trader.account_blown     = state.get("account_blown", False)
+        trader.challenge_started_at = state.get("challenge_started_at")
 
         # Restore open positions + closed trade history
         for pd in state.get("open_positions", []) or []:
@@ -461,6 +462,11 @@ def load_paper_trader_state(trader: PaperTrader) -> None:
 
 def save_paper_trader_state(trader: PaperTrader) -> None:
     """Persist paper trader state to disk, including open positions and history."""
+    # Start the challenge clock on the first save after a reset (state file
+    # didn't exist / had no challenge_started_at yet).
+    if not trader.challenge_started_at:
+        trader.challenge_started_at = datetime.now().isoformat()
+
     state = {
         "balance":          trader.balance,
         "initial_balance":  trader.initial_balance,
@@ -476,6 +482,7 @@ def save_paper_trader_state(trader: PaperTrader) -> None:
         "current_date":     trader.current_date,
         "account_blown":    trader.account_blown,
         "zone_memory":      trader.zone_memory,
+        "challenge_started_at": trader.challenge_started_at,
         "open_positions":   [_position_to_dict(p) for p in trader.positions.values()],
         "trade_history":    [_position_to_dict(p) for p in trader.trade_history[-200:]],
         "saved_at":         datetime.now().isoformat(),
@@ -818,6 +825,10 @@ def scan_all_markets(
 
     # Restore persisted paper trader state
     load_paper_trader_state(trader)
+    # Start the challenge clock immediately (not just at save time) so the
+    # very first scan after a reset already reports "Day 0" instead of a gap.
+    if not trader.challenge_started_at:
+        trader.challenge_started_at = datetime.now().isoformat()
     # Positions carried over from prior runs -- these get priced forward this
     # scan. Positions opened during THIS scan are excluded from the update so
     # they aren't closed against the same bar they were entered on.

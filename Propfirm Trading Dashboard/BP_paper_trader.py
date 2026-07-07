@@ -137,6 +137,14 @@ class PaperTrader:
 
         self.zone_memory: Dict[str, bool] = {}  # Track broken zones
 
+        # Challenge clock: when this account started (first scan after a
+        # reset). Lets the Discord message show "Day N" + progress toward
+        # profit_target_pct, so passing/failing has a visible timeline instead
+        # of only a point-in-time balance. Set on first save if still None
+        # (see save_paper_trader_state in run_scanner.py).
+        self.challenge_started_at: Optional[str] = None
+        self.profit_target_pct = float(self.prop_cfg.get('profit_target_pct', 0.0)) if self.prop_enabled else 0.0
+
     def maybe_roll_day(self) -> None:
         """If the daily-reset boundary has passed since the last call, snapshot
         today's starting equity and zero out daily PnL. Matches the broker's
@@ -443,6 +451,24 @@ class PaperTrader:
         total_loss = max(0.0, self.initial_balance - self.balance)
         breached, breach_reason = self.is_breached()
 
+        # Challenge clock + progress toward profit_target_pct. days_elapsed is
+        # None until challenge_started_at is set (first save after a reset).
+        days_elapsed = None
+        if self.challenge_started_at:
+            try:
+                started = datetime.fromisoformat(self.challenge_started_at)
+                now = datetime.now(started.tzinfo) if started.tzinfo else datetime.now()
+                days_elapsed = (now - started).days
+            except ValueError:
+                days_elapsed = None
+
+        target_gain = self.initial_balance * self.profit_target_pct / 100.0
+        target_equity = self.initial_balance + target_gain
+        current_gain = self.balance - self.initial_balance
+        progress_to_target_pct = (
+            round(current_gain / target_gain * 100.0, 1) if target_gain > 0 else None
+        )
+
         prop_firm_status = {
             'enabled':                  self.prop_enabled,
             'account_size':             round(self.initial_balance, 2),
@@ -461,6 +487,12 @@ class PaperTrader:
             # Status flags
             'breached':                 breached or self.account_blown,
             'breach_reason':            breach_reason if breached else "OK",
+            # Challenge clock / pass-target progress
+            'profit_target_pct':        self.profit_target_pct,
+            'target_equity':            round(target_equity, 2),
+            'progress_to_target_pct':   progress_to_target_pct,
+            'challenge_started_at':     self.challenge_started_at,
+            'days_elapsed':             days_elapsed,
         }
 
         return {
