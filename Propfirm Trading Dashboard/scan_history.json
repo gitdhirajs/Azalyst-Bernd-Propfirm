@@ -1,0 +1,45 @@
+[
+  {
+    "scan_time": "2026-07-07T08:33:27.978030",
+    "strategy": "weekly",
+    "watchlist_scanned": 167,
+    "signals_found": 5,
+    "auto_traded": 3,
+    "account_balance": 100000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      },
+      {
+        "symbol": "GBPAUD=X",
+        "direction": "long",
+        "entry": 1.89413,
+        "composite": 6.85
+      },
+      {
+        "symbol": "CT=F",
+        "direction": "short",
+        "entry": 81.599998,
+        "composite": 9.5
+      },
+      {
+        "symbol": "NVO",
+        "direction": "long",
+        "entry": 43.939999,
+        "composite": 9.0
+      },
+      {
+        "symbol": "OJ=F",
+        "direction": "long",
+        "entry": 169.699997,
+        "composite": 10.1
+      }
+    ]
+  }
+]
