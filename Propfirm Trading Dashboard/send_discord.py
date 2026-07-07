@@ -505,7 +505,7 @@ def footer_block(scan: Dict) -> str:
     err = len(scan.get("errors", []))
     base = (
         "Azalyst Propfirm  |  Simulated paper trades.  Not financial advice.\n"
-        f"{n} symbols scanned  •  {err} errors  •  next scan in ~4h"
+        f"{n} symbols scanned  •  {err} errors  •  next scan in ~1h"
     )
     # Note how many setups were below the quality bar (not alerted this scan).
     minc = _load_min_composite()

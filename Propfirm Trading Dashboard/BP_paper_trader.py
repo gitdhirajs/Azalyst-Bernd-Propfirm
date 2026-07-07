@@ -241,6 +241,27 @@ class PaperTrader:
             logger.info(f"Zone {zone_id} already consumed, skipping")
             return None
 
+        # Don't open a DUPLICATE on a zone that already has an OPEN position.
+        # zone_memory only records CONSUMED (closed) zones, so without this a zone
+        # that signals again while its first position is still open opens a second
+        # identical trade (seen live: two EURCHF longs at the same entry).
+        _sig_dir = TradeDirection(signal['direction'])
+        _sig_entry = float(signal['entry_price'])
+        for _p in self.positions.values():
+            if _p.status != TradeStatus.ACTIVE:
+                continue
+            if zone_id and _p.zone_id == zone_id:
+                logger.info(f"Zone {zone_id} already has an open position; skipping duplicate")
+                return None
+            # Fallback: zone_id can drift a hair if the zone's proximal/distal
+            # shift by a bar between scans -- same symbol + direction + ~same
+            # entry (within 1bp) is the same trade.
+            if (_p.symbol == signal['symbol'] and _p.direction == _sig_dir
+                    and abs(_p.entry_price - _sig_entry) <= abs(_sig_entry) * 1e-4):
+                logger.info(f"Duplicate open ({signal['symbol']} {signal['direction']} "
+                            f"@ ~{_sig_entry}); skipping")
+                return None
+
         pos_id = str(uuid.uuid4())[:12]
         position = Position(
             id=pos_id,
