@@ -346,8 +346,8 @@ def new_signals_block(new_signals: List[Dict]) -> str:
     _take_bar = _load_min_composite()
     out = [
         "NEW SIGNALS THIS SCAN",
-        f"  [TAKE] = actionable: pinged + paper-traded at 1% | "
-        f"[CAUTION] = paper-traded at MIN lot, not pinged (composite < {_take_bar:g})",
+        f"  [TAKE] = pinged + paper-traded at 1% | "
+        f"[CAUTION] = pinged + paper-traded at MIN lot (composite < {_take_bar:g})",
         "",
     ]
     for s in new_signals:
@@ -732,8 +732,8 @@ def main() -> int:
         print(f"[discord] {_hidden} new signal(s) below composite {_alert_comp:g} "
               f"held back (not shown).")
     if _caution_new:
-        print(f"[discord] {len(_caution_new)} CAUTION signal(s) shown + paper-traded "
-              f"at MIN lot (not pinged).")
+        print(f"[discord] {len(_caution_new)} CAUTION signal(s) shown + pinged + "
+              f"paper-traded at MIN lot.")
 
     has_news = bool(new_signals or closed_trades)
     breached = (scan.get("account") or {}).get("prop_firm", {}).get("breached", False)
@@ -775,12 +775,13 @@ def main() -> int:
         print("[discord] Status message failed.", file=sys.stderr)
         return 1
 
-    # New signals come as a separate follow-up message. @ping ONLY when at least
-    # one actionable TAKE signal is present, so a CAUTION-only batch is shown
-    # silently (visible in Discord, no phone notification, not paper-traded).
+    # New signals come as a separate follow-up message with an @ping. Both TAKE
+    # and CAUTION signals ping the user (CAUTION is paper-traded at min lot, but
+    # the user still wants a heads-up on it). Only SKIP (below the alert bar) is
+    # silent -- those never reach `new_signals`.
     ok_signals = True
     if signals_msg:
-        ping_user_id = args.user_id if _take_new else None
+        ping_user_id = args.user_id
         ok_signals = post_to_discord(args.webhook_url, signals_msg, user_id=ping_user_id)
         if not ok_signals:
             print("[discord] Signals follow-up failed.", file=sys.stderr)
