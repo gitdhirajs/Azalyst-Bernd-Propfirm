@@ -1,7 +1,9 @@
 {
   "signal_ids_seen": [
-    "EURCHF=X"
+    "f589f106-b62"
   ],
-  "open_position_ids_seen": [],
-  "last_sent_at": "2026-07-07T12:02:43.258257+00:00"
+  "open_position_ids_seen": [
+    "f589f106-b62"
+  ],
+  "last_sent_at": "2026-07-07T19:44:24.737424+00:00"
 }
