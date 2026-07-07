@@ -243,8 +243,12 @@ DASHBOARD_FILE      = SCRIPT_DIR / "dashboard.html"
 # The allcoins config is an OVERRIDE layer deep-merged over BP_config.yaml so
 # all the Phase 1-46 methodology settings stay DRY in one place.
 PROFILES = {
-    "fundingpips": {"config": "BP_config.yaml",          "suffix": ""},
-    "allcoins":    {"config": "BP_config_allcoins.yaml", "suffix": "_allcoins"},
+    "fundingpips": {"config": "BP_config.yaml",           "suffix": ""},
+    "allcoins":    {"config": "BP_config_allcoins.yaml",  "suffix": "_allcoins"},
+    # Broad "scan everything" evaluation track (stocks + commodities + softs +
+    # ETFs on top of the base forex/metals/energies/indices/crypto). Gating OFF,
+    # $5k / 1%, take-all -- run locally to evaluate the method across all markets.
+    "allmarkets":  {"config": "BP_config_allmarkets.yaml", "suffix": "_allmarkets"},
 }
 
 PROFILE_NAME   = "fundingpips"

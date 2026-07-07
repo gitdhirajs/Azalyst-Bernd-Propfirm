@@ -22,6 +22,12 @@ Thumbs.db
 *.local
 Propfirm Trading Dashboard/.secrets.bat
 .secrets.bat
+# All local webhook/secret bats (e.g. .secrets_allmarkets.bat) -- NEVER commit
+# a Discord webhook to this PUBLIC repo.
+.secrets*.bat
+Propfirm Trading Dashboard/.secrets*.bat
+# Per-profile runtime state for the local allmarkets eval track (not committed).
+Propfirm Trading Dashboard/*_allmarkets.json
 
 # --- Large source assets (not part of code) ---
 Blueprint_Trading_System_COMPLETE_TEXTBOOK_v6.docx
