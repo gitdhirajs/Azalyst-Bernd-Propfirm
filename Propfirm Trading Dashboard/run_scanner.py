@@ -1032,10 +1032,20 @@ def scan_all_markets(
 
     # ----------------------------------------------------------------
     # Submit sized signals to the paper trader (after sizing, so PnL is USD).
+    # Only paper-trade signals that clear the alert quality bar
+    # (alerts.min_composite_to_post) so the paper track record mirrors
+    # EXACTLY the setups you'd actually take -- not every low-conviction zone.
     # ----------------------------------------------------------------
+    _min_comp = float(config.get("alerts", {}).get("min_composite_to_post", 7.0))
     for s in signals:
         if not s.get("lot_size"):
             s["paper_trade_id"] = None
+            continue
+        _comp = float((s.get("qualifier_scores") or {}).get("composite", 0) or 0)
+        if _comp < _min_comp:
+            s["paper_trade_id"] = None
+            print(f"  {YELLOW}-> {s.get('display_name')}: below quality bar "
+                  f"(composite {_comp:.1f} < {_min_comp:g}); not paper-traded{RESET}")
             continue
         pos_id = trader.submit_signal(s)
         if pos_id:
