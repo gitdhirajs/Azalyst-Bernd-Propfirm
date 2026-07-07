@@ -1,0 +1,49 @@
+{
+  "balance": 5000.0,
+  "initial_balance": 5000.0,
+  "closed_pnl_total": 0.0,
+  "total_trades": 0,
+  "winning_trades": 0,
+  "losing_trades": 0,
+  "peak_balance": 5000.0,
+  "max_drawdown_pct": 0.0,
+  "daily_pnl": 0.0,
+  "daily_trades": 0,
+  "today_starting_equity": 5000.0,
+  "current_date": "2026-07-07",
+  "account_blown": false,
+  "zone_memory": {},
+  "challenge_started_at": "2026-07-07T11:16:39.866437",
+  "open_positions": [
+    {
+      "id": "6c4630eb-d44",
+      "symbol": "EURCHF=X",
+      "direction": "long",
+      "entry_price": 0.93315,
+      "stop_price": 0.916472,
+      "current_stop": 0.916472,
+      "targets": [
+        0.949828,
+        0.966506,
+        0.983185
+      ],
+      "position_size": 2480.435571,
+      "risk_amount": 41.37,
+      "entry_time": "2026-07-07T11:22:01.289259",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "ef9992fadc",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    }
+  ],
+  "trade_history": [],
+  "saved_at": "2026-07-07T11:22:01.289918"
+}
