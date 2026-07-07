@@ -347,7 +347,11 @@ def new_signals_block(new_signals: List[Dict]) -> str:
             out.append(f"    >> LOT SIZE    : {lot_size:>12,.2f} lots")
             if units:
                 out.append(f"       (units)     : {units:>12,.0f}")
-            out.append(f"    Risk (actual)  : {fmt_money(risk_actual)}")
+            _rt = float(s.get("risk_usd_target", risk_actual) or risk_actual)
+            _pct = (risk_actual / _rt) if _rt else 1.0   # risk_usd_target IS 1% of account
+            out.append(f"    Risk (actual)  : {fmt_money(risk_actual)}  (~{_pct:.2f}% of account)")
+            out.append(f"    >> EXACT 1%    : set platform Risk Mode = 1% + the Stop")
+            out.append(f"       Loss above; that lot IS your 1% (this is a cross-check).")
             if not spec_verified:
                 out.append(f"    [!] CONFIRM contract size on the FundingPips")
                 out.append(f"        order ticket before entering this size.")
