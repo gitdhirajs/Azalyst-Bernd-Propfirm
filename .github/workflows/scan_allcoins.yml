@@ -79,16 +79,24 @@ jobs:
           # Commit the SLIM signals file (TV Ideas source) + the small all-coins
           # state files. The full scan_results_allcoins.json (~30MB OHLCV cache)
           # is intentionally NOT committed -- same rationale as scan.yml.
-          # Debug: list directory contents to see if files exist
-          ls -la "Propfirm Trading Dashboard/" | grep allcoins || true
-
-          git add -f \
-            "Propfirm Trading Dashboard/scan_results_allcoins_slim.json" \
-            "Propfirm Trading Dashboard/paper_trader_state_allcoins.json" \
-            "Propfirm Trading Dashboard/scan_history_allcoins.json" \
-            "Propfirm Trading Dashboard/discord_state_allcoins.json" || true
-
-          # Force commit if any files were staged
-          git commit -m "scan(allcoins): daily slim signals [skip ci]" || echo "No all-coins changes to commit."
-          git pull --rebase --autostash origin main || true
-          git push || true
+          #
+          # Each file is added individually (own `|| true`) rather than as one
+          # `git add -f a b c d` call: discord_state_allcoins.json only exists
+          # once DISCORD_WEBHOOK_ALLCOINS_URL is configured, and a single missing
+          # pathspec aborts the ENTIRE git add command -- silently dropping the
+          # other 3 files too. That bug meant this profile never committed any
+          # state since inception (every run "started fresh" with zero history
+          # because nothing ever reached git -- confirmed via run logs showing
+          # "fatal: pathspec ... did not match any files" followed by
+          # "No all-coins changes to commit." on every single run).
+          git add -f "Propfirm Trading Dashboard/scan_results_allcoins_slim.json" || true
+          git add -f "Propfirm Trading Dashboard/paper_trader_state_allcoins.json" || true
+          git add -f "Propfirm Trading Dashboard/scan_history_allcoins.json" || true
+          git add -f "Propfirm Trading Dashboard/discord_state_allcoins.json" || true
+          if git diff --staged --quiet; then
+            echo "No all-coins changes to commit."
+          else
+            git commit -m "scan(allcoins): daily slim signals + state update [skip ci]"
+            git pull --rebase --autostash origin main
+            git push
+          fi
