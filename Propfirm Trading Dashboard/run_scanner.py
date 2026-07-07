@@ -1013,6 +1013,11 @@ def scan_all_markets(
         config.get("prop_firm", {}).get("account_size", trader.initial_balance)
         or trader.initial_balance
     )
+    # Tiered sizing: TAKE (composite >= post bar) risks the full 1%; CAUTION
+    # (alert bar <= composite < post bar) is sized at the MINIMUM lot so it is
+    # tracked in the paper account at negligible risk. Below the alert bar =
+    # SKIP (not sized to trade).
+    _take_bar_sz  = float(config.get("alerts", {}).get("min_composite_to_post", 7.0))
     for s in signals:
         ac    = s.get("asset_class", "")
         sname = s.get("display_name") or s.get("symbol", "")
@@ -1020,11 +1025,15 @@ def scan_all_markets(
         spec.update(specs_over.get(sname, {}))
         # Risk budget for this trade = 1% of the static challenge account.
         risk_usd = _account_size * risk_pct
+        _comp_sz = float((s.get("qualifier_scores") or {}).get("composite", 0) or 0)
+        _is_caution_sz = _comp_sz < _take_bar_sz   # CAUTION -> min lot
+        s["sizing_tier"] = "caution_min" if _is_caution_sz else "take_1pct"
         try:
             sz = compute_lots(
                 asset_class=ac, symbol_name=sname,
                 entry=float(s["entry_price"]), stop=float(s["stop_price"]),
                 risk_usd=risk_usd, spec=spec, usd_per_quote_ccy=usd_quote_table,
+                force_min_lot=_is_caution_sz,
             )
             s["lot_size"]        = sz.lots
             s["units"]           = sz.units
@@ -1047,26 +1056,37 @@ def scan_all_markets(
 
     # ----------------------------------------------------------------
     # Submit sized signals to the paper trader (after sizing, so PnL is USD).
-    # Only paper-trade signals that clear the alert quality bar
-    # (alerts.min_composite_to_post) so the paper track record mirrors
-    # EXACTLY the setups you'd actually take -- not every low-conviction zone.
+    # Paper-trade everything from the CAUTION bar up (alerts.min_composite_to_alert):
+    #   * TAKE   (>= min_composite_to_post) at full 1% risk
+    #   * CAUTION (alert..post) at the MINIMUM lot (sized above via force_min_lot)
+    # Below the alert bar = SKIP (not traded), so the paper record mirrors the
+    # setups you'd actually place (strong at 1%, caution at min).
     # ----------------------------------------------------------------
-    _min_comp = float(config.get("alerts", {}).get("min_composite_to_post", 7.0))
-    for s in signals:
+    _min_comp = float(config.get("alerts", {}).get("min_composite_to_alert", 5.5))
+    # Submit highest-composite first so full-1% TAKE trades claim the limited
+    # position slots before MIN-lot CAUTION trades (a low-conviction caution
+    # should never crowd a strong setup out of the paper record).
+    _ranked_signals = sorted(
+        signals,
+        key=lambda x: float((x.get("qualifier_scores") or {}).get("composite", 0) or 0),
+        reverse=True,
+    )
+    for s in _ranked_signals:
         if not s.get("lot_size"):
             s["paper_trade_id"] = None
             continue
         _comp = float((s.get("qualifier_scores") or {}).get("composite", 0) or 0)
         if _comp < _min_comp:
             s["paper_trade_id"] = None
-            print(f"  {YELLOW}-> {s.get('display_name')}: below quality bar "
+            print(f"  {YELLOW}-> {s.get('display_name')}: below CAUTION bar "
                   f"(composite {_comp:.1f} < {_min_comp:g}); not paper-traded{RESET}")
             continue
         pos_id = trader.submit_signal(s)
         if pos_id:
             auto_traded += 1
             s["paper_trade_id"] = pos_id
-            print(f"  {MAGENTA}-> Paper trade opened: {s.get('display_name')} "
+            _tier = "MIN-lot CAUTION" if s.get("sizing_tier") == "caution_min" else "1% TAKE"
+            print(f"  {MAGENTA}-> Paper trade opened ({_tier}): {s.get('display_name')} "
                   f"{s.get('lot_size')} lots ({pos_id}){RESET}")
         else:
             s["paper_trade_id"] = None

@@ -346,8 +346,8 @@ def new_signals_block(new_signals: List[Dict]) -> str:
     _take_bar = _load_min_composite()
     out = [
         "NEW SIGNALS THIS SCAN",
-        f"  [TAKE] = actionable (pinged + paper-traded) | "
-        f"[CAUTION] = shown only, NOT auto-traded (composite < {_take_bar:g})",
+        f"  [TAKE] = actionable: pinged + paper-traded at 1% | "
+        f"[CAUTION] = paper-traded at MIN lot, not pinged (composite < {_take_bar:g})",
         "",
     ]
     for s in new_signals:
@@ -368,8 +368,8 @@ def new_signals_block(new_signals: List[Dict]) -> str:
         _v_label, _v_loc = signal_verdict(s)
         out.append(f"    >> VERDICT     : {_v_label}")
         if composite < _take_bar:
-            out.append(f"    (!) CAUTION    : shown for awareness only -- NOT "
-                       f"auto-traded (composite {composite:.1f} < {_take_bar:g})")
+            out.append(f"    (!) CAUTION    : low conviction -- paper-traded at MIN "
+                       f"lot only (not the full 1%; composite {composite:.1f} < {_take_bar:g})")
         if _v_loc:
             out.append(f"    Location       : {_v_loc}")
         out.append(f"    Entry          : {fmt_price(entry, 12)}")
@@ -732,8 +732,8 @@ def main() -> int:
         print(f"[discord] {_hidden} new signal(s) below composite {_alert_comp:g} "
               f"held back (not shown).")
     if _caution_new:
-        print(f"[discord] {len(_caution_new)} CAUTION signal(s) shown but not "
-              f"pinged / not paper-traded.")
+        print(f"[discord] {len(_caution_new)} CAUTION signal(s) shown + paper-traded "
+              f"at MIN lot (not pinged).")
 
     has_news = bool(new_signals or closed_trades)
     breached = (scan.get("account") or {}).get("prop_firm", {}).get("breached", False)

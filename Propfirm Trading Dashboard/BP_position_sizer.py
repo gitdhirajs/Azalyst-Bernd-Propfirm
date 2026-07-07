@@ -86,6 +86,7 @@ def compute_lots(
     risk_usd: float,
     spec: Dict,
     usd_per_quote_ccy: Optional[Dict[str, float]] = None,
+    force_min_lot: bool = False,
 ) -> SizingResult:
     """Convert a dollar risk into a MatchTrader lot size for one signal.
 
@@ -152,7 +153,13 @@ def compute_lots(
 
     raw_lots = risk_usd / risk_per_lot
     lots = _round_to_step(raw_lots, lot_step)
-    if 0 < lots < min_lot:
+    if force_min_lot:
+        # CAUTION signal: trade the smallest tradable size regardless of the
+        # 1% budget, so it is tracked in the paper account at negligible risk.
+        lots = min_lot
+        note = (f"CAUTION -> min lot {min_lot} "
+                f"(risk ${min_lot * risk_per_lot:,.2f}, below the 1% budget)")
+    elif 0 < lots < min_lot:
         # Smallest tradable size already exceeds the intended risk.
         lots = min_lot
         note = (f"min lot {min_lot} carries ${min_lot * risk_per_lot:,.0f} risk "
