@@ -113,5 +113,114 @@
         "composite": 7.4
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-07T10:07:49.283827",
+    "strategy": "weekly",
+    "watchlist_scanned": 308,
+    "signals_found": 16,
+    "auto_traded": 11,
+    "account_balance": 105960.8,
+    "closed_pnl": 5960.8,
+    "win_rate": 0.4,
+    "total_trades": 5,
+    "signals_summary": [
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.921921,
+        "composite": 7.05
+      },
+      {
+        "symbol": "CT=F",
+        "direction": "short",
+        "entry": 81.599998,
+        "composite": 9.5
+      },
+      {
+        "symbol": "NVO",
+        "direction": "long",
+        "entry": 43.939999,
+        "composite": 9.0
+      },
+      {
+        "symbol": "OJ=F",
+        "direction": "long",
+        "entry": 169.699997,
+        "composite": 10.1
+      },
+      {
+        "symbol": "HBAR-USD",
+        "direction": "long",
+        "entry": 0.064728,
+        "composite": 9.9
+      },
+      {
+        "symbol": "SHEL",
+        "direction": "long",
+        "entry": 74.254997,
+        "composite": 10.3
+      },
+      {
+        "symbol": "UL",
+        "direction": "long",
+        "entry": 58.805,
+        "composite": 10.0
+      },
+      {
+        "symbol": "HD",
+        "direction": "long",
+        "entry": 313.779999,
+        "composite": 10.1
+      },
+      {
+        "symbol": "LOW",
+        "direction": "long",
+        "entry": 226.789993,
+        "composite": 8.8
+      },
+      {
+        "symbol": "UPS",
+        "direction": "long",
+        "entry": 102.160004,
+        "composite": 8.8
+      },
+      {
+        "symbol": "NOW",
+        "direction": "long",
+        "entry": 120.690002,
+        "composite": 8.8
+      },
+      {
+        "symbol": "ZS",
+        "direction": "long",
+        "entry": 150.839996,
+        "composite": 8.8
+      },
+      {
+        "symbol": "U",
+        "direction": "long",
+        "entry": 28.399501,
+        "composite": 9.45
+      },
+      {
+        "symbol": "PINS",
+        "direction": "long",
+        "entry": 25.549999,
+        "composite": 8.8
+      },
+      {
+        "symbol": "USDCZK=X",
+        "direction": "long",
+        "entry": 21.76,
+        "composite": 8.5
+      },
+      {
+        "symbol": "USDTHB=X",
+        "direction": "short",
+        "entry": 33.950001,
+        "composite": 7.4
+      }
+    ]
   }
 ]
