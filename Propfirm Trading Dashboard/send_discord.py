@@ -534,7 +534,7 @@ def save_state(scan: Dict) -> None:
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     state = {
         "signal_ids_seen": [
-            s.get("signal_id") or s.get("paper_trade_id") or s.get("symbol")
+            s.get("signal_id") or s.get("zone_id") or s.get("symbol")
             for s in (scan.get("signals") or [])
         ],
         "open_position_ids_seen": [
@@ -551,7 +551,7 @@ def diff(scan: Dict, prev_state: Dict) -> Tuple[List[Dict], List[Dict]]:
     seen_signal_ids = set(prev_state.get("signal_ids_seen") or [])
     new_signals = []
     for s in scan.get("signals") or []:
-        sid = s.get("signal_id") or s.get("paper_trade_id") or s.get("symbol")
+        sid = s.get("signal_id") or s.get("zone_id") or s.get("symbol")
         if sid not in seen_signal_ids:
             new_signals.append(s)
 

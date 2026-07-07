@@ -11,68 +11,10 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 5000.0,
-  "current_date": "2026-07-07",
+  "current_date": null,
   "account_blown": false,
   "zone_memory": {},
-  "challenge_started_at": "2026-07-07T11:56:32.935818",
-  "open_positions": [
-    {
-      "id": "f589f106-b62",
-      "symbol": "EURCHF=X",
-      "direction": "long",
-      "entry_price": 0.921921,
-      "stop_price": 0.916638,
-      "current_stop": 0.916638,
-      "targets": [
-        0.927204,
-        0.932488,
-        0.937771
-      ],
-      "position_size": 8661.007832,
-      "risk_amount": 45.76,
-      "entry_time": "2026-07-07T19:44:23.223896",
-      "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "ddd67c781d",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
-      "id": "07e14a4f-eb7",
-      "symbol": "EURCHF=X",
-      "direction": "long",
-      "entry_price": 0.921921,
-      "stop_price": 0.916638,
-      "current_stop": 0.916638,
-      "targets": [
-        0.927204,
-        0.932488,
-        0.937771
-      ],
-      "position_size": 8661.329765,
-      "risk_amount": 45.76,
-      "entry_time": "2026-07-07T20:06:56.041734",
-      "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "ddd67c781d",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    }
-  ],
-  "trade_history": [],
-  "saved_at": "2026-07-07T20:06:56.042698"
+  "challenge_started_at": null,
+  "open_positions": [],
+  "trade_history": []
 }
