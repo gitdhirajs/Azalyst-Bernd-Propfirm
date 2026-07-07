@@ -49,6 +49,23 @@ risk:
   max_open_positions: 3
 
 # ============================================================
+# ALERTS -- Discord signal quality filter + skip/take verdict
+# ============================================================
+# Only Discord-alert (and @ping) signals whose zone composite score is
+# >= min_composite_to_post. Raises the quality bar so you stop getting
+# medium / already-moved setups (e.g. the EURCHF 5.8 zone). Every alert
+# that DOES post also carries a [TAKE]/[CAUTION]/[SKIP] verdict + a
+# location note (AT ZONE vs PENDING) so you always get an explicit
+# skip-or-take call. Lower this number to see more setups.
+#   7.0 = only high-quality zones (recommended)
+#   6.0 = high + upper-medium
+#   0.0 = everything (each still labelled with its verdict)
+# Env override: AZALYST_MIN_COMPOSITE
+# ------------------------------------------------------------
+alerts:
+  min_composite_to_post: 7.0
+
+# ============================================================
 # INSTRUMENT SPECS -- used to turn a $ risk into a MatchTrader LOT SIZE
 # ============================================================
 # The alert must tell you the exact volume to type into FundingPips. That

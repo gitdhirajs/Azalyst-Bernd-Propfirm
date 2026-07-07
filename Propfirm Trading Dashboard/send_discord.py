@@ -233,6 +233,87 @@ def stats_block(account: Dict, positions: List[Dict], history: List[Dict]) -> st
     ])
 
 
+# ───────────────────────────────────────────────────────────────────────
+# Signal quality: skip/take verdict + composite filter
+# ───────────────────────────────────────────────────────────────────────
+
+_MIN_COMPOSITE_CACHE: Optional[float] = None
+
+
+def _load_min_composite() -> float:
+    """Minimum zone composite for a signal to be POSTED / @pinged. Read from
+    BP_config.yaml `alerts.min_composite_to_post` (fallback 7.0); env
+    AZALYST_MIN_COMPOSITE overrides. Below this a setup is not alerted --
+    only high-quality zones ping you."""
+    global _MIN_COMPOSITE_CACHE
+    if _MIN_COMPOSITE_CACHE is not None:
+        return _MIN_COMPOSITE_CACHE
+    val = 7.0
+    env = os.environ.get("AZALYST_MIN_COMPOSITE")
+    if env:
+        try:
+            val = float(env)
+        except ValueError:
+            pass
+    else:
+        try:
+            import yaml
+            with open(SCRIPT_DIR / "BP_config.yaml", "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            val = float((cfg.get("alerts") or {}).get("min_composite_to_post", 7.0))
+        except Exception:
+            val = 7.0
+    _MIN_COMPOSITE_CACHE = val
+    return val
+
+
+def _composite_of(s: Dict) -> float:
+    """Zone composite score (0-10) for a signal, from qualifier_scores."""
+    qs = s.get("qualifier_scores") or {}
+    try:
+        return float(qs.get("composite", s.get("composite", 0)) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def signal_verdict(s: Dict) -> Tuple[str, str]:
+    """Return (verdict_label, location_note) so every alert carries an
+    explicit skip-or-take call.
+
+    verdict = [TAKE] (composite >= 7, clean) / [CAUTION] (5.5-7, or
+    counter-trend, or an opposing zone in the path) / [SKIP] (< 5.5).
+    location = whether price is AT the zone now, or the order is PENDING."""
+    comp = _composite_of(s)
+    ctx = s.get("trade_context", "standard")
+    speed_bump = bool(s.get("speed_bump_warning"))
+    at_zone = bool(s.get("price_at_zone"))
+    pending = bool(s.get("pending_order"))
+
+    tier = "TAKE" if comp >= 7.0 else ("CAUTION" if comp >= 5.5 else "SKIP")
+    notes = []
+    if ctx == "counter_trend":
+        notes.append("counter-trend, half size")
+        if tier == "TAKE":
+            tier = "CAUTION"
+    if speed_bump:
+        notes.append("opposing zone in path")
+        if tier == "TAKE":
+            tier = "CAUTION"
+
+    label = f"[{tier}]  composite {comp:.1f}/10"
+    if notes:
+        label += "  (" + "; ".join(notes) + ")"
+
+    if pending and not at_zone:
+        side = "buy" if str(s.get("direction", "")).lower() == "long" else "sell"
+        loc = f"PENDING - set a {side} limit at entry; price not at the zone yet"
+    elif at_zone:
+        loc = "AT ZONE - price is in the zone now"
+    else:
+        loc = ""
+    return label, loc
+
+
 def new_signals_block(new_signals: List[Dict]) -> str:
     """One block per signal. Show entry/SL/TP1/T2/T3 + risk + R:R + bias."""
     if not new_signals:
@@ -253,6 +334,10 @@ def new_signals_block(new_signals: List[Dict]) -> str:
         risk_actual = float(s.get("risk_usd_actual", risk_amt) or risk_amt)
         spec_verified = s.get("spec_verified", True)
         out.append(f"  {sym:14s}  {dir_:5s}")
+        _v_label, _v_loc = signal_verdict(s)
+        out.append(f"    >> VERDICT     : {_v_label}")
+        if _v_loc:
+            out.append(f"    Location       : {_v_loc}")
         out.append(f"    Entry          : {fmt_price(entry, 12)}")
         out.append(f"    Stop Loss      : {fmt_price(stop, 12)}")
         for i, t in enumerate(targets[:3], 1):
@@ -352,10 +437,17 @@ def track_record_block(history: List[Dict]) -> str:
 def footer_block(scan: Dict) -> str:
     n = int(scan.get("watchlist_scanned", 0))
     err = len(scan.get("errors", []))
-    return (
+    base = (
         "Azalyst Propfirm  |  Simulated paper trades.  Not financial advice.\n"
         f"{n} symbols scanned  •  {err} errors  •  next scan in ~4h"
     )
+    # Note how many setups were below the quality bar (not alerted this scan).
+    minc = _load_min_composite()
+    below = [s for s in (scan.get("signals") or []) if _composite_of(s) < minc]
+    if below:
+        base += (f"\n{len(below)} setup(s) below your quality bar "
+                 f"(composite < {minc:g}) were not alerted.")
+    return base
 
 
 # ───────────────────────────────────────────────────────────────────────
@@ -550,6 +642,18 @@ def main() -> int:
 
     prev_state = load_state()
     new_signals, closed_trades = diff(scan, prev_state)
+
+    # Quality filter: only POST / @ping signals whose zone composite clears the
+    # bar (alerts.min_composite_to_post). Medium / already-moved setups are held
+    # back so you stop getting low-conviction pings. The status message still
+    # posts, and footer_block notes how many were suppressed.
+    _min_comp = _load_min_composite()
+    _all_new = new_signals
+    new_signals = [s for s in _all_new if _composite_of(s) >= _min_comp]
+    _hidden = len(_all_new) - len(new_signals)
+    if _hidden:
+        print(f"[discord] {_hidden} new signal(s) below composite {_min_comp:g} "
+              f"held back (not pinged).")
 
     has_news = bool(new_signals or closed_trades)
     breached = (scan.get("account") or {}).get("prop_firm", {}).get("breached", False)
