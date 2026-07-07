@@ -1,18 +1,21 @@
 {
-  "balance": 100000.0,
+  "balance": 103499.98982178999,
   "initial_balance": 100000.0,
-  "closed_pnl_total": 0.0,
-  "total_trades": 0,
-  "winning_trades": 0,
+  "closed_pnl_total": 3499.9898217899954,
+  "total_trades": 1,
+  "winning_trades": 1,
   "losing_trades": 0,
-  "peak_balance": 100000.0,
+  "peak_balance": 103499.98982178999,
   "max_drawdown_pct": 0.0,
-  "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_pnl": 2499.9928005149986,
+  "daily_trades": 1,
   "today_starting_equity": 100000.0,
   "current_date": "2026-07-07",
   "account_blown": false,
-  "zone_memory": {},
+  "zone_memory": {
+    "599bab500e": true
+  },
+  "challenge_started_at": "2026-07-07T08:45:55.068680",
   "open_positions": [
     {
       "id": "21484850-166",
@@ -48,7 +51,7 @@
       "direction": "long",
       "entry_price": 1.89413,
       "stop_price": 1.868554,
-      "current_stop": 1.868554,
+      "current_stop": 1.89413,
       "targets": [
         1.919706,
         1.945282,
@@ -62,7 +65,7 @@
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "d62cc0cc07",
       "close_time": null,
@@ -71,20 +74,20 @@
       "notes": ""
     },
     {
-      "id": "031539bc-5fd",
-      "symbol": "CT=F",
-      "direction": "short",
-      "entry_price": 81.599998,
-      "stop_price": 82.610801,
-      "current_stop": 82.610801,
+      "id": "4752649e-c04",
+      "symbol": "EURCHF=X",
+      "direction": "long",
+      "entry_price": 0.921921,
+      "stop_price": 0.916638,
+      "current_stop": 0.916638,
       "targets": [
-        80.589196,
-        79.578393,
-        78.56759
+        0.927204,
+        0.932488,
+        0.937771
       ],
-      "position_size": 989.31,
-      "risk_amount": 1000.0,
-      "entry_time": "2026-07-07T08:44:46.878771",
+      "position_size": 194704.534522,
+      "risk_amount": 1028.62,
+      "entry_time": "2026-07-07T08:57:29.168860",
       "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
@@ -92,13 +95,42 @@
       "partial_price": 0.0,
       "breakeven_triggered": false,
       "trail_stop_level": null,
-      "zone_id": "599bab500e",
+      "zone_id": "ddd67c781d",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
     }
   ],
-  "trade_history": [],
-  "saved_at": "2026-07-07T08:44:46.880168"
+  "trade_history": [
+    {
+      "id": "031539bc-5fd",
+      "symbol": "CT=F",
+      "direction": "short",
+      "entry_price": 81.599998,
+      "stop_price": 82.610801,
+      "current_stop": 80.589195,
+      "targets": [
+        80.589196,
+        79.578393,
+        78.56759
+      ],
+      "position_size": 494.655,
+      "risk_amount": 1000.0,
+      "entry_time": "2026-07-07T08:44:46.878771",
+      "status": "closed",
+      "realized_pnl": 2499.9928005149986,
+      "partial_taken": true,
+      "partial_qty": 494.655,
+      "partial_price": 79.578393,
+      "breakeven_triggered": true,
+      "trail_stop_level": 80.589195,
+      "zone_id": "599bab500e",
+      "close_time": "2026-07-07T08:57:29.168422",
+      "close_price": 78.56759,
+      "trade_r_multiple": 3.0,
+      "notes": ""
+    }
+  ],
+  "saved_at": "2026-07-07T08:57:29.170574"
 }
