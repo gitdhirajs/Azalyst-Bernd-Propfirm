@@ -92,19 +92,44 @@ alerts:
 # size for that symbol, set it here, and flip `verified: true`.
 # ------------------------------------------------------------
 instrument_specs:
+  # Values below are standard MatchTrader / CFD contract units (FundingPips runs
+  # on MatchTrader). FundingPips' live spec page blocks automated reads, so the
+  # STANDARDIZED full-lot commodity/crypto units (100 oz gold, 5000 oz silver,
+  # 1000 bbl oil, 1 coin crypto) and the standard $1-per-point US index are set
+  # verified:true. Broker-VARIABLE ones -- copper, natgas, refined products, and
+  # all NON-USD indices (point value is in the index's LOCAL currency and needs
+  # live FX conversion the sizer does not apply) -- stay verified:false so the
+  # alert keeps its "confirm on ticket" note. Every alert ALSO prints "set
+  # platform Risk Mode = 1%"; THAT is the authoritative sizing -- these values
+  # are only a cross-check. Confirm metals + indices on one MatchTrader ticket.
   defaults_by_class:
     forex:           { contract_size: 100000, min_lot: 0.01, lot_step: 0.01, verified: true }
-    precious_metals: { contract_size: 100,    min_lot: 0.01, lot_step: 0.01, verified: false }  # gold: 100 oz/lot
-    energies:        { contract_size: 1000,   min_lot: 0.01, lot_step: 0.01, verified: false }  # oil: ~1000 bbl/lot
-    equity_indices:  { contract_size: 1, point_value_per_lot: 1, min_lot: 0.1, lot_step: 0.1, verified: false }
+    precious_metals: { contract_size: 100,    min_lot: 0.01, lot_step: 0.01, verified: true }   # gold/platinum/palladium: 100 oz/lot
+    energies:        { contract_size: 1000,   min_lot: 0.01, lot_step: 0.01, verified: false }  # WTI/Brent overridden below; natgas/refined vary
+    equity_indices:  { contract_size: 1, point_value_per_lot: 1, min_lot: 0.1, lot_step: 0.1, verified: false }  # US overridden below; non-USD stay unverified (FX)
     commodities:     { contract_size: 1, point_value_per_lot: 1, min_lot: 0.01, lot_step: 0.01, verified: false }
-    crypto:          { contract_size: 1, min_lot: 0.01, lot_step: 0.01, verified: false }
+    crypto:          { contract_size: 1, min_lot: 0.01, lot_step: 0.01, verified: true }   # 1 coin/lot ($1 move = $1/lot)
     equities:        { contract_size: 1, min_lot: 1, lot_step: 1, verified: true }
     interest_rates:  { contract_size: 1, point_value_per_lot: 1, min_lot: 0.1, lot_step: 0.1, verified: false }
   # Per-symbol overrides keyed by the broker `name` from the watchlist.
   overrides:
-    "XAGUSD (Silver)":   { contract_size: 5000, verified: false }   # silver: ~5000 oz/lot
-    "XCUUSD (Copper)":   { contract_size: 1000, verified: false }
+    # -- Precious metals (standard full-lot ounce units) --
+    "XAGUSD (Silver)":     { contract_size: 5000, verified: true }    # 5000 oz/lot ($1 move = $5000/lot)
+    "XCUUSD (Copper)":     { contract_size: 1000, verified: false }   # unit varies by broker -- confirm on ticket
+    # -- Energies -- WTI/Brent are 1000 bbl/lot; natgas + refined products vary --
+    "USOIL (WTI Crude)":   { contract_size: 1000, point_value_per_lot: 1000, verified: true }   # 1000 bbl/lot
+    "UKOIL (Brent Crude)": { contract_size: 1000, point_value_per_lot: 1000, verified: true }   # 1000 bbl/lot
+    "NATGAS (Natural Gas)":  { verified: false }   # 1 lot ~10,000 MMBtu on MatchTrader -- confirm on ticket
+    "HEATOIL (Heating Oil)": { verified: false }   # priced $/gal, ~42,000 gal/lot -- confirm on ticket
+    "GASOLINE (RBOB)":       { verified: false }   # priced $/gal, ~42,000 gal/lot -- confirm on ticket
+    # -- US equity indices: MatchTrader standard = $1 per index point per lot --
+    "US500 (S&P 500)":     { point_value_per_lot: 1, verified: true }
+    "US100 (Nasdaq 100)":  { point_value_per_lot: 1, verified: true }
+    "US30 (Dow Jones)":    { point_value_per_lot: 1, verified: true }
+    "US2000 (Russell)":    { point_value_per_lot: 1, verified: true }
+    # -- Non-USD indices (GER40/UK100/JP225/AUS200/HK50/FRA40/ESP35/EU50/SUI30):
+    #    left on the class default (verified:false) -- point value is in the
+    #    index's local currency; confirm + apply the FX conversion on the ticket.
 
 # ============================================================
 # STRATEGY -- which income-strategy timeframe(s) to scan
