@@ -61,9 +61,18 @@ risk:
 #   6.0 = high + upper-medium
 #   0.0 = everything (each still labelled with its verdict)
 # Env override: AZALYST_MIN_COMPOSITE
+#
+# Two-tier alerting:
+#   min_composite_to_post  (7.0) = the TAKE bar. Signals >= this get @pinged
+#       AND are auto paper-traded. These are the actionable trades.
+#   min_composite_to_alert (5.5) = the SHOW bar. Signals in [alert, post) are
+#       CAUTION: shown in Discord (with a [CAUTION] tag) for your awareness but
+#       NOT @pinged and NOT paper-traded. Below min_composite_to_alert = SKIP
+#       (hidden except as an FYI count).
 # ------------------------------------------------------------
 alerts:
   min_composite_to_post: 7.0
+  min_composite_to_alert: 5.5
 
 # ============================================================
 # INSTRUMENT SPECS -- used to turn a $ risk into a MatchTrader LOT SIZE

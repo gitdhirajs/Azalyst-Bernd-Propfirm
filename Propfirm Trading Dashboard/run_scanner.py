@@ -428,6 +428,7 @@ def load_paper_trader_state(trader: PaperTrader) -> None:
         trader.total_trades      = state.get("total_trades", 0)
         trader.winning_trades    = state.get("winning_trades", 0)
         trader.losing_trades     = state.get("losing_trades", 0)
+        trader.scratch_trades    = state.get("scratch_trades", 0)
         trader.peak_balance      = state.get("peak_balance", trader.balance)
         trader.max_drawdown_pct  = state.get("max_drawdown_pct", 0.0)
         trader.daily_pnl         = state.get("daily_pnl", 0.0)
@@ -474,6 +475,7 @@ def save_paper_trader_state(trader: PaperTrader) -> None:
         "total_trades":     trader.total_trades,
         "winning_trades":   trader.winning_trades,
         "losing_trades":    trader.losing_trades,
+        "scratch_trades":   getattr(trader, "scratch_trades", 0),
         "peak_balance":     trader.peak_balance,
         "max_drawdown_pct": trader.max_drawdown_pct,
         "daily_pnl":        trader.daily_pnl,
@@ -735,7 +737,9 @@ def scan_symbol(
     val_refs: Dict = {}
     ref_symbols = VALUATION_REFS_PER_SYMBOL.get(sym) or VALUATION_REFS.get(ac, ["DX-Y.NYB"])
     for ref_sym in ref_symbols:
-        ref_df = fetcher.fetch_ohlcv(ref_sym, interval=htf, period=_ref_period)
+        # Valuation refs are consumed as ROC/relative series, so an ETF proxy
+        # at a different price scale is fine here (unlike the tradable).
+        ref_df = fetcher.fetch_ohlcv(ref_sym, interval=htf, period=_ref_period, allow_proxy=True)
         if not ref_df.empty:
             val_refs[ref_sym] = ref_df
 
@@ -746,7 +750,9 @@ def scan_symbol(
     constituent_dfs: Dict = {}
     if ac == 'equity_indices' and sym in EQUITY_INDEX_CONSTITUENT_STOCKS:
         for stock in EQUITY_INDEX_CONSTITUENT_STOCKS[sym]:
-            s_df = fetcher.fetch_ohlcv(stock, interval=htf, period=_ref_period)
+            # Constituent prices feed per-stock Valuation (relative), not order
+            # levels, so an ETF proxy fallback is acceptable here.
+            s_df = fetcher.fetch_ohlcv(stock, interval=htf, period=_ref_period, allow_proxy=True)
             if not s_df.empty:
                 constituent_dfs[stock] = s_df
 
@@ -834,11 +840,12 @@ def scan_all_markets(
     # they aren't closed against the same bar they were entered on.
     restored_position_ids = set(trader.positions.keys())
 
-    # Reset daily stats if new day
-    today = datetime.now().strftime("%Y-%m-%d")
-    if trader.current_date != today:
-        trader.reset_daily_stats()
-        trader.current_date = today
+    # Roll the daily window via the trader's single source of truth. maybe_roll_day
+    # uses the broker's UTC reset hour AND re-anchors today_starting_equity to the
+    # current balance, so the $150 daily-loss cap is always measured from the right
+    # equity. (The old inline reset used a LOCAL date and did NOT re-anchor
+    # today_starting_equity, so a missed session-roll left the daily anchor stale.)
+    trader.maybe_roll_day()
 
     signals: List[Dict] = []
     errors:  List[Dict] = []
@@ -998,13 +1005,21 @@ def scan_all_markets(
     usd_quote_table = build_usd_quote_table(_fx_prices)
 
     risk_pct = float(config.get("risk", {}).get("risk_per_trade_pct", 1.0)) / 100.0
+    # Size risk off the STATIC challenge account size, NOT the drifting paper
+    # balance: 1% must stay a stable $50 of the real $5k regardless of paper P&L.
+    # (Sizing off trader.balance meant a paper run-up printed lots that risk
+    # >1% of the real account, and a paper drawdown under-sized.)
+    _account_size = float(
+        config.get("prop_firm", {}).get("account_size", trader.initial_balance)
+        or trader.initial_balance
+    )
     for s in signals:
         ac    = s.get("asset_class", "")
         sname = s.get("display_name") or s.get("symbol", "")
         spec  = dict(specs_class.get(ac, {}))
         spec.update(specs_over.get(sname, {}))
-        # Risk budget for this trade, off the live (prop-firm) balance.
-        risk_usd = trader.balance * risk_pct
+        # Risk budget for this trade = 1% of the static challenge account.
+        risk_usd = _account_size * risk_pct
         try:
             sz = compute_lots(
                 asset_class=ac, symbol_name=sname,
@@ -1288,6 +1303,20 @@ def main():
         config["active_strategy"] = strat_arg
         logger.info(f"CLI override: active_strategy = {strat_arg}")
 
+    # ---- --all-strategies is NOT a multi-strategy loop (yet) ---------------
+    # The live workflow passes --all-strategies, but this scanner scans a SINGLE
+    # timeframe per run (config active_strategy). Warn loudly so the operator is
+    # never misled into believing weekly AND daily both ran when only one did.
+    # (Turning this into a real weekly+daily loop with separate state files is a
+    # deliberate, opt-in change — pending the strategy-profitability decision.)
+    if "--all-strategies" in sys.argv:
+        _as = config.get("active_strategy", "weekly")
+        logger.warning(
+            f"--all-strategies is not a multi-strategy loop; this run scans ONLY "
+            f"active_strategy='{_as}'. Use --strategy <weekly|daily|monthly> to pick one."
+        )
+        print(f"{YELLOW}  [warn] --all-strategies runs only '{_as}' (single strategy this run).{RESET}")
+
     # ---- Attach per-run log handlers (console + per-strategy file) ----------
     # These are added here (not at module level) so:
     #   1. Each run writes a clean per-strategy log (mode='w' overwrites stale runs).
@@ -1300,7 +1329,7 @@ def main():
     _con.setFormatter(_fmt)
     _root.addHandler(_con)
 
-    _active_strategy = config.get("active_strategy", "daily")
+    _active_strategy = config.get("active_strategy", "weekly")  # match scan_all_markets default
     # Suffix the per-strategy log with the profile so two concurrent runners
     # (which both open the log in mode='w') don't truncate each other's logs.
     _strat_log_path  = SCRIPT_DIR / f"scanner_{_active_strategy}{PROFILE_SUFFIX}.log"

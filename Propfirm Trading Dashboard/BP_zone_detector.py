@@ -506,6 +506,14 @@ class ZoneDetector:
             'htf_aligned': False,
             'q5_failed_gate': q5_failed_gate,
             'with_trend':     with_trend,
+            # NOTE: intentionally NOT emitting an 'invalidated' flag here. A 25%
+            # penetration already forces Q3 freshness to 0 (so the composite is
+            # heavily penalised). Adding a hard 'invalidated' flag additionally
+            # (a) made rank_zones reject the zone and (b) made the Location-Fib
+            # `_zone_is_usable` filter drop it as an anchor — which regressed the
+            # goldtest by ~7 Bernd-clone cases (equity + PM long calls -> neutral),
+            # exactly the Phase 37 finding that Bernd's own calls use the
+            # UN-filtered Fib. Freshness=0 is the correct, sufficient penalty.
         }
 
     def _is_zone_invalidated_25pct(
@@ -627,6 +635,11 @@ class ZoneDetector:
         Hard-rejects:
           - Q5 MUST PASS gate failure (counter-trend zone with profit_margin=0)
           - Composite below min_score (default 5.0; methodology recommends 4.0+)
+
+        NOTE: a >25%-penetrated zone is NOT hard-rejected here — its Q3 freshness
+        is already 0 (heavy composite penalty), and hard-rejecting it regressed
+        the Bernd-clone match (Phase 37). The composite gate is the intended
+        filter for consumed zones.
         """
         valid = [
             z for z in zones

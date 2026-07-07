@@ -132,6 +132,7 @@ class PaperTrader:
         self.total_trades = 0
         self.winning_trades = 0
         self.losing_trades = 0
+        self.scratch_trades = 0  # breakeven closes — excluded from win-rate
         self.peak_balance = self.balance
         self.max_drawdown_pct = 0.0
 
@@ -204,12 +205,34 @@ class PaperTrader:
             logger.info(f"Max positions ({self.max_positions}) reached, skipping signal")
             return None
 
-        # Check daily loss limit (relative to today's starting equity)
+        # Check daily/total loss limit including AGGREGATE OPEN RISK.
+        # A prop challenge is breached on EQUITY, not just realized balance:
+        # 3 open positions each risking $50 = $150 of live risk while realized
+        # today_loss is still $0. Counting only realized loss + the new trade
+        # let all three open and then breach together on a bad session. Include
+        # the sum of open positions' risk so the worst case (every open trade +
+        # this one hits its stop) cannot exceed a cap. (Audit rank 5.)
+        new_risk = signal.get('risk_amount', 0.0)
+        # Aggregate live downside of open positions. A position already trailed
+        # to breakeven (or better) has ~0 remaining downside, so it does not
+        # consume the loss budget; pre-breakeven positions count their full risk
+        # (conservative — can never under-count and let the cap breach).
+        open_risk = sum(
+            p.risk_amount for p in self.positions.values()
+            if p.status == TradeStatus.ACTIVE
+            and not getattr(p, 'breakeven_triggered', False)
+        )
         today_loss = self.today_starting_equity - self.balance
-        if today_loss + signal.get('risk_amount', 0.0) > self.max_daily_loss:
-            logger.info(f"Daily loss budget would be exceeded by this trade "
-                        f"(current ${today_loss:.2f} + risk ${signal.get('risk_amount', 0.0):.2f} > "
-                        f"limit ${self.max_daily_loss:.2f}); skipping")
+        if today_loss + open_risk + new_risk >= self.max_daily_loss:
+            logger.info(f"Daily loss budget would be exceeded by open risk "
+                        f"(realized ${today_loss:.2f} + open ${open_risk:.2f} + "
+                        f"new ${new_risk:.2f} >= limit ${self.max_daily_loss:.2f}); skipping")
+            return None
+        total_loss = self.initial_balance - self.balance
+        if total_loss + open_risk + new_risk >= self.max_total_loss:
+            logger.info(f"Total loss budget would be exceeded by open risk "
+                        f"(realized ${total_loss:.2f} + open ${open_risk:.2f} + "
+                        f"new ${new_risk:.2f} >= limit ${self.max_total_loss:.2f}); skipping")
             return None
 
         # Check if zone already consumed
@@ -304,7 +327,11 @@ class PaperTrader:
                 if current_low <= pos.current_stop:
                     close_price = pos.current_stop
                     realized_pnl = (close_price - pos.entry_price) * pos.position_size
-                    pos.realized_pnl = realized_pnl
+                    # Accumulate (+=): if a T2 partial was already booked into
+                    # realized_pnl, a trailing-stop close of the runner must ADD
+                    # to it, not overwrite it. With no partial, realized_pnl is
+                    # still 0 so += behaves as =.
+                    pos.realized_pnl += realized_pnl
                     pos.close_price = close_price
                     pos.close_time = datetime.now()
                     pos.status = TradeStatus.CLOSED
@@ -318,7 +345,9 @@ class PaperTrader:
                 if current_high >= pos.current_stop:
                     close_price = pos.current_stop
                     realized_pnl = (pos.entry_price - close_price) * pos.position_size
-                    pos.realized_pnl = realized_pnl
+                    # Accumulate (+=): retain any T2 partial already booked
+                    # into realized_pnl (see LONG stop path above).
+                    pos.realized_pnl += realized_pnl
                     pos.close_price = close_price
                     pos.close_time = datetime.now()
                     pos.status = TradeStatus.CLOSED
@@ -345,7 +374,10 @@ class PaperTrader:
                             pos.partial_qty = pos.position_size * 0.5
                             pos.partial_price = target
                             pos.position_size *= 0.5
-                            self.closed_pnl_total += partial_pnl
+                            # NOTE: do NOT add partial_pnl to closed_pnl_total here.
+                            # It is already accumulated into pos.realized_pnl and
+                            # will be booked once in _close_position; adding it here
+                            # too double-counted the partial into balance/target.
                             logger.info(f"[{pos.symbol}] Partial 50% at T2={target:.2f}, PnL={partial_pnl:.2f}")
                             # Begin trailing stop after T2
                             risk = abs(pos.entry_price - pos.stop_price)
@@ -378,7 +410,8 @@ class PaperTrader:
                             pos.partial_qty = pos.position_size * 0.5
                             pos.partial_price = target
                             pos.position_size *= 0.5
-                            self.closed_pnl_total += partial_pnl
+                            # See LONG partial above: partial_pnl is booked once
+                            # at close via pos.realized_pnl, not here.
                             # Begin trailing stop after T2
                             risk = abs(pos.entry_price - pos.stop_price)
                             pos.trail_stop_level = pos.entry_price - risk  # Trail to T1 level initially
@@ -406,8 +439,13 @@ class PaperTrader:
         self.total_trades += 1
         if pos.realized_pnl > 0:
             self.winning_trades += 1
-        else:
+        elif pos.realized_pnl < 0:
             self.losing_trades += 1
+        else:
+            # Breakeven / scratch (e.g. stopped at BE after half-target move).
+            # Excluded from the win-rate denominator so it isn't miscounted as
+            # a loss. The strategy moves to BE early, so scratches are common.
+            self.scratch_trades += 1
 
         self.closed_pnl_total += pos.realized_pnl
         self.balance = self.initial_balance + self.closed_pnl_total
@@ -442,7 +480,11 @@ class PaperTrader:
         # Roll the day before computing summary so dashboards always read fresh
         self.maybe_roll_day()
 
-        win_rate = (self.winning_trades / self.total_trades) if self.total_trades > 0 else 0.0
+        # Win-rate over DECIDED trades only (wins + losses); breakeven scratches
+        # are excluded from the denominator so an early-BE strategy isn't
+        # penalised as if every scratch were a loss.
+        _decided = self.winning_trades + self.losing_trades
+        win_rate = (self.winning_trades / _decided) if _decided > 0 else 0.0
         closed = [p for p in self.trade_history if p.status == TradeStatus.CLOSED]
         avg_r = sum(p.trade_r_multiple for p in closed) / max(1, len(closed))
 
@@ -538,9 +580,16 @@ class PaperTrader:
         return out
 
     def reset_daily_stats(self):
-        """Reset daily tracking at start of new day."""
+        """Reset daily tracking at start of new day.
+
+        Prefer maybe_roll_day() (the UTC-anchored single source of truth). This
+        helper is kept for any direct caller and now ALSO re-anchors
+        today_starting_equity so the daily-loss cap is measured from the correct
+        equity even if this path is used.
+        """
         self.daily_pnl = 0.0
         self.daily_trades = 0
+        self.today_starting_equity = self.balance
         self.current_date = datetime.now().strftime('%Y-%m-%d')
 
     def apply_zone_trailing(self, symbol_zones: Dict[str, List[Dict]]) -> None:

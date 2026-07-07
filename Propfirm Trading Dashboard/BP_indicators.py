@@ -405,10 +405,15 @@ class COTIndex:
             if bias == 'neutral':
                 primary_col = (
                     'commercials_index' if asset_class in ('commodities', 'energies', 'precious_metals')
-                    else 'large_specs_index' if asset_class in ('soft_commodities', 'forex', 'equity_indices', 'equities')
+                    else 'large_specs_index' if asset_class in ('soft_commodities', 'forex', 'equity_indices', 'equities', 'nat_gas')
                     else 'small_specs_index'
                 )
                 if primary_col in cot_df.columns and len(cot_df) >= 6:
+                    # Keep the original [-6:-1] window: it is the calibration the
+                    # Bernd-clone momentum trigger was tuned against. (Ending the
+                    # window on the latest report instead is arguably "less
+                    # lagged", but shifting it perturbed the tuned PM signals with
+                    # no safety benefit, so leave the tuned window in place.)
                     recent = cot_df[primary_col].iloc[-6:-1]
                     if not recent.isna().any():
                         change = recent.iloc[-1] - recent.iloc[0]
@@ -1022,6 +1027,14 @@ class Seasonality:
             lookahead_bins = self.bias_lookahead_bars
 
         # Look at the slope over next N bins (forward projection).
+        # NOTE: this deliberately CLAMPS to year-end rather than wrapping to
+        # bin 0. A modulo wrap is more "cyclically pure", but the downstream
+        # cycle-path guards (Phase 23/27/42 `seas != bearish`) were calibrated
+        # against this bounded projection: wrapping flips the late-year (Oct-Dec)
+        # seasonal slope sign and neutralises ~8 of Bernd's cycle-driven long
+        # calls with no safety benefit. Keep the bounded projection so the
+        # Bernd-clone match holds. (Reverted the wrap after it regressed the
+        # goldtest by 10 Stage-1 cases, all long->neutral.)
         end_bin = min(current_bin + lookahead_bins, len(seasonal_df) - 1)
         start_val = seasonal_df.loc[seasonal_df['bin'] == current_bin % len(seasonal_df), 'seasonal_value']
         end_val = seasonal_df.loc[seasonal_df['bin'] == end_bin % len(seasonal_df), 'seasonal_value']

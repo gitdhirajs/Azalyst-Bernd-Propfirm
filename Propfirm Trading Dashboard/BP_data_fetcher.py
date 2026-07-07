@@ -81,12 +81,23 @@ class DataFetcher:
         start: Optional[str] = None,
         end: Optional[str] = None,
         retries: int = 4,
+        allow_proxy: bool = False,
     ) -> pd.DataFrame:
         """
         Fetch OHLCV data from Yahoo Finance with retry-with-backoff and
-        an in-memory cache. If the primary symbol returns nothing (rate limit,
-        delisted future contract, etc.) and a proxy is registered, retry the
-        proxy automatically.
+        an in-memory cache.
+
+        allow_proxy (default False): when True and the primary symbol returns
+        nothing, fall back to a registered ETF proxy (FUTURES_PROXY). The proxy
+        trades at a DIFFERENT absolute price scale (e.g. GC=F~2400 vs GLD~220,
+        YM=F~44000 vs DIA~440), so it is ONLY safe for series consumed as
+        RATE-OF-CHANGE / relative references (Valuation, seasonality, index
+        constituents). It is NEVER safe for the TRADABLE instrument whose
+        absolute entry/stop/target/lot are placed on the FundingPips ticket —
+        a mis-scaled level would compute a ~10x-too-large position. So the
+        primary fetch_multi_timeframe path leaves allow_proxy=False: a dropped
+        futures feed yields an empty frame -> no signal (fail-safe) rather than
+        a plausible-but-mis-scaled one. (Audit rank 2.)
 
         Returns:
             DataFrame with columns: timestamp, open, high, low, close, volume.
@@ -97,9 +108,12 @@ class DataFetcher:
             return self._ohlcv_cache[cache_key].copy()
 
         df = self._fetch_one(symbol, interval, period, start, end, retries)
-        if df.empty and symbol in FUTURES_PROXY:
+        if df.empty and allow_proxy and symbol in FUTURES_PROXY:
             proxy = FUTURES_PROXY[symbol]
-            logger.warning(f"{symbol} unreachable, falling back to proxy {proxy}")
+            logger.warning(
+                f"{symbol} unreachable, falling back to REFERENCE proxy {proxy} "
+                f"(allow_proxy=True — valid for ROC/valuation refs only, never a tradable)"
+            )
             df = self._fetch_one(proxy, interval, period, start, end, retries)
 
         if not df.empty:
@@ -208,47 +222,51 @@ class DataFetcher:
         if cftc_code in self._cot_cache:
             return self._cot_cache[cftc_code]
 
-        try:
-            import requests
-
-            params = {
-                "$where": f"cftc_contract_market_code='{cftc_code}'",
-                "$order": "report_date_as_yyyy_mm_dd DESC",
-                "$limit": 260,  # ~5 years of weekly reports
-            }
-            resp = requests.get(CFTC_URL, params=params, timeout=20)
-
-            if resp.status_code == 200:
-                data = resp.json()
-                if data:
-                    records = []
-                    for entry in data:
-                        records.append({
-                            'date':         entry.get('report_date_as_yyyy_mm_dd'),
-                            'comm_long':    int(float(entry.get('comm_positions_long_all', 0) or 0)),
-                            'comm_short':   int(float(entry.get('comm_positions_short_all', 0) or 0)),
-                            'noncomm_long': int(float(entry.get('noncomm_positions_long_all', 0) or 0)),
-                            'noncomm_short':int(float(entry.get('noncomm_positions_short_all', 0) or 0)),
-                            'nonrep_long':  int(float(entry.get('nonrept_positions_long_all', 0) or 0)),
-                            'nonrep_short': int(float(entry.get('nonrept_positions_short_all', 0) or 0)),
-                        })
-                    df = pd.DataFrame(records)
-                    df['date'] = pd.to_datetime(df['date'])
-                    df.set_index('date', inplace=True)
-                    df.sort_index(inplace=True)
-                    self._cot_cache[cftc_code] = df
-                    logger.info(f"COT live data loaded for {cftc_code}: {len(df)} weeks")
-                    return df
-                logger.warning(f"CFTC returned empty result for {cftc_code}")
-            else:
-                logger.warning(f"CFTC HTTP {resp.status_code} for {cftc_code}")
-
-        except Exception as e:
-            logger.warning(f"CFTC API fetch failed for {cftc_code}: {e}")
+        import requests
+        params = {
+            "$where": f"cftc_contract_market_code='{cftc_code}'",
+            "$order": "report_date_as_yyyy_mm_dd DESC",
+            "$limit": 260,  # ~5 years of weekly reports
+        }
+        # Retry a couple of times with a short delay: a transient CFTC/Socrata
+        # hiccup must NOT poison the whole scan by caching an empty (neutral)
+        # COT for this code. Only NON-empty frames are cached (mirrors OHLCV).
+        for _attempt in range(3):
+            try:
+                resp = requests.get(CFTC_URL, params=params, timeout=20)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data:
+                        records = []
+                        for entry in data:
+                            records.append({
+                                'date':         entry.get('report_date_as_yyyy_mm_dd'),
+                                'comm_long':    int(float(entry.get('comm_positions_long_all', 0) or 0)),
+                                'comm_short':   int(float(entry.get('comm_positions_short_all', 0) or 0)),
+                                'noncomm_long': int(float(entry.get('noncomm_positions_long_all', 0) or 0)),
+                                'noncomm_short':int(float(entry.get('noncomm_positions_short_all', 0) or 0)),
+                                'nonrep_long':  int(float(entry.get('nonrept_positions_long_all', 0) or 0)),
+                                'nonrep_short': int(float(entry.get('nonrept_positions_short_all', 0) or 0)),
+                            })
+                        df = pd.DataFrame(records)
+                        df['date'] = pd.to_datetime(df['date'])
+                        df.set_index('date', inplace=True)
+                        df.sort_index(inplace=True)
+                        self._cot_cache[cftc_code] = df
+                        logger.info(f"COT live data loaded for {cftc_code}: {len(df)} weeks")
+                        return df
+                    # HTTP 200 with no rows: a definitive "no data", not transient.
+                    logger.warning(f"CFTC returned empty result for {cftc_code}")
+                    break
+                logger.warning(f"CFTC HTTP {resp.status_code} for {cftc_code} (attempt {_attempt + 1}/3)")
+            except Exception as e:
+                logger.warning(f"CFTC API fetch failed for {cftc_code} (attempt {_attempt + 1}/3): {e}")
+            if _attempt < 2:
+                time.sleep(2.0)
 
         # Phase 25 (DeepSeek P0): default to empty DataFrame on fetch failure.
-        # Simulation is now opt-in via DataFetcher(allow_cot_simulation=True)
-        # for development only. Live trading must NOT use synthetic COT data
+        # Simulation is opt-in via DataFetcher(allow_cot_simulation=True) for
+        # development only. Live trading must NEVER use synthetic COT data
         # because random extremes could trigger trades on noise.
         if self.allow_cot_simulation:
             logger.warning(
@@ -258,15 +276,13 @@ class DataFetcher:
             df = self._simulate_cot_data(cftc_code)
             self._cot_cache[cftc_code] = df
             return df
-        else:
-            logger.warning(
-                f"COT for {cftc_code}: live fetch failed; returning empty DataFrame "
-                f"(rules engine will treat as neutral). Pass allow_cot_simulation=True "
-                f"to DataFetcher to enable synthetic-data fallback (dev only)."
-            )
-            empty = pd.DataFrame()
-            self._cot_cache[cftc_code] = empty
-            return empty
+        # Live path: return empty WITHOUT caching, so a later scan can retry a
+        # transient failure instead of being pinned to neutral for this code.
+        logger.warning(
+            f"COT for {cftc_code}: live fetch failed; returning empty DataFrame "
+            f"(rules engine treats as neutral). Not cached — will retry next scan."
+        )
+        return pd.DataFrame()
 
     def fetch_cot_full_history(self, cftc_code: str = "") -> pd.DataFrame:
         """
@@ -406,8 +422,13 @@ class DataFetcher:
         symbol: str,
         lookback_years: int = 15
     ) -> pd.DataFrame:
-        """Fetch long-term historical data for seasonality calculation."""
-        df = self.fetch_ohlcv(symbol, interval='1d', period=f'{lookback_years}y')
+        """Fetch long-term historical data for seasonality calculation.
+
+        Seasonality is a detrended cyclical pattern (relative, not absolute),
+        so an ETF proxy fallback at a different price scale is acceptable here.
+        """
+        df = self.fetch_ohlcv(symbol, interval='1d', period=f'{lookback_years}y',
+                              allow_proxy=True)
         return df
 
 

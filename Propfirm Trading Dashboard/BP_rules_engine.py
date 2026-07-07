@@ -724,8 +724,21 @@ class RulesEngine:
                 # Most recent of each (highest origin_index)
                 d = max(demand_zones, key=lambda z: z['origin_index'])
                 s = max(supply_zones, key=lambda z: z['origin_index'])
-                range_min = d['distal']
-                range_max = s['distal']
+                if is_usd_base_forex and d['distal'] and s['distal']:
+                    # Zones were detected on RAW price, but `current`/`highs`/
+                    # `lows` above are inverted to the quote-currency frame.
+                    # Invert the distals too so the Fib range and `current`
+                    # share ONE unit frame. Inversion flips ordering: the demand
+                    # distal (low raw price) becomes the HIGH inverted level and
+                    # the supply distal (high raw price) becomes the LOW inverted
+                    # level -- hence min<-1/supply, max<-1/demand. Without this
+                    # the pct saturates far outside [0,100] and pins every
+                    # USD-base pair to a constant label (audit rank 1).
+                    range_min = 1.0 / s['distal']
+                    range_max = 1.0 / d['distal']
+                else:
+                    range_min = d['distal']
+                    range_max = s['distal']
 
         # ---- Fallback: lookback range ----
         if range_min is None or range_max is None or range_max <= range_min:
@@ -743,7 +756,18 @@ class RulesEngine:
         else:
             location = 'neutral'
 
-        trend = self._determine_trend(highs, lows, htf=htf, symbol=symbol)
+        # For USD-base forex, `highs`/`lows` are inverted to the quote-currency
+        # frame (used for the Location Fib, whose label is flipped back to the
+        # pair frame below). Trend must be expressed in the SAME pair frame as
+        # the flipped-back location and the consensus direction, otherwise the
+        # Phase 8 counter-trend safety gate compares mismatched frames and can
+        # wave through a counter-trend forex trade (audit rank 4). Compute trend
+        # on the raw pair prices for these pairs.
+        if is_usd_base_forex:
+            trend = self._determine_trend(
+                df['high'].values, df['low'].values, htf=htf, symbol=symbol)
+        else:
+            trend = self._determine_trend(highs, lows, htf=htf, symbol=symbol)
 
         # DeepSeek Gap 1: equity indices ATH momentum override.
         # In a confirmed uptrend with strong short-term momentum, downgrade
@@ -1285,6 +1309,18 @@ class RulesEngine:
         """
         cot_engine, val_engine = self._indicators_for_class(asset_class, symbol=symbol)
 
+        # Mirror the symbol-level routing in _indicators_for_class so get_bias()
+        # picks the SAME trader group the lookback was tuned for. Without this,
+        # NG=F (config class 'energies', effective 'nat_gas') was routed to the
+        # Commercials group instead of the intended Non-Commercials/retailer-veto
+        # nat_gas branch -- an INVERTED COT read on a symbol whose Valuation is
+        # skipped, so nothing caught the wrong direction (audit rank 3).
+        cot_effective_class = asset_class
+        if symbol in SOFT_COMMODITY_SYMBOLS:
+            cot_effective_class = 'soft_commodities'
+        elif symbol in NAT_GAS_SYMBOLS:
+            cot_effective_class = 'nat_gas'
+
         cot_bias = 'neutral'
         cot_strength = 'none'
         cot_cross = None
@@ -1292,7 +1328,7 @@ class RulesEngine:
             try:
                 cot_calculated = cot_engine.calculate(cot_df)
                 cot_bias, cot_strength = cot_engine.get_bias(
-                    cot_calculated, asset_class=asset_class, return_strength=True,
+                    cot_calculated, asset_class=cot_effective_class, return_strength=True,
                 )
                 # Phase 21 fix: USD-base forex pairs (USDJPY=X, USDCHF=X, USDCAD=X).
                 # COT data is fetched for the QUOTE currency (JPY/CHF/CAD futures).
@@ -1350,7 +1386,18 @@ class RulesEngine:
                 #   - Both sides agree (inverted) -> DOUBLE CONFIRMED, boost to 'strong'
                 #   - One side neutral -> single bias (current strength)
                 #   - Both same direction (not inverted) -> CONFLICTING, demote to neutral
-                if asset_class == 'forex' and opposing_cot_df is not None and not opposing_cot_df.empty:
+                # Only run the opposing-USD cross-check when USD is genuinely a
+                # leg of the pair. run_scanner fetches the USD-Index COT as the
+                # "opposing" series for EVERY forex entry, so a NON-USD cross
+                # (EURGBP=X, EURJPY=X) whose own COT is neutral would otherwise
+                # INHERIT a spurious inverted-USD bias via the Phase 23-T5 path
+                # and trade a wrong direction. A =X spot pair with no 'USD' in
+                # its ticker is such a cross; futures-coded pairs (6E=F/6S=F/6J=F)
+                # are inherently USD-quoted so they still get the cross-check.
+                _sym_u = (symbol or '').upper()
+                _is_non_usd_cross = ('=X' in _sym_u) and ('USD' not in _sym_u)
+                if (asset_class == 'forex' and not _is_non_usd_cross
+                        and opposing_cot_df is not None and not opposing_cot_df.empty):
                     opp = cot_engine.calculate(opposing_cot_df)
                     opp_bias, opp_strength = cot_engine.get_bias(
                         opp, asset_class='forex', return_strength=True,

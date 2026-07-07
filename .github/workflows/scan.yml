@@ -1,27 +1,25 @@
-name: Scan markets (every 4h)
+name: Scan markets (hourly)
 
-# Runs the Azalyst Propfirm scanner every 4 hours from a GitHub Actions runner.
-# The scanner produces paper signals for a simulated Fundingpips $100k
-# challenge account (5% daily / 10% total loss caps enforced in
-# BP_paper_trader.py). After scanning, it posts a Discord summary and
-# commits the updated state files (paper_trader_state, scan_results,
-# scan_history, discord_state) back to main so the next run picks
-# up where this one left off.
+# Runs the Azalyst Propfirm scanner EVERY HOUR from a GitHub Actions runner so a
+# fresh signal is caught close to its actual price (a zone can form and fill
+# within a 4h gap). This repo is PUBLIC, so Actions minutes are free/unlimited.
+# The scanner produces paper signals for the live Fundingpips $5k challenge
+# ($150 daily / $300 total loss caps enforced in BP_paper_trader.py). After
+# scanning it posts a Discord summary (@ping on TAKE signals; CAUTION signals
+# shown but not pinged/traded) and commits the small state files back to main.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   DISCORD_WEBHOOK_URL   -- Discord webhook for the channel to post to
-#   DISCORD_USER_ID       -- (optional) your Discord snowflake ID for @-pings
+#   DISCORD_USER_ID       -- your Discord snowflake ID for @-pings on TAKE signals
 
-# Cron is offset to 2,6,10,14,18,22 UTC (not 0,4,8,12,16,20) to avoid hour 0.
-# Run history (2026-07-02..07) showed the 00:17 UTC slot silently dropped every
-# single day -- never once fired -- while 04/08/12/16/20:17 ran fine with only
-# a few minutes' delay. Midnight UTC is the most congested cron minute across
-# all of GitHub Actions, so scheduled events there get dropped rather than
-# delayed. Shifting the whole cycle by 2h keeps the same 4-hourly cadence
-# without ever landing on hour 0.
+# Cron runs at :17 past every hour. The :17 minute (not :00) avoids the
+# top-of-hour GitHub Actions congestion where scheduled events get dropped.
+# The 00:17 UTC slot is historically the most likely to be skipped, but with 24
+# hourly slots losing the odd one is harmless (the next hour catches up). Runs
+# take ~7-12 min and hours are 60 min apart, so they never overlap.
 on:
   schedule:
-    - cron: '17 2,6,10,14,18,22 * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:               # manual trigger from the Actions tab
 
 # Only one scan at a time -- avoids two runs racing on the commit-back step.
@@ -80,10 +78,14 @@ jobs:
           # (OHLCV cache for dashboard charts) and only needs to persist
           # within this workflow run. The 3 files below are small and
           # carry the state that must survive to the next hourly run.
-          git add -f \
-            "Propfirm Trading Dashboard/paper_trader_state.json" \
-            "Propfirm Trading Dashboard/scan_history.json" \
-            "Propfirm Trading Dashboard/discord_state.json" || true
+          # Add each file individually with its own `|| true`: a single
+          # `git add -f a b c` aborts atomically (stages NOTHING) if any one
+          # pathspec is missing -- e.g. discord_state.json only exists once
+          # DISCORD_WEBHOOK_URL is configured. That would silently stop
+          # persisting the paper account state. (Matches scan_allcoins.yml.)
+          git add -f "Propfirm Trading Dashboard/paper_trader_state.json" || true
+          git add -f "Propfirm Trading Dashboard/scan_history.json" || true
+          git add -f "Propfirm Trading Dashboard/discord_state.json" || true
           if git diff --staged --quiet; then
             echo "No state file changes to commit."
           else

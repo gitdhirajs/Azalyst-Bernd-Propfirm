@@ -320,7 +320,9 @@ def run_forward_test(
         full_val_refs: Dict[str, pd.DataFrame] = {}
         ref_syms = VALUATION_REFS_PER_SYMBOL.get(sym) or VALUATION_REFS.get(ac, ["DX-Y.NYB"])
         for ref_sym in ref_syms:
-            ref_df = fetcher.fetch_ohlcv(ref_sym, interval=htf, period=_ref_period)
+            # refs are relative/ROC series — ETF proxy fallback is fine (unlike
+            # the tradable, whose absolute levels must not be proxied).
+            ref_df = fetcher.fetch_ohlcv(ref_sym, interval=htf, period=_ref_period, allow_proxy=True)
             if not ref_df.empty:
                 full_val_refs[ref_sym] = ref_df
 
@@ -328,7 +330,7 @@ def run_forward_test(
         full_constituent_dfs: Dict[str, pd.DataFrame] = {}
         if ac == "equity_indices" and sym in EQUITY_INDEX_CONSTITUENT_STOCKS:
             for stock in EQUITY_INDEX_CONSTITUENT_STOCKS[sym]:
-                s_df = fetcher.fetch_ohlcv(stock, interval=htf, period=_ref_period)
+                s_df = fetcher.fetch_ohlcv(stock, interval=htf, period=_ref_period, allow_proxy=True)
                 if not s_df.empty:
                     full_constituent_dfs[stock] = s_df
 

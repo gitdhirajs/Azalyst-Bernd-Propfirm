@@ -267,6 +267,31 @@ def _load_min_composite() -> float:
     return val
 
 
+_ALERT_COMPOSITE_CACHE: Optional[float] = None
+
+
+def _load_alert_composite() -> float:
+    """Minimum zone composite for a signal to be SHOWN in Discord (the CAUTION
+    band). Signals in [this, min_composite_to_post) are displayed with a
+    [CAUTION] tag but are NOT @pinged and NOT paper-traded. Read from
+    BP_config.yaml `alerts.min_composite_to_alert` (fallback 5.5)."""
+    global _ALERT_COMPOSITE_CACHE
+    if _ALERT_COMPOSITE_CACHE is not None:
+        return _ALERT_COMPOSITE_CACHE
+    val = 5.5
+    try:
+        import yaml
+        with open(SCRIPT_DIR / "BP_config.yaml", "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        val = float((cfg.get("alerts") or {}).get("min_composite_to_alert", 5.5))
+    except Exception:
+        val = 5.5
+    # Never let the show bar exceed the take bar.
+    val = min(val, _load_min_composite())
+    _ALERT_COMPOSITE_CACHE = val
+    return val
+
+
 def _composite_of(s: Dict) -> float:
     """Zone composite score (0-10) for a signal, from qualifier_scores."""
     qs = s.get("qualifier_scores") or {}
@@ -318,7 +343,13 @@ def new_signals_block(new_signals: List[Dict]) -> str:
     """One block per signal. Show entry/SL/TP1/T2/T3 + risk + R:R + bias."""
     if not new_signals:
         return ""
-    out = ["NEW SIGNALS THIS SCAN", ""]
+    _take_bar = _load_min_composite()
+    out = [
+        "NEW SIGNALS THIS SCAN",
+        f"  [TAKE] = actionable (pinged + paper-traded) | "
+        f"[CAUTION] = shown only, NOT auto-traded (composite < {_take_bar:g})",
+        "",
+    ]
     for s in new_signals:
         sym  = s.get("display_name") or s.get("symbol", "?")
         dir_ = s.get("direction", "?").upper()
@@ -328,7 +359,7 @@ def new_signals_block(new_signals: List[Dict]) -> str:
         risk_amt = float(s.get("risk_amount", 0))
         risk_r = abs(float(entry) - float(stop)) if entry and stop else 0
         rr_t2 = abs((targets[1] - entry) / risk_r) if len(targets) > 1 and risk_r else 0
-        composite = s.get("composite_score") or s.get("composite") or 0
+        composite = _composite_of(s)
         lot_size = s.get("lot_size")
         units = s.get("units")
         risk_actual = float(s.get("risk_usd_actual", risk_amt) or risk_amt)
@@ -336,6 +367,9 @@ def new_signals_block(new_signals: List[Dict]) -> str:
         out.append(f"  {sym:14s}  {dir_:5s}")
         _v_label, _v_loc = signal_verdict(s)
         out.append(f"    >> VERDICT     : {_v_label}")
+        if composite < _take_bar:
+            out.append(f"    (!) CAUTION    : shown for awareness only -- NOT "
+                       f"auto-traded (composite {composite:.1f} < {_take_bar:g})")
         if _v_loc:
             out.append(f"    Location       : {_v_loc}")
         out.append(f"    Entry          : {fmt_price(entry, 12)}")
@@ -348,8 +382,15 @@ def new_signals_block(new_signals: List[Dict]) -> str:
             if units:
                 out.append(f"       (units)     : {units:>12,.0f}")
             _rt = float(s.get("risk_usd_target", risk_actual) or risk_actual)
-            _pct = (risk_actual / _rt) if _rt else 1.0   # risk_usd_target IS 1% of account
+            _pct = (risk_actual / _rt) if _rt else 1.0   # risk_usd_target IS 1% of the static account
             out.append(f"    Risk (actual)  : {fmt_money(risk_actual)}  (~{_pct:.2f}% of account)")
+            # Hard guard: if lot rounding pushed the ACTUAL dollar risk materially
+            # above the 1% target, the printed lot is oversized for the $150/$300
+            # caps -- surface it loudly rather than let it be placed silently.
+            if _rt and risk_actual > _rt * 1.10:
+                out.append(f"    [!!] RISK MISMATCH -- lot risks {fmt_money(risk_actual)} "
+                           f"(~{_pct:.2f}% of account) vs {fmt_money(_rt)} target.")
+                out.append(f"         DO NOT place as-is; use platform Risk Mode = 1% + the Stop.")
             out.append(f"    >> EXACT 1%    : set platform Risk Mode = 1% + the Stop")
             out.append(f"       Loss above; that lot IS your 1% (this is a cross-check).")
             if not spec_verified:
@@ -366,6 +407,27 @@ def new_signals_block(new_signals: List[Dict]) -> str:
             out.append(f"    Composite      : {float(composite):>5.2f} / 10")
         out.append("")
     return "\n".join(out).rstrip()
+
+
+def below_bar_block(scan: Dict) -> str:
+    """FYI list of SKIP setups below even the CAUTION show-bar this scan.
+
+    CAUTION signals (>= min_composite_to_alert) are shown in the main NEW
+    SIGNALS block; this block is only the sub-caution SKIPs, so the user can
+    see what was filtered out entirely without it ever pinging or trading."""
+    minc = _load_alert_composite()
+    below = [s for s in (scan.get("signals") or []) if _composite_of(s) < minc]
+    if not below:
+        return ""
+    out = [f"SKIPPED  (composite < {minc:g}, below the CAUTION bar -- not shown above)"]
+    for s in below[:8]:
+        sym = (s.get("display_name") or s.get("symbol", "?"))[:14]
+        dir_ = s.get("direction", "?").upper()
+        label, _ = signal_verdict(s)
+        out.append(f"  {sym:14s} {dir_:5s}  {label}")
+    if len(below) > 8:
+        out.append(f"  ... and {len(below) - 8} more")
+    return "\n".join(out)
 
 
 def open_positions_block(positions: List[Dict]) -> str:
@@ -530,6 +592,9 @@ def build_status_message(scan: Dict, closed_trades: List[Dict]) -> str:
         blocks.append(closed_block(closed_trades))
     blocks.append(open_positions_block(scan.get("positions") or []))
     blocks.append(track_record_block(scan.get("trade_history") or []))
+    below_bar = below_bar_block(scan)
+    if below_bar:
+        blocks.append(below_bar)
     blocks.append(footer_block(scan))
 
     body = SECTION_SEP.join(b for b in blocks if b).strip()
@@ -569,6 +634,9 @@ def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]
     blocks.append(track_record_block(scan.get("trade_history") or []))
     if new_signals:
         blocks.append(new_signals_block(new_signals))
+    below_bar = below_bar_block(scan)
+    if below_bar:
+        blocks.append(below_bar)
     blocks.append(footer_block(scan))
 
     body = SECTION_SEP.join(b for b in blocks if b).strip()
@@ -647,17 +715,25 @@ def main() -> int:
     prev_state = load_state()
     new_signals, closed_trades = diff(scan, prev_state)
 
-    # Quality filter: only POST / @ping signals whose zone composite clears the
-    # bar (alerts.min_composite_to_post). Medium / already-moved setups are held
-    # back so you stop getting low-conviction pings. The status message still
-    # posts, and footer_block notes how many were suppressed.
-    _min_comp = _load_min_composite()
+    # Two-tier quality filter:
+    #   * TAKE  (composite >= min_composite_to_post): shown + @pinged (+ paper-
+    #     traded by the scanner). Actionable.
+    #   * CAUTION (min_composite_to_alert <= composite < post): SHOWN in Discord
+    #     with its [CAUTION] tag for awareness, but NOT @pinged and NOT traded.
+    #   * SKIP (below alert bar): held back (FYI count only).
+    _take_comp = _load_min_composite()
+    _alert_comp = _load_alert_composite()
     _all_new = new_signals
-    new_signals = [s for s in _all_new if _composite_of(s) >= _min_comp]
+    new_signals = [s for s in _all_new if _composite_of(s) >= _alert_comp]   # shown (take+caution)
+    _take_new = [s for s in new_signals if _composite_of(s) >= _take_comp]   # ping-worthy (take)
+    _caution_new = [s for s in new_signals if _composite_of(s) < _take_comp]
     _hidden = len(_all_new) - len(new_signals)
     if _hidden:
-        print(f"[discord] {_hidden} new signal(s) below composite {_min_comp:g} "
-              f"held back (not pinged).")
+        print(f"[discord] {_hidden} new signal(s) below composite {_alert_comp:g} "
+              f"held back (not shown).")
+    if _caution_new:
+        print(f"[discord] {len(_caution_new)} CAUTION signal(s) shown but not "
+              f"pinged / not paper-traded.")
 
     has_news = bool(new_signals or closed_trades)
     breached = (scan.get("account") or {}).get("prop_firm", {}).get("breached", False)
@@ -699,11 +775,12 @@ def main() -> int:
         print("[discord] Status message failed.", file=sys.stderr)
         return 1
 
-    # New signals come as a separate follow-up message with @ping so the
-    # user gets a phone notification only for actionable trades.
+    # New signals come as a separate follow-up message. @ping ONLY when at least
+    # one actionable TAKE signal is present, so a CAUTION-only batch is shown
+    # silently (visible in Discord, no phone notification, not paper-traded).
     ok_signals = True
     if signals_msg:
-        ping_user_id = args.user_id
+        ping_user_id = args.user_id if _take_new else None
         ok_signals = post_to_discord(args.webhook_url, signals_msg, user_id=ping_user_id)
         if not ok_signals:
             print("[discord] Signals follow-up failed.", file=sys.stderr)
