@@ -807,5 +807,30 @@
         "composite": 9.5
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-09T23:39:56.557575",
+    "strategy": "weekly",
+    "watchlist_scanned": 70,
+    "signals_found": 2,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      },
+      {
+        "symbol": "LINK-USD",
+        "direction": "long",
+        "entry": 6.910778,
+        "composite": 9.5
+      }
+    ]
   }
 ]
