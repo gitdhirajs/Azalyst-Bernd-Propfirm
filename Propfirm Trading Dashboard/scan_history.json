@@ -770,5 +770,42 @@
         "composite": 9.5
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-09T21:49:36.939329",
+    "strategy": "weekly",
+    "watchlist_scanned": 70,
+    "signals_found": 4,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "NZDUSD=X",
+        "direction": "long",
+        "entry": 0.567608,
+        "composite": 7.25
+      },
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      },
+      {
+        "symbol": "PA=F",
+        "direction": "long",
+        "entry": 1210.400024,
+        "composite": 8.65
+      },
+      {
+        "symbol": "LINK-USD",
+        "direction": "long",
+        "entry": 6.910778,
+        "composite": 9.5
+      }
+    ]
   }
 ]
