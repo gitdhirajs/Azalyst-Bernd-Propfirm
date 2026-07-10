@@ -908,5 +908,30 @@
         "composite": 5.75
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-10T17:12:28.569450",
+    "strategy": "weekly",
+    "watchlist_scanned": 70,
+    "signals_found": 2,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "USDJPY=X",
+        "direction": "short",
+        "entry": 161.758078,
+        "composite": 6.65
+      },
+      {
+        "symbol": "EURCHF=X",
+        "direction": "long",
+        "entry": 0.93315,
+        "composite": 5.75
+      }
+    ]
   }
 ]
