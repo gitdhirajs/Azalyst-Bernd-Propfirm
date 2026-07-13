@@ -2,27 +2,59 @@
   "balance": 5000.0,
   "initial_balance": 5000.0,
   "closed_pnl_total": 0.0,
-  "total_trades": 0,
+  "total_trades": 1,
   "winning_trades": 0,
   "losing_trades": 0,
-  "scratch_trades": 0,
+  "scratch_trades": 1,
   "peak_balance": 5000.0,
   "max_drawdown_pct": 0.0,
   "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_trades": 1,
   "today_starting_equity": 5000.0,
   "current_date": "2026-07-13",
   "account_blown": false,
-  "zone_memory": {},
+  "zone_memory": {
+    "278b484bff": true
+  },
   "challenge_started_at": "2026-07-13T19:53:03.982018",
   "open_positions": [
+    {
+      "id": "e53193cb-da4",
+      "symbol": "EURCHF=X",
+      "direction": "long",
+      "entry_price": 0.93315,
+      "stop_price": 0.916472,
+      "current_stop": 0.916472,
+      "targets": [
+        0.949828,
+        0.966506,
+        0.983185
+      ],
+      "position_size": 1228.501213,
+      "risk_amount": 20.49,
+      "entry_time": "2026-07-13T21:18:50.730191",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "ef9992fadc",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    }
+  ],
+  "trade_history": [
     {
       "id": "6c8bcf47-84a",
       "symbol": "EURCHF=X",
       "direction": "long",
       "entry_price": 0.921921,
       "stop_price": 0.916638,
-      "current_stop": 0.916638,
+      "current_stop": 0.921921,
       "targets": [
         0.927204,
         0.932488,
@@ -31,20 +63,19 @@
       "position_size": 1227.641563,
       "risk_amount": 6.49,
       "entry_time": "2026-07-13T19:57:50.055424",
-      "status": "active",
+      "status": "closed",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "278b484bff",
-      "close_time": null,
-      "close_price": null,
+      "close_time": "2026-07-13T21:18:50.729953",
+      "close_price": 0.921921,
       "trade_r_multiple": 0.0,
       "notes": ""
     }
   ],
-  "trade_history": [],
-  "saved_at": "2026-07-13T19:57:50.056206"
+  "saved_at": "2026-07-13T21:18:50.730877"
 }
