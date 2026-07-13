@@ -52,7 +52,7 @@
       "direction": "long",
       "entry_price": 0.567608,
       "stop_price": 0.561957,
-      "current_stop": 0.561957,
+      "current_stop": 0.567608,
       "targets": [
         0.57326,
         0.578911,
@@ -66,7 +66,7 @@
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "d47082483e",
       "close_time": null,
@@ -105,5 +105,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-13T22:18:03.107837"
+  "saved_at": "2026-07-13T23:20:15.698473"
 }
