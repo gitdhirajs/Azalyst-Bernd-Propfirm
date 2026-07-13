@@ -44,11 +44,17 @@ risk:
   reduced_risk_pct: 0.5            # Counter-trend & anticipatory: 0.5% = $25 (HAI Module 4)
   max_daily_loss_pct: 3.0          # 1-Step daily cap (matches prop_firm.max_daily_loss_usd)
   max_total_loss_pct: 6.0          # 1-Step static total cap (matches prop_firm.max_total_loss_usd)
-  # One position at a time (user preference 2026-07-08). The scanner submits the
-  # highest-composite signal first, so the single slot goes to the best setup.
-  # Raise to 2-3 for concurrent (uncorrelated) trades; NB 3 x 1% = the ENTIRE
-  # daily loss cap, so if all three hit stop the same day the daily limit is hit.
-  max_open_positions: 1
+  # Cap removed (user request 2026-07-13): after a week live, max_open_positions=1
+  # meant a single position occupied the only slot for 6 days and blocked every
+  # other signal, producing zero track record. Raised to effectively unlimited so
+  # every qualifying signal (>= alerts.min_composite_to_alert) gets paper-traded.
+  # The REAL safety cap is submit_signal()'s aggregate-open-risk check in
+  # BP_paper_trader.py: it refuses any new trade once (realized_today_loss +
+  # sum of open-position risk + this trade's risk) >= max_daily_loss_usd ($150),
+  # so full-1% TAKE trades still self-limit at ~3 concurrent (3 x $50 = $150)
+  # regardless of this number. CAUTION trades are sized at the min lot so many
+  # more of those can stack without threatening the cap.
+  max_open_positions: 20
 
 # ============================================================
 # ALERTS -- Discord signal quality filter + skip/take verdict
