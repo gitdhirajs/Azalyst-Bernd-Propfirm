@@ -339,74 +339,87 @@ def signal_verdict(s: Dict) -> Tuple[str, str]:
     return label, loc
 
 
-def new_signals_block(new_signals: List[Dict]) -> str:
-    """One block per signal. Show entry/SL/TP1/T2/T3 + risk + R:R + bias."""
-    if not new_signals:
-        return ""
+def _signal_verdict_header() -> List[str]:
     _take_bar = _load_min_composite()
-    out = [
+    return [
         "NEW SIGNALS THIS SCAN",
         f"  [TAKE] = pinged + paper-traded at 1% | "
         f"[CAUTION] = pinged + paper-traded at MIN lot (composite < {_take_bar:g})",
         "",
     ]
-    for s in new_signals:
-        sym  = s.get("display_name") or s.get("symbol", "?")
-        dir_ = s.get("direction", "?").upper()
-        entry = s.get("entry_price")
-        stop  = s.get("stop_price")
-        targets = s.get("targets", []) or []
-        risk_amt = float(s.get("risk_amount", 0))
-        risk_r = abs(float(entry) - float(stop)) if entry and stop else 0
-        rr_t2 = abs((targets[1] - entry) / risk_r) if len(targets) > 1 and risk_r else 0
-        composite = _composite_of(s)
-        lot_size = s.get("lot_size")
-        units = s.get("units")
-        risk_actual = float(s.get("risk_usd_actual", risk_amt) or risk_amt)
-        spec_verified = s.get("spec_verified", True)
-        out.append(f"  {sym:14s}  {dir_:5s}")
-        _v_label, _v_loc = signal_verdict(s)
-        out.append(f"    >> VERDICT     : {_v_label}")
-        if composite < _take_bar:
-            out.append(f"    (!) CAUTION    : low conviction -- paper-traded at MIN "
-                       f"lot only (not the full 1%; composite {composite:.1f} < {_take_bar:g})")
-        if _v_loc:
-            out.append(f"    Location       : {_v_loc}")
-        out.append(f"    Entry          : {fmt_price(entry, 12)}")
-        out.append(f"    Stop Loss      : {fmt_price(stop, 12)}")
-        for i, t in enumerate(targets[:3], 1):
-            out.append(f"    Target {i} ({i}R)   : {fmt_price(t, 12)}")
-        # The number to type into FundingPips. Shown prominently.
-        if lot_size:
-            out.append(f"    >> LOT SIZE    : {lot_size:>12,.2f} lots")
-            if units:
-                out.append(f"       (units)     : {units:>12,.0f}")
-            _rt = float(s.get("risk_usd_target", risk_actual) or risk_actual)
-            _pct = (risk_actual / _rt) if _rt else 1.0   # risk_usd_target IS 1% of the static account
-            out.append(f"    Risk (actual)  : {fmt_money(risk_actual)}  (~{_pct:.2f}% of account)")
-            # Hard guard: if lot rounding pushed the ACTUAL dollar risk materially
-            # above the 1% target, the printed lot is oversized for the $150/$300
-            # caps -- surface it loudly rather than let it be placed silently.
-            if _rt and risk_actual > _rt * 1.10:
-                out.append(f"    [!!] RISK MISMATCH -- lot risks {fmt_money(risk_actual)} "
-                           f"(~{_pct:.2f}% of account) vs {fmt_money(_rt)} target.")
-                out.append(f"         DO NOT place as-is; use platform Risk Mode = 1% + the Stop.")
-            out.append(f"    >> EXACT 1%    : set platform Risk Mode = 1% + the Stop")
-            out.append(f"       Loss above; that lot IS your 1% (this is a cross-check).")
-            if not spec_verified:
-                out.append(f"    [!] CONFIRM contract size on the FundingPips")
-                out.append(f"        order ticket before entering this size.")
-        else:
-            out.append(f"    Risk           : {fmt_money(risk_amt)}")
-            out.append(f"    [!] LOT SIZE UNAVAILABLE -- do not size off this alert")
-            note = s.get("sizing_note")
-            if note:
-                out.append(f"        {note[:48]}")
-        out.append(f"    R:R (to T2)    : 1:{rr_t2:>5.2f}")
-        if composite:
-            out.append(f"    Composite      : {float(composite):>5.2f} / 10")
-        out.append("")
-    return "\n".join(out).rstrip()
+
+
+def _format_signal_block(s: Dict, take_bar: float) -> str:
+    """Render ONE signal's full block (entry/SL/TP1-3 + risk + R:R + bias).
+
+    Kept as a standalone, never-split unit so callers can truncate on whole
+    blocks instead of a raw character offset -- cutting mid-line (e.g. inside
+    the "Risk (actual)" line) produced garbled, half-written output."""
+    sym  = s.get("display_name") or s.get("symbol", "?")
+    dir_ = s.get("direction", "?").upper()
+    entry = s.get("entry_price")
+    stop  = s.get("stop_price")
+    targets = s.get("targets", []) or []
+    risk_amt = float(s.get("risk_amount", 0))
+    risk_r = abs(float(entry) - float(stop)) if entry and stop else 0
+    rr_t2 = abs((targets[1] - entry) / risk_r) if len(targets) > 1 and risk_r else 0
+    composite = _composite_of(s)
+    lot_size = s.get("lot_size")
+    units = s.get("units")
+    risk_actual = float(s.get("risk_usd_actual", risk_amt) or risk_amt)
+    spec_verified = s.get("spec_verified", True)
+    out = [f"  {sym:14s}  {dir_:5s}"]
+    _v_label, _v_loc = signal_verdict(s)
+    out.append(f"    >> VERDICT     : {_v_label}")
+    if composite < take_bar:
+        out.append(f"    (!) CAUTION    : low conviction -- paper-traded at MIN "
+                   f"lot only (not the full 1%; composite {composite:.1f} < {take_bar:g})")
+    if _v_loc:
+        out.append(f"    Location       : {_v_loc}")
+    out.append(f"    Entry          : {fmt_price(entry, 12)}")
+    out.append(f"    Stop Loss      : {fmt_price(stop, 12)}")
+    for i, t in enumerate(targets[:3], 1):
+        out.append(f"    Target {i} ({i}R)   : {fmt_price(t, 12)}")
+    # The number to type into FundingPips. Shown prominently.
+    if lot_size:
+        out.append(f"    >> LOT SIZE    : {lot_size:>12,.2f} lots")
+        if units:
+            out.append(f"       (units)     : {units:>12,.0f}")
+        _rt = float(s.get("risk_usd_target", risk_actual) or risk_actual)
+        _pct = (risk_actual / _rt) if _rt else 1.0   # risk_usd_target IS 1% of the static account
+        out.append(f"    Risk (actual)  : {fmt_money(risk_actual)}  (~{_pct:.2f}% of account)")
+        # Hard guard: if lot rounding pushed the ACTUAL dollar risk materially
+        # above the 1% target, the printed lot is oversized for the $150/$300
+        # caps -- surface it loudly rather than let it be placed silently.
+        if _rt and risk_actual > _rt * 1.10:
+            out.append(f"    [!!] RISK MISMATCH -- lot risks {fmt_money(risk_actual)} "
+                       f"(~{_pct:.2f}% of account) vs {fmt_money(_rt)} target.")
+            out.append(f"         DO NOT place as-is; use platform Risk Mode = 1% + the Stop.")
+        out.append(f"    >> EXACT 1%    : set platform Risk Mode = 1% + the Stop")
+        out.append(f"       Loss above; that lot IS your 1% (this is a cross-check).")
+        if not spec_verified:
+            out.append(f"    [!] CONFIRM contract size on the FundingPips")
+            out.append(f"        order ticket before entering this size.")
+    else:
+        out.append(f"    Risk           : {fmt_money(risk_amt)}")
+        out.append(f"    [!] LOT SIZE UNAVAILABLE -- do not size off this alert")
+        note = s.get("sizing_note")
+        if note:
+            out.append(f"        {note[:48]}")
+    out.append(f"    R:R (to T2)    : 1:{rr_t2:>5.2f}")
+    if composite:
+        out.append(f"    Composite      : {float(composite):>5.2f} / 10")
+    return "\n".join(out)
+
+
+def new_signals_block(new_signals: List[Dict]) -> str:
+    """One block per signal. Show entry/SL/TP1/T2/T3 + risk + R:R + bias."""
+    if not new_signals:
+        return ""
+    _take_bar = _load_min_composite()
+    header = _signal_verdict_header()
+    body = "\n\n".join(_format_signal_block(s, _take_bar) for s in new_signals)
+    return "\n".join(header) + "\n" + body
 
 
 def below_bar_block(scan: Dict) -> str:
@@ -605,14 +618,32 @@ def build_status_message(scan: Dict, closed_trades: List[Dict]) -> str:
 
 def build_signals_message(scan: Dict, new_signals: List[Dict]) -> str:
     """New-signals-only message. Sent as a separate follow-up so it gets
-    its own @ping and never crowds out the portfolio status block above."""
+    its own @ping and never crowds out the portfolio status block above.
+
+    Truncates on whole-signal-block boundaries (never mid-line): a raw
+    character-offset cutoff could slice a block in half -- e.g. landing
+    inside "Risk (actual) : $ 24.97 (~0.50% of" with the closing "account)"
+    and everything after it silently dropped, which reads as garbled/broken
+    rather than as an intentional "see dashboard" truncation."""
     ts_line = header_block(scan.get("scan_time")).splitlines()[1]
-    blocks = [f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS\n{ts_line}"]
-    blocks.append(new_signals_block(new_signals))
-    body = SECTION_SEP.join(b for b in blocks if b).strip()
-    if len(body) > DISCORD_MSG_LIMIT:
-        body = body[:DISCORD_MSG_LIMIT - 30] + "\n... (truncated -- see dashboard for full list)"
-    return _wrap(body)
+    preamble = f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS\n{ts_line}"
+    _take_bar = _load_min_composite()
+    header = "\n".join(_signal_verdict_header())
+    blocks = [_format_signal_block(s, _take_bar) for s in new_signals]
+
+    body = preamble + SECTION_SEP + header
+    included = 0
+    for b in blocks:
+        candidate = body + ("\n" if included == 0 else "\n\n") + b
+        # Reserve headroom for the "+N more" footer even when we stop early.
+        if len(candidate) > DISCORD_MSG_LIMIT - 60 and included > 0:
+            break
+        body = candidate
+        included += 1
+    omitted = len(blocks) - included
+    if omitted:
+        body += f"\n\n... and {omitted} more signal(s) this scan -- see dashboard for full list."
+    return _wrap(body.strip())
 
 
 def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]) -> str:
