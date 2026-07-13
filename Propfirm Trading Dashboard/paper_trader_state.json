@@ -14,65 +14,8 @@
   "current_date": "2026-07-13",
   "account_blown": false,
   "zone_memory": {},
-  "challenge_started_at": "2026-07-13T11:24:12.493762",
-  "open_positions": [
-    {
-      "id": "727d48c0-c57",
-      "symbol": "USDPLN=X",
-      "direction": "short",
-      "entry_price": 4.028912,
-      "stop_price": 4.17539,
-      "current_stop": 4.028912,
-      "targets": [
-        3.882434,
-        3.735955,
-        3.589477
-      ],
-      "position_size": 264.414561,
-      "risk_amount": 38.73,
-      "entry_time": "2026-07-13T11:30:57.971170",
-      "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": true,
-      "trail_stop_level": null,
-      "zone_id": "7077a7cf66",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
-      "id": "e0522752-722",
-      "symbol": "USDSGD=X",
-      "direction": "short",
-      "entry_price": 1.3296,
-      "stop_price": 1.361573,
-      "current_stop": 1.3296,
-      "targets": [
-        1.297627,
-        1.265654,
-        1.23368
-      ],
-      "position_size": 773.97585,
-      "risk_amount": 24.75,
-      "entry_time": "2026-07-13T11:30:57.971451",
-      "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": true,
-      "trail_stop_level": null,
-      "zone_id": "c9c8436550",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    }
-  ],
+  "challenge_started_at": null,
+  "open_positions": [],
   "trade_history": [],
-  "saved_at": "2026-07-13T17:31:04.588530"
+  "saved_at": "2026-07-13T00:00:00.000000"
 }

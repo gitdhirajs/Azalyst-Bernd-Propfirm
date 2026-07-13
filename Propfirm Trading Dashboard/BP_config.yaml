@@ -2,21 +2,22 @@
 # ==========================================
 
 # ============================================================
-# FUNDINGPIPS 1-STEP CHALLENGE -- $5,000 account (Phase 1)
+# FUNDINGPIPS 2-STEP PRO CHALLENGE -- $5,000 account (Phase 1)
 # ============================================================
-# Configured to mirror the user's live FundingPips 1-Step evaluation:
-#   Account #2015868, One Step, Phase 1, MatchTrader.
-#   The FP dashboard DISPLAYS everything in INR (Rs 4.5 lakh) but the
-#   account BASE CURRENCY IS USD $5,000 -- the Rs figures are just a ~90:1
-#   display conversion (Rs 450,000 bal / Rs 13,500 daily / Rs 27,000 total /
-#   Rs 45,000 target). Market data + all sizing here are in USD, so we
-#   configure everything in USD and let the platform show you rupees.
+# 2026-07-13: switched from 1-Step to 2-Step Pro after the 1-Step account was
+# lost to an unexpected daily-loss breach. Confirmed on fundingpips.com/trading-objectives:
+# 2-Step Pro uses the SAME 3%/6% daily/total loss limits as the old 1-Step, so
+# max_daily_loss_usd/max_total_loss_usd below are UNCHANGED. What changes is the
+# profit target: two phases of 6% each (not one phase of 10%), unlimited time on both.
+#   Account #2015868, MatchTrader. FP dashboard shows INR (~90:1 display
+#   conversion of the USD figures) -- everything here is configured in USD.
 #
 #   Account size ........ $5,000
 #   Max daily loss ...... $150   (3% of 5,000)   -> Rs 13,500 on the FP panel
 #   Max total loss ...... $300   (6% static)     -> Rs 27,000 on the FP panel
-#   Profit target ....... $500   (10%)           -> Rs 45,000 on the FP panel
-#   Min trading days .... 3      (enforced by FP, not here)
+#   Phase 1 target ...... $300   (6%)            -> Rs 27,000 on the FP panel
+#   Phase 2 target ...... $300   (6%, same $ from the new phase-1 balance)
+#   Min trading days .... none stated per-phase (unlimited time)
 #
 # When enabled, the paper trader blocks any trade that would breach the
 # daily or total loss cap at submit time -- exactly what the broker does.
@@ -24,7 +25,7 @@
 # "Resets In" countdown on your FP dashboard and adjust if it differs).
 # Profit target is informational only (no enforcement) -- the engine blocks
 # trades on a loss-cap breach, not on profit-target attainment.
-#   Phase 1 (now):     profit_target_pct: 10.0   <-- 1-Step target ($500)
+#   Phase 1 (now):     profit_target_pct: 6.0    <-- 2-Step Pro phase-1 target ($300)
 #   Funded (passed):   profit_target_pct: 0.0    (no target)
 # NOTE: after you pass, update account_size + both caps to your funded size.
 # ------------------------------------------------------------
@@ -33,17 +34,32 @@ prop_firm:
   account_size: 5000.0
   max_daily_loss_usd: 150.0      # 3% of 5,000  = FP "Maximum Daily Loss" (Rs 13,500)
   max_total_loss_usd: 300.0      # 6% static     = FP "Maximum Loss"       (Rs 27,000)
-  profit_target_pct: 10.0        # 1-Step target = 10% ($500 / Rs 45,000)
+  profit_target_pct: 6.0         # 2-Step Pro phase-1 target = 6% ($300 / Rs 27,000)
   daily_reset_hour_utc: 22       # 17:00 NY = 22:00 UTC. Confirm vs FP "Resets In" timer.
 
 risk:
   # Used as fallback when prop_firm.enabled is false. When prop_firm is on,
   # `prop_firm.account_size` overrides account_balance for the paper trader.
   account_balance: 5000.0
-  risk_per_trade_pct: 1.0          # 1% = $50 risk per trade on $5,000 (your choice)
+  risk_per_trade_pct: 1.0          # 1% = $50 risk per trade on $5,000 -- IGNORED while fixed_lot_mode is on (below)
   reduced_risk_pct: 0.5            # Counter-trend & anticipatory: 0.5% = $25 (HAI Module 4)
-  max_daily_loss_pct: 3.0          # 1-Step daily cap (matches prop_firm.max_daily_loss_usd)
-  max_total_loss_pct: 6.0          # 1-Step static total cap (matches prop_firm.max_total_loss_usd)
+  max_daily_loss_pct: 3.0          # 2-Step Pro daily cap (matches prop_firm.max_daily_loss_usd)
+  max_total_loss_pct: 6.0          # 2-Step Pro static total cap (matches prop_firm.max_total_loss_usd)
+  # 2026-07-13: user lost the prior 1-Step account to an unexpected daily-loss
+  # breach. 1%-of-account risk sizing produces a VARIABLE lot size per trade
+  # (wider stop = smaller lot, tighter stop = bigger lot), and several 1%
+  # trades stacking same-day can chew through the 3% daily cap fast. Until a
+  # trade is closed profitably, every signal (TAKE and CAUTION alike) is
+  # forced to the platform's MINIMUM lot (0.01 -- confirmed on FundingPips
+  # MatchTrader across FX/metals/indices/crypto, 2026-07-13) instead of the
+  # risk_per_trade_pct calculation. This caps worst-case single-trade risk at
+  # whatever 0.01 lot's stop-distance works out to (a few dollars), nowhere
+  # near the $150 daily limit.
+  # To size up: bump fixed_lot_multiplier (1 = 0.01 "1 lot", 2 = 0.02 "2 lot",
+  # etc.) only AFTER you've closed at least one trade in profit on this
+  # challenge. Set fixed_lot_mode: false to go back to full 1%-risk sizing.
+  fixed_lot_mode: true
+  fixed_lot_multiplier: 1.0
   # Cap removed (user request 2026-07-13): after a week live, max_open_positions=1
   # meant a single position occupied the only slot for 6 days and blocked every
   # other signal, producing zero track record. Raised to effectively unlimited so
@@ -204,57 +220,46 @@ watchlist:
   - { symbol: "CADCHF=X", name: "CADCHF", asset_class: "forex" }
   - { symbol: "CHFJPY=X", name: "CHFJPY", asset_class: "forex" }
 
-  # ── FOREX EXOTICS (FP offers a curated set; common ones) ─────
-  - { symbol: "USDSGD=X", name: "USDSGD", asset_class: "forex" }
-  - { symbol: "USDHKD=X", name: "USDHKD", asset_class: "forex" }
+  # ── FOREX EXOTICS -- trimmed 2026-07-13 to EXACTLY what the FundingPips
+  # MatchTrader "Trade" panel lists (logged in and read directly: Favorites ->
+  # search -> FX category, 31 pairs total). USDSGD/USDHKD/USDZAR/USDTRY/
+  # USDPLN/USDSEK/USDNOK were in this file but do NOT exist on the platform --
+  # that's why USDPLN/USDSGD paper positions showed up with no matching FP
+  # signal. Kept only USDMXN + USDCNH (both confirmed present) and added
+  # EURSEK (confirmed present; FP has no USDSEK).
   - { symbol: "USDMXN=X", name: "USDMXN", asset_class: "forex" }
-  - { symbol: "USDZAR=X", name: "USDZAR", asset_class: "forex" }
-  - { symbol: "USDTRY=X", name: "USDTRY", asset_class: "forex" }
-  - { symbol: "USDPLN=X", name: "USDPLN", asset_class: "forex" }
-  - { symbol: "USDSEK=X", name: "USDSEK", asset_class: "forex" }
-  - { symbol: "USDNOK=X", name: "USDNOK", asset_class: "forex" }
+  - { symbol: "USDCNH=X", name: "USDCNH", asset_class: "forex" }
+  - { symbol: "EURSEK=X", name: "EURSEK", asset_class: "forex" }
 
-  # ── PRECIOUS METALS (FP: XAUUSD/XAGUSD; futures used for chart+COT) ──
+  # ── PRECIOUS METALS -- FP MatchTrader Metals category = XAUUSD + XAGUSD
+  # only (confirmed 2026-07-13). Copper/Platinum/Palladium removed from the
+  # tradable watchlist -- not offered on this platform.
   - { symbol: "GC=F", name: "XAUUSD (Gold)",       asset_class: "precious_metals" }
   - { symbol: "SI=F", name: "XAGUSD (Silver)",     asset_class: "precious_metals" }
-  - { symbol: "HG=F", name: "XCUUSD (Copper)",     asset_class: "precious_metals" }
-  - { symbol: "PL=F", name: "XPTUSD (Platinum)",   asset_class: "precious_metals" }
-  - { symbol: "PA=F", name: "XPDUSD (Palladium)",  asset_class: "precious_metals" }
 
-  # ── ENERGIES (FP: USOIL, UKOIL, NATGAS + refined products) ────
+  # ── ENERGIES -- FP MatchTrader Energies category = USOIL + UKOIL only
+  # (confirmed 2026-07-13). Nat gas / heating oil / RBOB gasoline removed --
+  # not offered on this platform.
   - { symbol: "CL=F", name: "USOIL (WTI Crude)",    asset_class: "energies" }
   - { symbol: "BZ=F", name: "UKOIL (Brent Crude)",  asset_class: "energies" }
-  - { symbol: "NG=F", name: "NATGAS (Natural Gas)",  asset_class: "energies" }
-  - { symbol: "HO=F", name: "HEATOIL (Heating Oil)", asset_class: "energies" }
-  - { symbol: "RB=F", name: "GASOLINE (RBOB)",       asset_class: "energies" }
 
-  # ── EQUITY INDICES (FP: US + global indices) ────────────────
+  # ── EQUITY INDICES -- FP MatchTrader Indices category = SPX500, NDX100,
+  # DJI30, GER40, FTSE100, JP225, STX50 (confirmed 2026-07-13, 7 total).
+  # Russell 2000, ASX, Hang Seng, CAC-40, IBEX, and SMI removed -- not offered.
   - { symbol: "ES=F",      name: "US500 (S&P 500)",       asset_class: "equity_indices" }
   - { symbol: "NQ=F",      name: "US100 (Nasdaq 100)",    asset_class: "equity_indices" }
   - { symbol: "YM=F",      name: "US30 (Dow Jones)",      asset_class: "equity_indices" }
-  - { symbol: "RTY=F",     name: "US2000 (Russell)",      asset_class: "equity_indices" }
   - { symbol: "^GDAXI",    name: "GER40 (DAX)",           asset_class: "equity_indices" }
   - { symbol: "^FTSE",     name: "UK100 (FTSE)",          asset_class: "equity_indices" }
   - { symbol: "^N225",     name: "JP225 (Nikkei)",        asset_class: "equity_indices" }
-  - { symbol: "^AXJO",     name: "AUS200 (ASX)",          asset_class: "equity_indices" }
-  - { symbol: "^HSI",      name: "HK50 (Hang Seng)",      asset_class: "equity_indices" }
-  - { symbol: "^FCHI",     name: "FRA40 (CAC)",           asset_class: "equity_indices" }
-  - { symbol: "^IBEX",     name: "ESP35 (IBEX)",          asset_class: "equity_indices" }
   - { symbol: "^STOXX50E", name: "EU50 (Euro Stoxx)",     asset_class: "equity_indices" }
-  - { symbol: "^SSMI",     name: "SUI30 (SMI)",           asset_class: "equity_indices" }
 
-  # ── CRYPTO (FP: ~10-12 majors) -- pinned to DAILY only ──────
+  # ── CRYPTO -- FP MatchTrader Crypto category = BTCUSD, ETHUSD, XRPUSD only
+  # (confirmed 2026-07-13, 3 total). LTC/BCH/ADA/SOL/DOT/LINK/AVAX/DOGE
+  # removed -- not offered on this platform.
   - { symbol: "BTC-USD",  name: "BTCUSD",  asset_class: "crypto", cot_symbol: "BTC=F", strategies: ["daily"] }
   - { symbol: "ETH-USD",  name: "ETHUSD",  asset_class: "crypto", cot_symbol: "ETH=F", strategies: ["daily"] }
   - { symbol: "XRP-USD",  name: "XRPUSD",  asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "LTC-USD",  name: "LTCUSD",  asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "BCH-USD",  name: "BCHUSD",  asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "ADA-USD",  name: "ADAUSD",  asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "SOL-USD",  name: "SOLUSD",  asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "DOT-USD",  name: "DOTUSD",  asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "LINK-USD", name: "LINKUSD", asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "AVAX-USD", name: "AVAXUSD", asset_class: "crypto", strategies: ["daily"] }
-  - { symbol: "DOGE-USD", name: "DOGEUSD", asset_class: "crypto", strategies: ["daily"] }
 
 zone_detection:
   leg_in_min_candles: 3

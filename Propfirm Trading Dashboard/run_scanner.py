@@ -1021,7 +1021,11 @@ def scan_all_markets(
     # (alert bar <= composite < post bar) is sized at the MINIMUM lot so it is
     # tracked in the paper account at negligible risk. Below the alert bar =
     # SKIP (not sized to trade).
+    # 2026-07-13: risk.fixed_lot_mode overrides ALL tiers (TAKE included) to
+    # the fixed min-lot size -- see BP_config.yaml risk section for why.
     _take_bar_sz  = float(config.get("alerts", {}).get("min_composite_to_post", 7.0))
+    _fixed_lot_mode = bool(config.get("risk", {}).get("fixed_lot_mode", False))
+    _fixed_lot_mult = float(config.get("risk", {}).get("fixed_lot_multiplier", 1.0))
     for s in signals:
         ac    = s.get("asset_class", "")
         sname = s.get("display_name") or s.get("symbol", "")
@@ -1031,13 +1035,15 @@ def scan_all_markets(
         risk_usd = _account_size * risk_pct
         _comp_sz = float((s.get("qualifier_scores") or {}).get("composite", 0) or 0)
         _is_caution_sz = _comp_sz < _take_bar_sz   # CAUTION -> min lot
-        s["sizing_tier"] = "caution_min" if _is_caution_sz else "take_1pct"
+        _force_min = _fixed_lot_mode or _is_caution_sz
+        s["sizing_tier"] = "fixed_lot" if _fixed_lot_mode else ("caution_min" if _is_caution_sz else "take_1pct")
         try:
             sz = compute_lots(
                 asset_class=ac, symbol_name=sname,
                 entry=float(s["entry_price"]), stop=float(s["stop_price"]),
                 risk_usd=risk_usd, spec=spec, usd_per_quote_ccy=usd_quote_table,
-                force_min_lot=_is_caution_sz,
+                force_min_lot=_force_min,
+                min_lot_multiplier=(_fixed_lot_mult if _fixed_lot_mode else 1.0),
             )
             s["lot_size"]        = sz.lots
             s["units"]           = sz.units
