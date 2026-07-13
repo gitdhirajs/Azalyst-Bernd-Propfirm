@@ -1631,5 +1631,36 @@
         "composite": 5.8
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-13T11:32:03.512525",
+    "strategy": "weekly",
+    "watchlist_scanned": 70,
+    "signals_found": 3,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "USDSGD=X",
+        "direction": "short",
+        "entry": 1.3296,
+        "composite": 5.5
+      },
+      {
+        "symbol": "USDHKD=X",
+        "direction": "short",
+        "entry": 7.827265,
+        "composite": 4.5
+      },
+      {
+        "symbol": "USDPLN=X",
+        "direction": "short",
+        "entry": 4.028912,
+        "composite": 5.8
+      }
+    ]
   }
 ]

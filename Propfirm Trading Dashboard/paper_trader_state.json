@@ -22,7 +22,7 @@
       "direction": "short",
       "entry_price": 4.028912,
       "stop_price": 4.17539,
-      "current_stop": 4.17539,
+      "current_stop": 4.028912,
       "targets": [
         3.882434,
         3.735955,
@@ -36,7 +36,7 @@
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "7077a7cf66",
       "close_time": null,
@@ -50,7 +50,7 @@
       "direction": "short",
       "entry_price": 1.3296,
       "stop_price": 1.361573,
-      "current_stop": 1.361573,
+      "current_stop": 1.3296,
       "targets": [
         1.297627,
         1.265654,
@@ -64,7 +64,7 @@
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "c9c8436550",
       "close_time": null,
@@ -74,5 +74,5 @@
     }
   ],
   "trade_history": [],
-  "saved_at": "2026-07-13T11:30:57.972445"
+  "saved_at": "2026-07-13T11:39:15.670474"
 }
