@@ -146,10 +146,13 @@ instrument_specs:
     "NATGAS (Natural Gas)":  { verified: false }   # 1 lot ~10,000 MMBtu on MatchTrader -- confirm on ticket
     "HEATOIL (Heating Oil)": { verified: false }   # priced $/gal, ~42,000 gal/lot -- confirm on ticket
     "GASOLINE (RBOB)":       { verified: false }   # priced $/gal, ~42,000 gal/lot -- confirm on ticket
-    # -- US equity indices: MatchTrader standard = $1 per index point per lot --
-    "US500 (S&P 500)":     { point_value_per_lot: 1, verified: true }
-    "US100 (Nasdaq 100)":  { point_value_per_lot: 1, verified: true }
-    "US30 (Dow Jones)":    { point_value_per_lot: 1, verified: true }
+    # -- US equity indices: MT5/MatchTrader standard = $1 per index point per lot.
+    #    Keys MUST match the watchlist `name` EXACTLY. MT5-SIM1 live symbols
+    #    (confirmed 2026-07-14): SPX500 / NDX100 / DJI30 (US500/US100/US30 do
+    #    NOT exist on MT5). --
+    "SPX500 (S&P 500)":    { point_value_per_lot: 1, verified: true }
+    "NDX100 (Nasdaq 100)": { point_value_per_lot: 1, verified: true }
+    "DJI30 (Dow Jones)":   { point_value_per_lot: 1, verified: true }
     "US2000 (Russell)":    { point_value_per_lot: 1, verified: true }
     # -- Non-USD indices (GER40/UK100/JP225/AUS200/HK50/FRA40/ESP35/EU50/SUI30):
     #    left on the class default (verified:false) -- point value is in the
@@ -220,16 +223,11 @@ watchlist:
   - { symbol: "CADCHF=X", name: "CADCHF", asset_class: "forex" }
   - { symbol: "CHFJPY=X", name: "CHFJPY", asset_class: "forex" }
 
-  # ── FOREX EXOTICS -- trimmed 2026-07-13 to EXACTLY what the FundingPips
-  # MatchTrader "Trade" panel lists (logged in and read directly: Favorites ->
-  # search -> FX category, 31 pairs total). USDSGD/USDHKD/USDZAR/USDTRY/
-  # USDPLN/USDSEK/USDNOK were in this file but do NOT exist on the platform --
-  # that's why USDPLN/USDSGD paper positions showed up with no matching FP
-  # signal. Kept only USDMXN + USDCNH (both confirmed present) and added
-  # EURSEK (confirmed present; FP has no USDSEK).
-  - { symbol: "USDMXN=X", name: "USDMXN", asset_class: "forex" }
-  - { symbol: "USDCNH=X", name: "USDCNH", asset_class: "forex" }
-  - { symbol: "EURSEK=X", name: "EURSEK", asset_class: "forex" }
+  # ── FOREX EXOTICS -- REMOVED 2026-07-14. On MT5-SIM1 (the platform the live
+  # challenge now runs on, account 20365305) USDMXN / USDCNH / EURSEK all return
+  # "No symbols found" -- NOT tradable there, so an alert on any of them could
+  # not be placed. (They existed on MatchTrader; MT5 does not list them.) If you
+  # ever move back to MatchTrader, re-add: USDMXN=X, USDCNH=X, EURSEK=X.
 
   # ── PRECIOUS METALS -- FP MatchTrader Metals category = XAUUSD + XAGUSD
   # only (confirmed 2026-07-13). Copper/Platinum/Palladium removed from the
@@ -243,23 +241,25 @@ watchlist:
   - { symbol: "CL=F", name: "USOIL (WTI Crude)",    asset_class: "energies" }
   - { symbol: "BZ=F", name: "UKOIL (Brent Crude)",  asset_class: "energies" }
 
-  # ── EQUITY INDICES -- FP MatchTrader Indices category = SPX500, NDX100,
-  # DJI30, GER40, FTSE100, JP225, STX50 (confirmed 2026-07-13, 7 total).
-  # Russell 2000, ASX, Hang Seng, CAC-40, IBEX, and SMI removed -- not offered.
-  - { symbol: "ES=F",      name: "US500 (S&P 500)",       asset_class: "equity_indices" }
-  - { symbol: "NQ=F",      name: "US100 (Nasdaq 100)",    asset_class: "equity_indices" }
-  - { symbol: "YM=F",      name: "US30 (Dow Jones)",      asset_class: "equity_indices" }
+  # ── EQUITY INDICES -- MT5-SIM1 Indices (confirmed 2026-07-14 via live symbol
+  # search): SPX500, NDX100, DJI30, GER40, FTSE100, JP225, STX50 (7 total).
+  # `name` = the EXACT MT5 symbol so the alert shows what you type on the ticket.
+  # yfinance `symbol` is unchanged. NOTE: US500/US100/US30/UK100/EU50 (the old
+  # MatchTrader labels) do NOT exist on MT5 -> renamed to SPX500/NDX100/DJI30/
+  # FTSE100/STX50. Russell/ASX/HangSeng/CAC/IBEX/SMI not offered.
+  - { symbol: "ES=F",      name: "SPX500 (S&P 500)",      asset_class: "equity_indices" }
+  - { symbol: "NQ=F",      name: "NDX100 (Nasdaq 100)",   asset_class: "equity_indices" }
+  - { symbol: "YM=F",      name: "DJI30 (Dow Jones)",     asset_class: "equity_indices" }
   - { symbol: "^GDAXI",    name: "GER40 (DAX)",           asset_class: "equity_indices" }
-  - { symbol: "^FTSE",     name: "UK100 (FTSE)",          asset_class: "equity_indices" }
+  - { symbol: "^FTSE",     name: "FTSE100 (FTSE)",        asset_class: "equity_indices" }
   - { symbol: "^N225",     name: "JP225 (Nikkei)",        asset_class: "equity_indices" }
-  - { symbol: "^STOXX50E", name: "EU50 (Euro Stoxx)",     asset_class: "equity_indices" }
+  - { symbol: "^STOXX50E", name: "STX50 (Euro Stoxx)",    asset_class: "equity_indices" }
 
-  # ── CRYPTO -- FP MatchTrader Crypto category = BTCUSD, ETHUSD, XRPUSD only
-  # (confirmed 2026-07-13, 3 total). LTC/BCH/ADA/SOL/DOT/LINK/AVAX/DOGE
-  # removed -- not offered on this platform.
+  # ── CRYPTO -- MT5-SIM1 Crypto = BTCUSD, ETHUSD only (confirmed 2026-07-14
+  # live: XRP and RIPPLE both return "No symbols found" -- NOT on MT5, removed).
+  # LTC/BCH/ADA/SOL/DOT/LINK/AVAX/DOGE also not offered.
   - { symbol: "BTC-USD",  name: "BTCUSD",  asset_class: "crypto", cot_symbol: "BTC=F", strategies: ["daily"] }
   - { symbol: "ETH-USD",  name: "ETHUSD",  asset_class: "crypto", cot_symbol: "ETH=F", strategies: ["daily"] }
-  - { symbol: "XRP-USD",  name: "XRPUSD",  asset_class: "crypto", strategies: ["daily"] }
 
 zone_detection:
   leg_in_min_candles: 3
