@@ -199,66 +199,78 @@ class PaperTrader:
             logger.warning(f"Account breach detected: {reason}")
             return None
 
-        # Check max positions
-        active_count = sum(1 for p in self.positions.values() if p.status == TradeStatus.ACTIVE)
-        if active_count >= self.max_positions:
-            logger.info(f"Max positions ({self.max_positions}) reached, skipping signal")
-            return None
+        # ── Fill mode: PENDING limit vs immediate fill ──────────────────
+        # A signal whose price has NOT yet reached the zone is placed as a
+        # RESTING PENDING limit order (E1 at the zone proximal). It does NOT
+        # open a live position now and carries NO risk until price actually
+        # trades to the entry -- see check_pending_fills(). Only a signal that
+        # is already AT the zone fills immediately as an ACTIVE position.
+        # This fixes the bug where a buy-limit was "filled" instantly at the
+        # zone price (e.g. EURCHF long booked at 0.933 while price was 0.927
+        # and had never traded up to the entry).
+        is_pending = bool(signal.get('pending_order')) and not bool(signal.get('price_at_zone'))
 
-        # Check daily/total loss limit including AGGREGATE OPEN RISK.
-        # A prop challenge is breached on EQUITY, not just realized balance:
-        # 3 open positions each risking $50 = $150 of live risk while realized
-        # today_loss is still $0. Counting only realized loss + the new trade
-        # let all three open and then breach together on a bad session. Include
-        # the sum of open positions' risk so the worst case (every open trade +
-        # this one hits its stop) cannot exceed a cap. (Audit rank 5.)
-        new_risk = signal.get('risk_amount', 0.0)
-        # Aggregate live downside of open positions. A position already trailed
-        # to breakeven (or better) has ~0 remaining downside, so it does not
-        # consume the loss budget; pre-breakeven positions count their full risk
-        # (conservative — can never under-count and let the cap breach).
-        open_risk = sum(
-            p.risk_amount for p in self.positions.values()
-            if p.status == TradeStatus.ACTIVE
-            and not getattr(p, 'breakeven_triggered', False)
-        )
-        today_loss = self.today_starting_equity - self.balance
-        if today_loss + open_risk + new_risk >= self.max_daily_loss:
-            logger.info(f"Daily loss budget would be exceeded by open risk "
-                        f"(realized ${today_loss:.2f} + open ${open_risk:.2f} + "
-                        f"new ${new_risk:.2f} >= limit ${self.max_daily_loss:.2f}); skipping")
-            return None
-        total_loss = self.initial_balance - self.balance
-        if total_loss + open_risk + new_risk >= self.max_total_loss:
-            logger.info(f"Total loss budget would be exceeded by open risk "
-                        f"(realized ${total_loss:.2f} + open ${open_risk:.2f} + "
-                        f"new ${new_risk:.2f} >= limit ${self.max_total_loss:.2f}); skipping")
-            return None
+        # Live-position gates (max open slots + loss budget) apply ONLY to an
+        # order that fills NOW. A resting limit consumes no slot and no loss
+        # budget until it fills (check_pending_fills re-homes it to ACTIVE).
+        if not is_pending:
+            active_count = sum(1 for p in self.positions.values() if p.status == TradeStatus.ACTIVE)
+            if active_count >= self.max_positions:
+                logger.info(f"Max positions ({self.max_positions}) reached, skipping signal")
+                return None
 
-        # Check if zone already consumed
+            # Check daily/total loss limit including AGGREGATE OPEN RISK.
+            # A prop challenge is breached on EQUITY, not just realized balance:
+            # 3 open positions each risking $50 = $150 of live risk while realized
+            # today_loss is still $0. Include the sum of open positions' risk so
+            # the worst case (every open trade + this one hits its stop) cannot
+            # exceed a cap. (Audit rank 5.)
+            new_risk = signal.get('risk_amount', 0.0)
+            # A position already trailed to breakeven (or better) has ~0 remaining
+            # downside, so it does not consume the loss budget; pre-breakeven
+            # positions count their full risk (conservative).
+            open_risk = sum(
+                p.risk_amount for p in self.positions.values()
+                if p.status == TradeStatus.ACTIVE
+                and not getattr(p, 'breakeven_triggered', False)
+            )
+            today_loss = self.today_starting_equity - self.balance
+            if today_loss + open_risk + new_risk >= self.max_daily_loss:
+                logger.info(f"Daily loss budget would be exceeded by open risk "
+                            f"(realized ${today_loss:.2f} + open ${open_risk:.2f} + "
+                            f"new ${new_risk:.2f} >= limit ${self.max_daily_loss:.2f}); skipping")
+                return None
+            total_loss = self.initial_balance - self.balance
+            if total_loss + open_risk + new_risk >= self.max_total_loss:
+                logger.info(f"Total loss budget would be exceeded by open risk "
+                            f"(realized ${total_loss:.2f} + open ${open_risk:.2f} + "
+                            f"new ${new_risk:.2f} >= limit ${self.max_total_loss:.2f}); skipping")
+                return None
+
+        # Check if zone already consumed (applies to pending AND active)
         zone_id = signal.get('zone_id', '')
         if zone_id in self.zone_memory and self.zone_memory[zone_id]:
             logger.info(f"Zone {zone_id} already consumed, skipping")
             return None
 
-        # Don't open a DUPLICATE on a zone that already has an OPEN position.
-        # zone_memory only records CONSUMED (closed) zones, so without this a zone
-        # that signals again while its first position is still open opens a second
-        # identical trade (seen live: two EURCHF longs at the same entry).
+        # Don't stack a DUPLICATE on a zone that already has an OPEN *or* PENDING
+        # order. zone_memory only records CONSUMED (closed) zones, so without this
+        # a zone that signals again while its first order is still live opens a
+        # second identical trade (seen live: two EURCHF longs at the same entry).
         _sig_dir = TradeDirection(signal['direction'])
         _sig_entry = float(signal['entry_price'])
         for _p in self.positions.values():
-            if _p.status != TradeStatus.ACTIVE:
+            if _p.status not in (TradeStatus.ACTIVE, TradeStatus.PENDING):
                 continue
             if zone_id and _p.zone_id == zone_id:
-                logger.info(f"Zone {zone_id} already has an open position; skipping duplicate")
+                logger.info(f"Zone {zone_id} already has a live/pending order; skipping duplicate")
                 return None
             # Fallback: zone_id can drift a hair if the zone's proximal/distal
             # shift by a bar between scans -- same symbol + direction + ~same
             # entry (within 1bp) is the same trade.
             if (_p.symbol == signal['symbol'] and _p.direction == _sig_dir
                     and abs(_p.entry_price - _sig_entry) <= abs(_sig_entry) * 1e-4):
-                logger.info(f"Duplicate open ({signal['symbol']} {signal['direction']} "
+                logger.info(f"Duplicate live/pending ({signal['symbol']} {signal['direction']} "
                             f"@ ~{_sig_entry}); skipping")
                 return None
 
@@ -266,7 +278,7 @@ class PaperTrader:
         position = Position(
             id=pos_id,
             symbol=signal['symbol'],
-            direction=TradeDirection(signal['direction']),
+            direction=_sig_dir,
             entry_price=signal['entry_price'],
             stop_price=signal['stop_price'],
             current_stop=signal['stop_price'],
@@ -274,12 +286,61 @@ class PaperTrader:
             position_size=signal.get('position_size', 1.0),
             risk_amount=signal.get('risk_amount', 0.0),
             entry_time=datetime.now(),
+            status=(TradeStatus.PENDING if is_pending else TradeStatus.ACTIVE),
             zone_id=zone_id
         )
 
         self.positions[pos_id] = position
-        logger.info(f"[{signal['symbol']}] OPENED {signal['direction']} position {pos_id} at {signal['entry_price']:.2f}")
+        if is_pending:
+            logger.info(f"[{signal['symbol']}] PENDING {signal['direction']} limit {pos_id} "
+                        f"@ {signal['entry_price']:.5f} (waiting for price to arrive)")
+        else:
+            logger.info(f"[{signal['symbol']}] OPENED {signal['direction']} position {pos_id} "
+                        f"at {signal['entry_price']:.5f}")
         return pos_id
+
+    def check_pending_fills(self, current_prices: Dict[str, Dict[str, float]]) -> List[str]:
+        """Fill resting PENDING limit orders that price has now reached.
+
+        A long limit fills when the latest bar's LOW trades down to/through the
+        entry; a short limit fills when the HIGH trades up to/through it. The
+        fill price is the entry (limit) price -- a limit fills at its level or
+        better. Returns the list of position ids filled this call (now ACTIVE).
+
+        Stop/target evaluation for a freshly-filled order is deferred to the
+        NEXT scan (the caller sets it aside from update_positions) so a limit
+        isn't opened and closed on the same bar.
+        """
+        filled: List[str] = []
+        for pos in self.positions.values():
+            if pos.status != TradeStatus.PENDING:
+                continue
+            prices = current_prices.get(pos.symbol, {})
+            if not prices:
+                continue
+            close = prices.get('close', 0)
+            low = prices.get('low', close)
+            high = prices.get('high', close)
+            entry = pos.entry_price
+            reached = (
+                (pos.direction == TradeDirection.LONG and low is not None and low <= entry)
+                or (pos.direction == TradeDirection.SHORT and high is not None and high >= entry)
+            )
+            if reached:
+                pos.status = TradeStatus.ACTIVE
+                pos.entry_time = datetime.now()
+                filled.append(pos.id)
+                logger.info(f"[{pos.symbol}] PENDING limit FILLED at {entry:.5f} -> ACTIVE")
+        return filled
+
+    def get_pending_orders(self) -> List[Dict]:
+        """Return resting (unfilled) PENDING limit orders in dashboard shape."""
+        out = []
+        for p in self.positions.values():
+            if p.status != TradeStatus.PENDING:
+                continue
+            out.append(asdict(p))
+        return out
 
     def update_positions(self, current_prices: Dict[str, Dict[str, float]]) -> List[Dict]:
         """

@@ -136,6 +136,25 @@ def fmt_price(v: float, width: int = 10) -> str:
     return f"{v:>{width}.5f}"
 
 
+def _px(v) -> str:
+    """Compact price for the level lines (Entry/SL/TP): no padding, em-dash for
+    a missing level."""
+    if v is None:
+        return "—"
+    try:
+        return fmt_price(float(v)).strip()
+    except (TypeError, ValueError):
+        return "?"
+
+
+def _targets3(p: Dict) -> Tuple:
+    """Return (T1, T2, T3) from a position/signal's targets list, padding with
+    None when fewer than three targets exist."""
+    t = list(p.get("targets", []) or [])
+    t += [None, None, None]
+    return t[0], t[1], t[2]
+
+
 def header_block(scan_time_iso: Optional[str]) -> str:
     """Top of the message: title + timestamp."""
     if scan_time_iso:
@@ -444,31 +463,54 @@ def below_bar_block(scan: Dict) -> str:
 
 
 def open_positions_block(positions: List[Dict]) -> str:
-    """Aligned table of open paper positions."""
+    """Open paper positions, 2 lines each so Entry/SL/T1/T2/T3 all fit even on
+    mobile. Line 1 = live status (entry, now, PnL, R); line 2 = the levels so
+    you can still manage/place the trade if you missed the original alert."""
     if not positions:
         return "OPEN POSITIONS\n  (none)"
-    out = [
-        "OPEN POSITIONS",
-        "  ID      TICKER       DIR    ENTRY      NOW        PnL          R     ",
-        "  " + "─" * 70,
-    ]
-    for i, p in enumerate(positions[:8], 1):  # cap at 8 rows for message length
+    out = ["OPEN POSITIONS   (E=entry  Now=live  SL=stop  T1/T2/T3=targets)"]
+    for i, p in enumerate(positions[:6], 1):   # cap rows for message length
         sym  = (p.get("display_name") or p.get("symbol", "?"))[:10]
         dir_ = p.get("direction", "?").upper()
         entry = p.get("entry_price", 0)
         now   = p.get("current_price", entry)
+        sl    = p.get("current_stop", p.get("stop_price", 0))
+        t1, t2, t3 = _targets3(p)
         pnl   = float(p.get("unrealized_pnl", p.get("realized_pnl", 0)))
         r_mult = float(p.get("r_multiple_open", p.get("trade_r_multiple", 0)))
-        days = p.get("days_held")
-        days_s = (f"{int(days)}d" if days is not None else "")
         out.append(
-            f"  T{i:04d}  {sym:10s}  {dir_:5s}  "
-            f"{fmt_price(entry, 9):>9}  {fmt_price(now, 9):>9}  "
-            f"{('+' if pnl >= 0 else '-')}${abs(pnl):>8,.2f}  "
-            f"{r_mult:+5.2f}R  {days_s}"
+            f"  T{i:04d} {sym:10s} {dir_:5s} E:{_px(entry)}  Now:{_px(now)}  "
+            f"{('+' if pnl >= 0 else '-')}${abs(pnl):,.2f}  {r_mult:+.2f}R"
         )
-    if len(positions) > 8:
-        out.append(f"  ... and {len(positions) - 8} more")
+        out.append(
+            f"         SL:{_px(sl)}   T1:{_px(t1)}  T2:{_px(t2)}  T3:{_px(t3)}"
+        )
+    if len(positions) > 6:
+        out.append(f"  ... and {len(positions) - 6} more open")
+    return "\n".join(out)
+
+
+def pending_orders_block(pending: List[Dict]) -> str:
+    """Resting PENDING limit orders (price hasn't reached the zone yet). Shown
+    with full Entry/SL/T1/T2/T3 so a missed signal can still be placed as a
+    limit on FundingPips. These are NOT open trades and carry no risk until
+    price trades to the entry."""
+    if not pending:
+        return ""
+    out = ["PENDING LIMIT ORDERS   (not filled yet -- waiting for price)"]
+    for p in pending[:8]:
+        sym  = (p.get("display_name") or p.get("symbol", "?"))[:10]
+        dir_ = p.get("direction", "?").upper()
+        side = "BUY-LIMIT " if dir_ == "LONG" else "SELL-LIMIT"
+        entry = p.get("entry_price", 0)
+        sl    = p.get("current_stop", p.get("stop_price", 0))
+        t1, t2, t3 = _targets3(p)
+        dist = p.get("distance_pct")
+        dist_s = f"  ({float(dist):.2f}% away)" if isinstance(dist, (int, float)) else ""
+        out.append(f"  {sym:10s} {side} E:{_px(entry)}{dist_s}")
+        out.append(f"         SL:{_px(sl)}   T1:{_px(t1)}  T2:{_px(t2)}  T3:{_px(t3)}")
+    if len(pending) > 8:
+        out.append(f"  ... and {len(pending) - 8} more pending")
     return "\n".join(out)
 
 
@@ -498,17 +540,19 @@ def track_record_block(history: List[Dict]) -> str:
             "  No completed trades yet. Building track record.\n"
             "  Positions close on T1/T2/T3, stop-loss, or trailing exit."
         )
-    out = ["TRACK RECORD (last 5 trades)"]
+    out = ["TRACK RECORD (last 5 trades)   (E=entry  SL=stop  X=exit)"]
     for p in history[-5:][::-1]:
         sym = (p.get("display_name") or p.get("symbol", "?"))[:10]
         dir_ = p.get("direction", "?").upper()
+        entry = p.get("entry_price", 0)
+        sl    = p.get("stop_price", 0)
+        close = p.get("close_price")
         pnl = float(p.get("realized_pnl", 0))
         r_mult = float(p.get("trade_r_multiple", 0))
         reason = p.get("close_reason", "")
         out.append(
-            f"  {sym:10s}  {dir_:5s}  "
-            f"{('+' if pnl >= 0 else '-')}${abs(pnl):>8,.2f}  "
-            f"{r_mult:+5.2f}R  {reason}"
+            f"  {sym:10s} {dir_:5s} E:{_px(entry)} SL:{_px(sl)} X:{_px(close)}  "
+            f"{('+' if pnl >= 0 else '-')}${abs(pnl):,.2f} {r_mult:+.2f}R  {reason}"
         )
     return "\n".join(out)
 
@@ -604,52 +648,78 @@ def build_status_message(scan: Dict, closed_trades: List[Dict]) -> str:
     if closed_trades:
         blocks.append(closed_block(closed_trades))
     blocks.append(open_positions_block(scan.get("positions") or []))
+    _pending = pending_orders_block(scan.get("pending_orders") or [])
+    if _pending:
+        blocks.append(_pending)
     blocks.append(track_record_block(scan.get("trade_history") or []))
     below_bar = below_bar_block(scan)
     if below_bar:
         blocks.append(below_bar)
     blocks.append(footer_block(scan))
 
-    body = SECTION_SEP.join(b for b in blocks if b).strip()
-    if len(body) > DISCORD_MSG_LIMIT:
-        body = body[:DISCORD_MSG_LIMIT - 30] + "\n... (truncated)"
+    # Assemble in priority order, stopping on WHOLE-block boundaries before the
+    # 2000-char limit (never a mid-line cut). Blocks are ordered most-important
+    # first (equity/limits, open positions, pending orders) so if anything is
+    # dropped it's the low-value tail (track record, footer), not your live risk.
+    blocks = [b for b in blocks if b]
+    body, dropped = "", 0
+    for i, blk in enumerate(blocks):
+        candidate = (body + SECTION_SEP + blk) if body else blk
+        if body and len(candidate) > DISCORD_MSG_LIMIT:
+            dropped = len(blocks) - i
+            break
+        body = candidate
+    body = body.strip()
+    if dropped:
+        note = "\n(+ more; trimmed to fit Discord's 2000-char limit)"
+        if len(body) + len(note) <= DISCORD_MSG_LIMIT:
+            body += note
     return _wrap(body)
 
 
-def build_signals_message(scan: Dict, new_signals: List[Dict]) -> str:
-    """New-signals-only message. Sent as a separate follow-up so it gets
-    its own @ping and never crowds out the portfolio status block above.
-
-    Truncates on whole-signal-block boundaries (never mid-line): a raw
-    character-offset cutoff could slice a block in half -- e.g. landing
-    inside "Risk (actual) : $ 24.97 (~0.50% of" with the closing "account)"
-    and everything after it silently dropped, which reads as garbled/broken
-    rather than as an intentional "see dashboard" truncation."""
+def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[str]:
+    """New-signals messages, PAGINATED. Returns a LIST of Discord-ready strings
+    so EVERY signal is shown -- no "…N more, see dashboard" truncation (the user
+    has no dashboard). When signals overflow one 2000-char message they continue
+    in the next, labelled "(cont. N)". Splits only on whole-signal boundaries so
+    a block is never cut mid-line."""
+    if not new_signals:
+        return []
     ts_line = header_block(scan.get("scan_time")).splitlines()[1]
-    preamble = f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS\n{ts_line}"
-    _take_bar = _load_min_composite()
+    take_bar = _load_min_composite()
     header = "\n".join(_signal_verdict_header())
-    blocks = [_format_signal_block(s, _take_bar) for s in new_signals]
+    blocks = [_format_signal_block(s, take_bar) for s in new_signals]
 
-    body = preamble + SECTION_SEP + header
-    included = 0
-    for b in blocks:
-        candidate = body + ("\n" if included == 0 else "\n\n") + b
-        # Reserve headroom for the "+N more" footer even when we stop early.
-        if len(candidate) > DISCORD_MSG_LIMIT - 60 and included > 0:
-            break
-        body = candidate
-        included += 1
-    omitted = len(blocks) - included
-    if omitted:
-        body += f"\n\n... and {omitted} more signal(s) this scan -- see dashboard for full list."
-    return _wrap(body.strip())
+    messages: List[str] = []
+    idx, part, total = 0, 0, len(blocks)
+    while idx < total:
+        part += 1
+        if part == 1:
+            body = (f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS\n{ts_line}"
+                    + SECTION_SEP + header)
+            first_sep = True
+        else:
+            body = f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS (cont. {part})\n{ts_line}"
+            first_sep = False
+        placed = 0
+        while idx < total:
+            sep = "\n" if (placed == 0 and first_sep) else "\n\n"
+            candidate = body + sep + blocks[idx]
+            # Once ≥1 block is on this page, roll to the next page before we
+            # overflow -- never drop a signal.
+            if len(candidate) > DISCORD_MSG_LIMIT and placed > 0:
+                break
+            body = candidate
+            placed += 1
+            idx += 1
+        messages.append(_wrap(body.strip()))
+    return messages
 
 
 def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]) -> str:
     """Legacy single-message builder (kept for --dry-run preview).
 
-    Live sends use build_status_message + build_signals_message instead so
+    Live sends use build_status_message + build_signals_messages instead so
     open-position state never gets truncated when there are many new signals.
     """
     blocks: List[str] = [header_block(scan.get("scan_time"))]
@@ -662,6 +732,9 @@ def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]
     if closed_trades:
         blocks.append(closed_block(closed_trades))
     blocks.append(open_positions_block(scan.get("positions") or []))
+    _pending = pending_orders_block(scan.get("pending_orders") or [])
+    if _pending:
+        blocks.append(_pending)
     blocks.append(track_record_block(scan.get("trade_history") or []))
     if new_signals:
         blocks.append(new_signals_block(new_signals))
@@ -670,9 +743,23 @@ def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]
         blocks.append(below_bar)
     blocks.append(footer_block(scan))
 
-    body = SECTION_SEP.join(b for b in blocks if b).strip()
-    if len(body) > DISCORD_MSG_LIMIT:
-        body = body[:DISCORD_MSG_LIMIT - 30] + "\n... (truncated)"
+    # Assemble in priority order, stopping on WHOLE-block boundaries before the
+    # 2000-char limit (never a mid-line cut). Blocks are ordered most-important
+    # first (equity/limits, open positions, pending orders) so if anything is
+    # dropped it's the low-value tail (track record, footer), not your live risk.
+    blocks = [b for b in blocks if b]
+    body, dropped = "", 0
+    for i, blk in enumerate(blocks):
+        candidate = (body + SECTION_SEP + blk) if body else blk
+        if body and len(candidate) > DISCORD_MSG_LIMIT:
+            dropped = len(blocks) - i
+            break
+        body = candidate
+    body = body.strip()
+    if dropped:
+        note = "\n(+ more; trimmed to fit Discord's 2000-char limit)"
+        if len(body) + len(note) <= DISCORD_MSG_LIMIT:
+            body += note
     return _wrap(body)
 
 
@@ -778,7 +865,7 @@ def main() -> int:
         return 0
 
     status_msg = build_status_message(scan, closed_trades)
-    signals_msg = build_signals_message(scan, new_signals) if new_signals else None
+    signals_msgs = build_signals_messages(scan, new_signals) if new_signals else []
 
     if args.dry_run:
         # Reconfigure stdout to UTF-8 so the box-drawing chars render on
@@ -788,9 +875,9 @@ def main() -> int:
         except (AttributeError, ValueError):
             pass
         print(status_msg)
-        if signals_msg:
-            print("\n--- FOLLOW-UP MESSAGE ---\n")
-            print(signals_msg)
+        for i, m in enumerate(signals_msgs, 1):
+            print(f"\n--- SIGNALS MESSAGE {i}/{len(signals_msgs)} ---\n")
+            print(m)
         return 0
 
     if not args.webhook_url:
@@ -806,22 +893,25 @@ def main() -> int:
         print("[discord] Status message failed.", file=sys.stderr)
         return 1
 
-    # New signals come as a separate follow-up message with an @ping. Both TAKE
-    # and CAUTION signals ping the user (CAUTION is paper-traded at min lot, but
-    # the user still wants a heads-up on it). Only SKIP (below the alert bar) is
-    # silent -- those never reach `new_signals`.
-    ok_signals = True
-    if signals_msg:
-        ping_user_id = args.user_id
-        ok_signals = post_to_discord(args.webhook_url, signals_msg, user_id=ping_user_id)
-        if not ok_signals:
-            print("[discord] Signals follow-up failed.", file=sys.stderr)
+    # New signals come as separate follow-up message(s) with an @ping. When the
+    # signals overflow one Discord message they paginate into several; we @ping
+    # only the FIRST page so a busy scan pings once, not once per page. Both TAKE
+    # and CAUTION signals ping (CAUTION is min-lot but the user wants a heads-up);
+    # only SKIP (below the alert bar) is silent -- those never reach new_signals.
+    for i, m in enumerate(signals_msgs):
+        ping_user_id = args.user_id if i == 0 else None
+        if not post_to_discord(args.webhook_url, m, user_id=ping_user_id):
+            print(f"[discord] Signals message {i + 1}/{len(signals_msgs)} failed.",
+                  file=sys.stderr)
             return 1
+        if i + 1 < len(signals_msgs):
+            time.sleep(0.6)   # gentle spacing to stay under Discord rate limits
 
     save_state(scan)
-    sent_chars = len(status_msg) + (len(signals_msg) if signals_msg else 0)
-    print(f"[discord] Sent {1 if not signals_msg else 2} msg(s), {sent_chars} chars total. "
-          f"new_signals={len(new_signals)}  closed={len(closed_trades)}  breached={breached}")
+    sent_chars = len(status_msg) + sum(len(m) for m in signals_msgs)
+    print(f"[discord] Sent {1 + len(signals_msgs)} msg(s), {sent_chars} chars total. "
+          f"new_signals={len(new_signals)} ({len(signals_msgs)} page(s))  "
+          f"closed={len(closed_trades)}  breached={breached}")
     return 0
 
 

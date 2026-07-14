@@ -971,16 +971,28 @@ def scan_all_markets(
                 continue
 
     closed_events: List[Dict] = []
+    # Fill any resting PENDING limit orders that price has now reached, THEN
+    # price the carried-over ACTIVE positions forward. A limit only fills once
+    # the latest bar's range trades to the entry (long: low<=entry; short:
+    # high>=entry) -- it is NOT filled instantly at signal time. Freshly-filled
+    # orders are set aside from this scan's stop/target update so a limit is
+    # never opened and closed on the same bar.
+    newly_filled_ids = set(trader.check_pending_fills(current_prices))
+    for _pid in newly_filled_ids:
+        _fp = trader.positions.get(_pid)
+        if _fp:
+            print(f"  {GREEN}[FILLED]{RESET} pending {_fp.symbol} {_fp.direction.value} "
+                  f"limit @ {_fp.entry_price}")
     if restored_position_ids:
-        # Temporarily set aside positions opened this scan, update only the
-        # carried-over ones, then put the new ones back.
-        _new_only = {pid: trader.positions.pop(pid)
-                     for pid in list(trader.positions)
-                     if pid not in restored_position_ids}
+        # Set aside: positions opened this scan (none yet -- submit runs later)
+        # AND pending orders just filled this scan (grace on the fill bar).
+        _set_aside = {pid: trader.positions.pop(pid)
+                      for pid in list(trader.positions)
+                      if pid not in restored_position_ids or pid in newly_filled_ids}
         try:
             closed_events = trader.update_positions(current_prices)
         finally:
-            trader.positions.update(_new_only)
+            trader.positions.update(_set_aside)
         for ev in closed_events:
             print(f"  {MAGENTA}[CLOSED]{RESET} {ev['symbol']} {ev['direction']} "
                   f"PnL=${ev['realized_pnl']:,.2f} ({ev['r_multiple']:+.2f}R)")
@@ -1106,6 +1118,7 @@ def scan_all_markets(
     # Build the results payload
     account_summary = trader.get_account_summary()
     open_positions  = trader.get_open_positions()
+    pending_orders  = trader.get_pending_orders()
     trade_history   = trader.get_trade_history(limit=100)
 
     # Stamp live price, unrealized USD PnL, and open R-multiple onto open
@@ -1122,6 +1135,16 @@ def scan_all_markets(
             op["unrealized_pnl"]  = round(move * size, 2)
             op["r_multiple_open"] = round(move / stopd, 2) if stopd > 0 else 0.0
 
+    # Stamp live price + distance-to-entry on resting PENDING limit orders so
+    # the alert can show how far price is from filling each one.
+    for po in pending_orders:
+        px = current_prices.get(po.get("symbol"), {})
+        now = px.get("close")
+        if now:
+            entry = float(po.get("entry_price", 0))
+            po["current_price"] = round(now, 6)
+            po["distance_pct"]  = round(abs(now - entry) / now * 100, 3) if now else 0.0
+
     results = {
         "scan_time":           scan_start.isoformat(),
         "scan_duration_sec":   round(elapsed, 1),
@@ -1135,6 +1158,7 @@ def scan_all_markets(
         "errors":              errors,
         "account":             json_safe(account_summary),
         "positions":           json_safe(open_positions),
+        "pending_orders":      json_safe(pending_orders),
         "trade_history":       json_safe(trade_history),
         "ohlcv_cache":         ohlcv_cache,
         "indicators":          indicators_by_symbol,
