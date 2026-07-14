@@ -52,22 +52,22 @@
       "direction": "long",
       "entry_price": 0.567608,
       "stop_price": 0.561957,
-      "current_stop": 0.567608,
+      "current_stop": 0.573259,
       "targets": [
         0.57326,
         0.578911,
         0.584562
       ],
-      "position_size": 1000.0,
+      "position_size": 500.0,
       "risk_amount": 5.65,
       "entry_time": "2026-07-13T22:18:03.106811",
       "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
+      "realized_pnl": 5.6514999999999755,
+      "partial_taken": true,
+      "partial_qty": 500.0,
+      "partial_price": 0.578911,
       "breakeven_triggered": true,
-      "trail_stop_level": null,
+      "trail_stop_level": 0.573259,
       "zone_id": "d47082483e",
       "close_time": null,
       "close_price": null,
@@ -133,5 +133,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-14T00:16:26.584471"
+  "saved_at": "2026-07-14T03:43:57.946655"
 }
