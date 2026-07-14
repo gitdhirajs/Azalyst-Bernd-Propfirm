@@ -73,6 +73,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "a9d712f8-19e",
+      "symbol": "AUDUSD=X",
+      "direction": "short",
+      "entry_price": 0.642096,
+      "stop_price": 0.767654,
+      "current_stop": 0.767654,
+      "targets": [
+        0.516538,
+        0.39098,
+        0.265422
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 125.56,
+      "entry_time": "2026-07-14T00:16:26.582811",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "6ef4bc7b55",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -105,5 +133,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-13T23:20:15.698473"
+  "saved_at": "2026-07-14T00:16:26.584471"
 }
