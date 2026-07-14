@@ -30,8 +30,8 @@
       ],
       "position_size": 1000.0,
       "risk_amount": 8.97,
-      "entry_time": "2026-07-14T11:50:53.559638",
-      "status": "pending",
+      "entry_time": "2026-07-14T14:21:14.004301",
+      "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
@@ -43,8 +43,64 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "ab0cc824-4d0",
+      "symbol": "ETH-USD",
+      "direction": "long",
+      "entry_price": 1803.172913,
+      "stop_price": 1615.319897,
+      "current_stop": 1615.319897,
+      "targets": [
+        1991.025928,
+        2178.878944,
+        2366.73196
+      ],
+      "position_size": 0.01,
+      "risk_amount": 1.88,
+      "entry_time": "2026-07-14T14:21:14.004810",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "1a889ff636",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "b0c22db4-696",
+      "symbol": "EURCHF=X",
+      "direction": "long",
+      "entry_price": 0.923565,
+      "stop_price": 0.918171,
+      "current_stop": 0.918171,
+      "targets": [
+        0.928959,
+        0.934353,
+        0.939747
+      ],
+      "position_size": 1239.587437,
+      "risk_amount": 6.69,
+      "entry_time": "2026-07-14T14:21:14.005023",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "ef9992fadc",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [],
-  "saved_at": "2026-07-14T11:50:53.560206"
+  "saved_at": "2026-07-14T14:21:14.005971"
 }
