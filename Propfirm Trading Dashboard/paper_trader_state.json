@@ -15,7 +15,36 @@
   "account_blown": false,
   "zone_memory": {},
   "challenge_started_at": "2026-07-14T17:00:25.420041",
-  "open_positions": [],
+  "open_positions": [
+    {
+      "id": "b6466306-a3e",
+      "symbol": "EURUSD=X",
+      "direction": "long",
+      "entry_price": 1.139572,
+      "stop_price": 1.130597,
+      "current_stop": 1.130597,
+      "targets": [
+        1.148547,
+        1.157522,
+        1.166497
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 8.97,
+      "entry_time": "2026-07-14T11:50:53.559638",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "48d957bde0",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    }
+  ],
   "trade_history": [],
-  "saved_at": "2026-07-14T17:04:53.130768"
+  "saved_at": "2026-07-14T11:50:53.560206"
 }
