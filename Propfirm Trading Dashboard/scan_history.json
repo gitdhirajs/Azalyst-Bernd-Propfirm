@@ -2106,5 +2106,30 @@
         "composite": 10.0
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-15T09:24:13.656316",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 2,
+    "auto_traded": 1,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "EURNZD=X",
+        "direction": "long",
+        "entry": 1.81017,
+        "composite": 7.15
+      },
+      {
+        "symbol": "ETH-USD",
+        "direction": "long",
+        "entry": 1803.172913,
+        "composite": 10.0
+      }
+    ]
   }
 ]
