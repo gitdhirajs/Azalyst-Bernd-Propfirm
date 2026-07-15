@@ -2062,5 +2062,24 @@
         "composite": 7.05
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-15T03:40:04.445454",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "EURUSD=X",
+        "direction": "long",
+        "entry": 1.139572,
+        "composite": 7.05
+      }
+    ]
   }
 ]
