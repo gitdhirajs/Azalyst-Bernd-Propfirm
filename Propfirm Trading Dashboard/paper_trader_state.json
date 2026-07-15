@@ -25,7 +25,7 @@
       "direction": "long",
       "entry_price": 1803.172913,
       "stop_price": 1615.319897,
-      "current_stop": 1615.319897,
+      "current_stop": 1803.172913,
       "targets": [
         1991.025928,
         2178.878944,
@@ -39,7 +39,7 @@
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "1a889ff636",
       "close_time": null,
@@ -162,5 +162,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-15T11:55:47.329231"
+  "saved_at": "2026-07-15T14:18:07.512961"
 }
