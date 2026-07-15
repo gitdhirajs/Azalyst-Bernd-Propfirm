@@ -46,6 +46,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "c4144eb0-8f6",
+      "symbol": "EURUSD=X",
+      "direction": "long",
+      "entry_price": 1.139572,
+      "stop_price": 1.130597,
+      "current_stop": 1.130597,
+      "targets": [
+        1.148547,
+        1.157522,
+        1.166497
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 8.97,
+      "entry_time": "2026-07-15T00:12:52.056638",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "48c56fc726",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -106,5 +134,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-14T22:31:16.737600"
+  "saved_at": "2026-07-15T00:12:52.057682"
 }
