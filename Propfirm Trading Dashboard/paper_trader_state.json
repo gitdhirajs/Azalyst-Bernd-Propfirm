@@ -158,6 +158,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "445d056d-c99",
+      "symbol": "EURAUD=X",
+      "direction": "long",
+      "entry_price": 1.639648,
+      "stop_price": 1.631347,
+      "current_stop": 1.631347,
+      "targets": [
+        1.647949,
+        1.656251,
+        1.664552
+      ],
+      "position_size": 697.350085,
+      "risk_amount": 5.79,
+      "entry_time": "2026-07-17T09:26:43.692444",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "1add9d0fb5",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -218,5 +246,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-17T06:33:36.623042"
+  "saved_at": "2026-07-17T09:26:43.694415"
 }
