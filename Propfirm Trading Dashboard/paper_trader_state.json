@@ -186,6 +186,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "06e27bef-e67",
+      "symbol": "EURNZD=X",
+      "direction": "long",
+      "entry_price": 1.978016,
+      "stop_price": 1.956569,
+      "current_stop": 1.956569,
+      "targets": [
+        1.999463,
+        2.02091,
+        2.042358
+      ],
+      "position_size": 584.487736,
+      "risk_amount": 12.54,
+      "entry_time": "2026-07-18T06:26:36.286780",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "d1ea8c8cad",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -246,5 +274,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-18T03:41:37.590537"
+  "saved_at": "2026-07-18T06:26:36.288608"
 }
