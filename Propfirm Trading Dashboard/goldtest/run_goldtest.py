@@ -96,8 +96,12 @@ ASSET_CLASS_BY_SYMBOL = {
 # Phase 21: ZN=F (10yr T-Note) REMOVED. Valuation_OTC.txt Pine Script canonical
 # source uses ZB1! (30yr T-Bond) as Symbol3. ZN is a different instrument and
 # was never in the Pine Script defaults. Equities = ZB (30yr) + GC only.
+# Full-corpus indicator audit (2026-07): forex and crypto reverted from
+# DXY-only to the standard 3-ref set (Bonds + Gold + DXY) -- see run_scanner.py
+# VALUATION_REFS for the full evidence citation (Ch.167 CHF/GBP live 3-ref
+# sighting; Ch082/102/119/126/130/135/142/151 BTC 3-ref sightings).
 VALUATION_REFS = {
-    "forex":             ["DX-Y.NYB"],
+    "forex":             ["DX-Y.NYB", "ZB=F", "GC=F"],
     "equity_indices":    ["DX-Y.NYB", "ZB=F", "GC=F"],   # Phase 21: ZN removed
     "equities":          ["ZB=F", "GC=F"],                  # Phase 36 multi-agent consensus: Ch173 + Phase 32 rulebooks agree stocks use Bonds + Gold, DXY OFF.
     "commodities":       ["DX-Y.NYB", "GC=F", "ZB=F"],
@@ -105,7 +109,7 @@ VALUATION_REFS = {
     "precious_metals":   ["DX-Y.NYB", "GC=F", "ZB=F"],
     "energies":          ["DX-Y.NYB", "GC=F", "ZB=F"],
     "interest_rates":    ["^TNX"],
-    "crypto":            ["DX-Y.NYB"],
+    "crypto":            ["DX-Y.NYB", "ZB=F", "GC=F"],
 }
 VALUATION_REFS_PER_SYMBOL = {
     # Phase 41 chunk 3 P1 fix: Platinum and Palladium use 3 refs (@US+@GC+$DXY).

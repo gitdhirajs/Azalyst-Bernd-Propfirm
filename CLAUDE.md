@@ -2209,3 +2209,48 @@ _approach_bear = self.lower_extreme + (self.upper_extreme - self.lower_extreme) 
 - ~6 Bernd-discretionary: supply-shock parabolic, narrative overrides, Oct-seasonal-low timing
 
 **Realistic ceiling remains unchanged**: ~75-78% without `CampusValuationTool_V2`. The 4 remaining OPPOSITE errors and ~38 DIVERGE cases split into: Bernd-discretionary COT overrides (~10), ATH equity-index location gap (~7), stock Valuation formula mismatch (~12), forex cross-pair COT complexity (~5), and irreducible stochastic variability (~4).
+
+---
+
+### Phase 46 — Full 179-chapter indicator-calculation audit + 7 confirmed fixes (2026-07-17)
+
+A full re-audit of the entire lecture corpus (`D:\Trading\Output\Trading Doc`, 177 readable chapters — Hybrid AI course, OTC 2025 Campus, Funded Trader Weekly Outlooks 2023-2024, Practical Application/Beginner Breakout Rooms), this time targeting **indicator-CALCULATION correctness** (Valuation reference symbols/ROC/thresholds, COT group/lookback/formula, Seasonality lookback, ZigZag %, Location) rather than directional trade-call matching — the goal being to verify the underlying indicator math against what Bernd actually configures on screen, since the OTC Pine Script pack occasionally drifts from what he uses live.
+
+**Methodology**: One agent per chapter (sequential, not parallel, to stay under session rate limits — each reads the chapter's `transcript.json` in full, then selectively reads 3-10 frame images near any indicator-parameter discussion), followed by category-synthesis agents (Valuation/COT/Seasonality/ZigZag/Location/Other) that deduplicate and cross-reference findings across chapters, followed by a final merge agent. 720 raw findings extracted from 136 of 177 chapters. Full report structure: 9 CONFIRMED_DRIFT, 22 CONFLICTING, 29 LOW_CONFIDENCE, 42 CONFIRMED_MATCH.
+
+**Also resolved via targeted follow-up investigation**: the forex Valuation reference-set/threshold question (flagged CONFLICTING in the main audit) was independently re-investigated with a two-pass agent that frame-verified 5 sightings across AUD/EUR/CHF/GBP/an equity-index variant. Verdict: forex threshold is **±75** (not ±69 — zero on-screen sightings of 69 anywhere; the figure traces only to a `Blueprint - Cheatsheet.xlsx` annotation with no on-screen counterpart), and the reference set defaults to **3 refs (Bonds+Gold+DXY)** — a genuine LIVE session (Ch.167, CW05 FX Edition, Jan 2024) shows CHF and GBP both with all 3 references simultaneously active; the earlier single-reference sightings that suggested DXY-only were teaching-session narrowings from the same 3-ref default, not a fixed live config.
+
+**7 fixes applied to `BP_rules_engine.py` / `BP_config.yaml` / `run_scanner.py` / `goldtest/run_goldtest.py`:**
+
+1. **CC=F (Cocoa) COT: Non-Commercials/26w → Commercials/52w, Non-Comm disabled.** Two independent settings-dialog frames (Ch.082 frame_002405, Ch.089 frame_003397) both show `DisplayNonCommercialTradersIndex=false` + `WeeksLookBack=52`. Removed CC=F from `SOFT_COMMODITY_SYMBOLS`, falls through to `commodities` default.
+2. **CL=F (Crude) COT lookback: 52w → 26w.** Two independent settings-dialog frames (Ch.136 frame_001504, Ch.164 frame_000241) both read `WeeklyLookBack=26` with verbal confirmation ("26 weeks look back... short term look back"). New `CRUDE_OIL_COT_26W_SYMBOLS` override.
+3. **Forex + crypto Valuation refs: DXY-only → 3-ref `[DX-Y.NYB, ZB=F, GC=F]`.** See investigation summary above (forex) + 8 independent BTC chapters (Ch082/102/119/126/130/135/142/151) all showing the identical 3-ref signature live.
+4. **Forex Valuation threshold: ±69 → ±75.** Reverts a Phase 38 restoration that was based on a single verbal citation + the cheatsheet annotation, now outweighed by 5 independent frame-verified sightings all showing ±75 and zero sightings of ±69 anywhere in the corpus.
+5. **GC=F (Gold) Valuation ROC: 13 → 10.** The 13 value (Phase 41 chunk5) came from a single Nov 2023 frame; re-check found 7 independent chapters spanning nearly the whole corpus timeline all showing `Length=10`.
+6. **SI=F (Silver) weekly ZigZag: uncoded → 10%.** Ch.015 frame_002463 shows the original setting; Bernd tests 5% and 2% live then explicitly reverts: "I would rather stick with what I had originally here... 10" (frame_002491, 0:41:30). Previously fell through to the 6% global weekly default with no override.
+7. **ES=F (E-mini S&P) ZigZag: tiered 10/6/3 → flat 5% all timeframes.** Chapter 012 shows the identical status-bar label `ZigZag % (High,Low,5,white,3)` on the SAME @ES chart across Weekly/Monthly/Daily.
+
+**Explicitly NOT applied** (lower confidence / needs more than a simple swap):
+- The audit's own §2.9 (±80 threshold cluster on ~5 chapters) — the report itself recommends no code change, reads as a different presenter/tool build.
+- Individual-stock Valuation "Gold ref frequently disabled" (§2.4) — pattern looks identical to the forex teaching-narrowing artifact this same audit caught and corrected; applying it would risk repeating that exact mistake. Left as-is (Bonds+Gold both active) pending a dedicated re-investigation.
+- YM=F (Dow) Valuation ROC 30→10 (§2.7) — audit explicitly recommends implementing as a dual-ROC (10+30) overlay, not a single-value swap; deferred as a design task, not a quick fix.
+
+**Phase 46 results (160-case goldtest, `gold_cases_phase8.yaml`):**
+
+| Metric | Phase 45 baseline | Phase 46 | Δ |
+|--------|-------------------|----------|---|
+| Stage-1 bias_only | 115/156 = 73.7% | **116/156 = 74.4%** | +1 |
+| Stage-2 full-signal | 21/160 = 13.1% | **26/160 = 16.2%** | **+5** |
+| Stage-2 false positives | 0 | **0** | preserved |
+| Stage-1 wrong-direction errors | 4 (#14, #106, #131, #154) | **same 4 cases, no new ones** | preserved |
+| Errors (yfinance) | ~4 | 4 | unchanged |
+
+Clean improvement on both metrics with zero new regressions — all 7 fixes kept.
+
+**Still deferred after Phase 46:**
+- Individual-stock Gold-ref toggling pattern (needs the same careful two-pass frame-verification the forex case got, not a blind swap)
+- YM=F dual-ROC (10+30) overlay architecture
+- ~16 of the original 19 forex-reference-conflict chapters never got frame-verified (budget-limited) — the 3-ref/±75 verdict rests on 5 chapters, all consistent, zero counter-examples, but a fuller sweep (especially JPY/CAD/AUD/NZD-specific live sightings) would raise confidence further
+- SI=F Valuation ROC chronological drift (10 in 2023 → 30 in 2024) — not yet investigated
+- Equity-index dual-ROC pattern (13+30) — not yet investigated
+- "Does COT apply to equities/indices at all?" (Ch.072's Finite-vs-Infinite-market framework) — not yet investigated, but questions something architecturally central (COT routing for equities/equity_indices) so should get its own dedicated pass before any action

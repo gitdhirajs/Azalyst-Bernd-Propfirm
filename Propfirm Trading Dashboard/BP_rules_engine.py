@@ -61,13 +61,17 @@ COT_LOOKBACK_BY_CLASS = {
 # Grains + Cotton are now routed to 'commodities' class (Commercials 52w)
 # by removing them from this frozenset. KC=F also moved out (Phase 16).
 SOFT_COMMODITY_SYMBOLS = frozenset({
-    'CC=F',  # Cocoa  — NonCommercials divergence (unclear corpus; retain)
     'SB=F',  # Sugar  — NonCommercials divergence (corpus silent)
     'OJ=F',  # Orange Juice — NonCommercials divergence (corpus silent)
     # KC=F Coffee removed (Phase 16): retailers "not real retailers"; Commercials
     # are the primary driver → falls through to 'commodities' (Commercials 52w)
     # ZC=F Corn, ZW=F Wheat, ZS=F Soybeans, CT=F Cotton removed (Phase 14):
     # these use Commercials (Ch.159/168/113/144) → fall through to 'commodities'
+    # CC=F Cocoa removed (full-corpus indicator audit, 2026-07): two independent
+    # settings-dialog frames (Ch.082 frame_002405, Ch.089 frame_003397) both show
+    # DisplayNonCommercialTradersIndex=false + WeeksLookBack=52 for @CC — i.e.
+    # Commercials primary, 52w, Non-Commercials explicitly disabled. Falls through
+    # to 'commodities' default (Commercials 52w), matching the dialog evidence.
 })
 
 # Blueprint Cheatsheet (OTC Module 2) fix — Natural Gas:
@@ -90,6 +94,15 @@ ENERGY_SYMBOLS = frozenset({'CL=F', 'QM=F', 'HO=F', 'RB=F', 'BZ=F'})
 # Wider 52w window captures more historical range so the index reaches the
 # 80/20 extremes and produces directional signals matching Bernd's verbal calls.
 JPY_SYMBOLS = frozenset({'USDJPY=X', '6J=F', 'JPYUSD=X', 'JPYUSD'})
+
+# Full-corpus indicator audit (2026-07): CL=F (Crude Oil) COT lookback.
+# Two independent settings-dialog frames (Ch.136 frame_001504, Ch.164 frame_000241)
+# both show `WeeklyLookBack = 26` on the Campus Smart Money Index for @CL, with
+# verbal confirmation ("it's 26 already short term" / "26 weeks look back...
+# short term look back"). Overrides the 'energies' class default of 52w, which
+# was calibrated for the general planting/harvest commodity cycle and does not
+# apply to crude specifically.
+CRUDE_OIL_COT_26W_SYMBOLS = frozenset({'CL=F'})
 
 # Symbols where Valuation is explicitly excluded from Bernd's analysis.
 # NG=F: cheatsheet column shows "-" for Valuation.
@@ -846,9 +859,27 @@ class RulesEngine:
             zz_pct = 0.15
         if symbol == 'ZW=F' and htf == '1wk':
             zz_pct = 0.10
+        # Full-corpus indicator audit (2026-07): SI=F (Silver) weekly ZigZag = 10%.
+        # Ch.015 frame_002463 shows the original setting = 10; Bernd interactively
+        # tests 5 and 2 in the customize dialog (frames 002478, 002488) then
+        # explicitly reverts: "I would rather stick with what I had originally
+        # here... 10" (frame_002491, 0:41:30). No override previously coded for
+        # Silver, so it fell through to the 6% global weekly default.
+        if symbol == 'SI=F' and htf == '1wk':
+            zz_pct = 0.10
         # Phase 41 chunk 1 speech audit: CL daily ZigZag = 5%
         # (Zone Qualifiers lesson frame_004397 status bar: ZigZag % (High,Low,5,white,3))
         if symbol in ENERGY_SYMBOLS and htf == '1d':
+            zz_pct = 0.05
+        # Full-corpus indicator audit (2026-07): @ES (E-mini S&P 500) uses a flat
+        # 5% ZigZag on ALL timeframes, not the general tiered 10/6/3 table.
+        # Chapter 012 (Module 2 Lesson 3) shows the identical status-bar label
+        # `ZigZag % ( High , Low , 5 , white, 3 )` on the SAME @ES chart across
+        # Weekly (frames 002513/002616), Monthly (frame_002793), and Daily
+        # (frame_002917) — a single flat setting confirmed on three timeframes
+        # of one instrument, overriding whichever tiered default would otherwise
+        # apply.
+        if symbol == 'ES=F' and htf in ('1mo', '1wk', '1d'):
             zz_pct = 0.05
 
         # Shorter lookback for longer timeframes: 200 weekly bars = 4 years
@@ -971,6 +1002,11 @@ class RulesEngine:
         if symbol in JPY_SYMBOLS:
             cot_lookback = 52
 
+        # Full-corpus indicator audit (2026-07): CL=F COT lookback 52w -> 26w
+        # (settings-dialog confirmed twice — see CRUDE_OIL_COT_26W_SYMBOLS above).
+        if symbol in CRUDE_OIL_COT_26W_SYMBOLS:
+            cot_lookback = 26
+
         val_length = VALUATION_LENGTH_BY_CLASS.get(
             asset_class, self.valuation.length
         )
@@ -983,22 +1019,24 @@ class RulesEngine:
             elif isinstance(override, dict):
                 val_length = override.get('roc', val_length)
 
-        # Phase 38 GAP-20 fix: restore forex Valuation threshold to +-69.
-        # Rulebook Section 4 (Phase 32 audit, ground truth): forex overvalued=69,
-        # undervalued=-69. Sources: Ch18 [0:16:33] verbal "69 and minus 69" +
-        # Blueprint Cheatsheet for EUR/JPY/GBP/CHF all list "boundaries 69, -69".
-        # Phase 12 correctly set this; Phase 29 reverted it based on ONE settings
-        # dialog frame (Ch018 frame_000183 for @EC showing 75). The Phase 37
-        # audit ruled that one frame (Phase 29) does NOT outweigh the Ch18 verbal
-        # citation + Cheatsheet covering four pairs. Restore +-69 for forex.
-        # Note: Phase 29 observation (frame_000183) may show a snapshot where
-        # Bernd had not yet applied the 69 boundary — the Cheatsheet is the
-        # take-home canonical config document.
+        # Full-corpus indicator audit (2026-07): forex Valuation threshold
+        # reverted from +-69 back to the general +-75 default.
+        # Phase 38 restored +-69 based on one verbal citation (Ch18 [0:16:33])
+        # plus the Blueprint Cheatsheet annotation for EUR/JPY/GBP/CHF, judged
+        # to outweigh a single settings-dialog frame (Ch018 frame_000183, @EC,
+        # showing 75). A dedicated re-investigation frame-verified the ON-SCREEN
+        # threshold across 5 independent sightings spanning AUD (Ch074), EUR
+        # (Ch173), CHF and GBP (Ch167 CW05 FX Edition — a genuine LIVE session,
+        # not a teaching demo), and an equity-index Valuation variant: every
+        # single one draws +-75. Zero on-screen sightings of 69/-69 anywhere in
+        # the corpus. The +-69 figure traces only to the Cheatsheet spreadsheet
+        # annotation with no corresponding on-screen indicator configuration
+        # ever found — it appears to be a cheatsheet-only note that was never
+        # actually wired into the live tool. Dropping the forex-specific
+        # override entirely; forex now uses the same +-75 default as every
+        # other asset class.
         val_overvalued  = self.valuation.overvalued
         val_undervalued = self.valuation.undervalued
-        if effective_class == 'forex' or asset_class == 'forex':
-            val_overvalued  = 69.0
-            val_undervalued = -69.0
 
         cot = COTIndex(
             lookback_weeks=cot_lookback,
