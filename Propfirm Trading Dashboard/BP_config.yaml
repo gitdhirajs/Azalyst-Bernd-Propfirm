@@ -391,10 +391,15 @@ valuation:
     GBPUSD=X: 10
     USDJPY=X: 10
     USDCHF=X: 10
-    # Precious metals: Gold confirmed ROC=13 from CW45 Nov 2023 (frame_000644) +
-    # chunk4 CW38 Oct 2023. Silver ROC=30 from CW11 Mar 2024 (frame_000841).
+    # Precious metals: Silver ROC=30 from CW11 Mar 2024 (frame_000841).
     # Other PMs at 10 default (no frame evidence for different value).
-    GC=F:  13   # Phase 41 chunk5 F-18: CW45 label shows ROC=13 confirmed
+    # GC=F reverted 13 -> 10 (full-corpus indicator audit, 2026-07): the original
+    # 13 value came from a single Nov 2023 CW45 frame (Phase 41 chunk5). A
+    # dedicated re-check found 7 independent chapters spanning nearly the whole
+    # corpus timeline (Ch057/2025, Ch093 x2/Feb2024, Ch136/Nov2023, Ch140/Oct2023,
+    # Ch158/Mar2024, Ch161/Feb2024, Ch166/Feb2024) all showing Length=10 -- the
+    # single 13-sighting looks like the outlier, not the rule.
+    GC=F:  10
     SI=F:  30   # Phase 41 chunk5 F-11/chunk4: CW11 frame_000841 label shows ROC=30
     PL=F:  10
     PA=F:  10

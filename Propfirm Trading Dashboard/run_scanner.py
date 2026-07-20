@@ -181,8 +181,18 @@ STRATEGY_TIMEFRAMES = {
 # Phase 21: ZN=F (10yr T-Note) REMOVED from all refs. Valuation_OTC.txt Pine Script
 # canonical source uses ZB1! (30yr T-Bond) as Symbol3. ZN (10yr) is a different
 # instrument and was never in the Pine Script defaults.
+# Full-corpus indicator audit (2026-07): forex and crypto reverted from
+# DXY-only to the standard 3-ref set (Bonds + Gold + DXY), matching every
+# other asset class. Forex: a genuine LIVE session (Ch.167, CW05 FX Edition,
+# Jan 2024) shows CHF and GBP both with `_CampusValuationTool_V2("@US","@GC",
+# "$DXY",True,True,True,...)` -- all 3 refs simultaneously active. The earlier
+# single-reference sightings (DXY-only AUD in Ch074, Gold-only EUR in Ch173)
+# turned out to be teaching-session narrowings from the same 3-ref default,
+# not evidence of a fixed DXY-only forex config. Crypto: 8 independent
+# chapters (Ch082, 102, 119, 126, 130, 135, 142, 151) spanning Apr 2023-Feb
+# 2024 all show the identical 3-reference signature live on BTC charts.
 VALUATION_REFS = {
-    "forex":            ["DX-Y.NYB"],
+    "forex":            ["DX-Y.NYB", "ZB=F", "GC=F"],
     "equity_indices":   ["DX-Y.NYB", "ZB=F", "GC=F"],   # Phase 21: ZN removed, GC added per default
     "equities":         ["ZB=F", "GC=F"],                  # Phase 36 multi-agent consensus: Ch173 (Practical App Valuation) + Phase 32 Valuation rulebook + Phase 32 per-asset all agree stocks use Bonds + Gold, DXY OFF. Earlier frame_001240 Read may have been mid-demonstration state before Bernd flipped Show toggles.
     "commodities":      ["DX-Y.NYB", "GC=F", "ZB=F"],
@@ -190,7 +200,7 @@ VALUATION_REFS = {
     "precious_metals":  ["DX-Y.NYB", "GC=F", "ZB=F"],
     "energies":         ["DX-Y.NYB", "GC=F", "ZB=F"],
     "interest_rates":   ["^TNX"],
-    "crypto":           ["DX-Y.NYB"],
+    "crypto":           ["DX-Y.NYB", "ZB=F", "GC=F"],
 }
 VALUATION_REFS_PER_SYMBOL = {
     # Phase 41 chunk 3 P1 fix: Platinum and Palladium use @US+@GC+$DXY (3 refs),
