@@ -4000,5 +4000,24 @@
         "composite": 10.0
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-20T07:33:43.882512",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 4974.93,
+    "closed_pnl": -25.07,
+    "win_rate": 0.0,
+    "total_trades": 4,
+    "signals_summary": [
+      {
+        "symbol": "ETH-USD",
+        "direction": "long",
+        "entry": 1803.172913,
+        "composite": 10.0
+      }
+    ]
   }
 ]
