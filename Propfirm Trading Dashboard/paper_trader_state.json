@@ -218,34 +218,6 @@
       "notes": ""
     },
     {
-      "id": "0c97542a-e7e",
-      "symbol": "AUDUSD=X",
-      "direction": "short",
-      "entry_price": 0.698031,
-      "stop_price": 0.702055,
-      "current_stop": 0.702055,
-      "targets": [
-        0.694008,
-        0.689984,
-        0.685961
-      ],
-      "position_size": 1000.0,
-      "risk_amount": 4.02,
-      "entry_time": "2026-07-19T23:19:36.253984",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "6ef4bc7b55",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
       "id": "6a20ab43-4c0",
       "symbol": "AUDCHF=X",
       "direction": "short",
@@ -268,6 +240,34 @@
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "e23511ef5d",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "0c97542a-e7e",
+      "symbol": "AUDUSD=X",
+      "direction": "short",
+      "entry_price": 0.698031,
+      "stop_price": 0.702055,
+      "current_stop": 0.702055,
+      "targets": [
+        0.694008,
+        0.689984,
+        0.685961
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 4.02,
+      "entry_time": "2026-07-20T00:19:23.107529",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "6ef4bc7b55",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
@@ -388,5 +388,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-19T23:19:36.257040"
+  "saved_at": "2026-07-20T00:19:23.109150"
 }
