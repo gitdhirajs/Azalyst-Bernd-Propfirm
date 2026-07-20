@@ -272,6 +272,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "1a272641-612",
+      "symbol": "USDCAD=X",
+      "direction": "short",
+      "entry_price": 1.417351,
+      "stop_price": 1.426763,
+      "current_stop": 1.426763,
+      "targets": [
+        1.407939,
+        1.398527,
+        1.389115
+      ],
+      "position_size": 714.183683,
+      "risk_amount": 6.72,
+      "entry_time": "2026-07-20T04:14:46.743204",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "753cf77188",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -388,5 +416,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-20T00:19:23.109150"
+  "saved_at": "2026-07-20T04:14:46.745101"
 }
