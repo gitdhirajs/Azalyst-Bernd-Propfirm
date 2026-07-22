@@ -302,6 +302,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "e241603d-9f1",
+      "symbol": "GBPAUD=X",
+      "direction": "long",
+      "entry_price": 1.921099,
+      "stop_price": 1.902342,
+      "current_stop": 1.902342,
+      "targets": [
+        1.939856,
+        1.958613,
+        1.97737
+      ],
+      "position_size": 700.231075,
+      "risk_amount": 13.13,
+      "entry_time": "2026-07-22T03:54:37.141838",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "e45342b9b0",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -474,5 +502,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-22T00:16:14.832095"
+  "saved_at": "2026-07-22T03:54:37.144196"
 }
