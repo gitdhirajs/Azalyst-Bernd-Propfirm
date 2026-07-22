@@ -5131,5 +5131,48 @@
         "composite": 10.0
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-22T22:18:27.433814",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 5,
+    "auto_traded": 1,
+    "account_balance": 4965.12,
+    "closed_pnl": -34.88,
+    "win_rate": 0.0,
+    "total_trades": 6,
+    "signals_summary": [
+      {
+        "symbol": "AUDUSD=X",
+        "direction": "short",
+        "entry": 0.69906,
+        "composite": 7.3
+      },
+      {
+        "symbol": "NZDJPY=X",
+        "direction": "short",
+        "entry": 96.960999,
+        "composite": 5.4
+      },
+      {
+        "symbol": "NZDCAD=X",
+        "direction": "short",
+        "entry": 0.808681,
+        "composite": 6.5
+      },
+      {
+        "symbol": "CHFJPY=X",
+        "direction": "short",
+        "entry": 200.236778,
+        "composite": 5.75
+      },
+      {
+        "symbol": "ETH-USD",
+        "direction": "long",
+        "entry": 1803.172913,
+        "composite": 10.0
+      }
+    ]
   }
 ]

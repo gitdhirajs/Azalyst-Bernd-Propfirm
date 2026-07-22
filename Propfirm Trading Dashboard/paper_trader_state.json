@@ -11,7 +11,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 4965.116279996431,
-  "current_date": "2026-07-22",
+  "current_date": "2026-07-23",
   "account_blown": false,
   "zone_memory": {
     "48d957bde0": true,
@@ -414,6 +414,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "a80e405e-fc3",
+      "symbol": "NZDCAD=X",
+      "direction": "short",
+      "entry_price": 0.808681,
+      "stop_price": 0.817949,
+      "current_stop": 0.817949,
+      "targets": [
+        0.799412,
+        0.790144,
+        0.780876
+      ],
+      "position_size": 709.88445,
+      "risk_amount": 6.58,
+      "entry_time": "2026-07-22T22:22:07.991452",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "aae79d6bae",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -586,5 +614,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-22T20:39:10.730601"
+  "saved_at": "2026-07-22T22:22:07.994270"
 }
