@@ -373,8 +373,8 @@
       ],
       "position_size": 581.835091,
       "risk_amount": 6.97,
-      "entry_time": "2026-07-22T14:31:42.234339",
-      "status": "pending",
+      "entry_time": "2026-07-22T16:56:28.988188",
+      "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
@@ -382,6 +382,34 @@
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "62babd2958",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "e2e675bd-8c9",
+      "symbol": "CHFJPY=X",
+      "direction": "short",
+      "entry_price": 200.236778,
+      "stop_price": 201.908107,
+      "current_stop": 201.908107,
+      "targets": [
+        198.56545,
+        196.894122,
+        195.222793
+      ],
+      "position_size": 6.131245,
+      "risk_amount": 10.25,
+      "entry_time": "2026-07-22T16:56:28.989203",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "dcd3f101cd",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
@@ -558,5 +586,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-22T14:31:42.237077"
+  "saved_at": "2026-07-22T16:56:28.992024"
 }
