@@ -5488,5 +5488,54 @@
         "composite": 10.0
       }
     ]
+  },
+  {
+    "scan_time": "2026-07-23T20:32:27.155972",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 6,
+    "auto_traded": 0,
+    "account_balance": 4958.54,
+    "closed_pnl": -41.46,
+    "win_rate": 0.0,
+    "total_trades": 7,
+    "signals_summary": [
+      {
+        "symbol": "GBPUSD=X",
+        "direction": "long",
+        "entry": 1.160079,
+        "composite": 4.9
+      },
+      {
+        "symbol": "AUDUSD=X",
+        "direction": "short",
+        "entry": 0.69906,
+        "composite": 7.3
+      },
+      {
+        "symbol": "EURGBP=X",
+        "direction": "long",
+        "entry": 0.854273,
+        "composite": 8.7
+      },
+      {
+        "symbol": "GBPCAD=X",
+        "direction": "short",
+        "entry": 1.890508,
+        "composite": 7.4
+      },
+      {
+        "symbol": "NZDJPY=X",
+        "direction": "short",
+        "entry": 96.960999,
+        "composite": 5.4
+      },
+      {
+        "symbol": "ETH-USD",
+        "direction": "long",
+        "entry": 1803.172913,
+        "composite": 10.0
+      }
+    ]
   }
 ]
