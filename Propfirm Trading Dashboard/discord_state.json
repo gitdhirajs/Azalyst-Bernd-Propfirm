@@ -2,9 +2,9 @@
   "signal_ids_seen": [
     "83ba6613fd",
     "6ef4bc7b55",
-    "74774864ff",
-    "e23511ef5d",
+    "2eeeeabc79",
     "fd7d26e56f",
+    "7d54e91a82",
     "1a889ff636"
   ],
   "open_position_ids_seen": [
@@ -17,7 +17,9 @@
     "d169aec6-49c",
     "e2e675bd-8c9",
     "c4144eb0-8f6",
-    "db43b42d-0cf"
+    "db43b42d-0cf",
+    "d849a8eb-4bf",
+    "88a84319-53c"
   ],
-  "last_sent_at": "2026-07-24T12:02:15.083804+00:00"
+  "last_sent_at": "2026-07-25T06:35:52.475499+00:00"
 }
