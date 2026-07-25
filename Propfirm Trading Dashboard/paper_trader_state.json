@@ -11,7 +11,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 4958.537070913831,
-  "current_date": "2026-07-25",
+  "current_date": "2026-07-26",
   "account_blown": false,
   "zone_memory": {
     "48d957bde0": true,
@@ -727,5 +727,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-25T21:14:27.282752"
+  "saved_at": "2026-07-25T22:16:02.066548"
 }
