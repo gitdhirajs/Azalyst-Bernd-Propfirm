@@ -527,6 +527,118 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "c603f5ce-eca",
+      "symbol": "GBPUSD=X",
+      "direction": "long",
+      "entry_price": 1.340745,
+      "stop_price": 1.326966,
+      "current_stop": 1.326966,
+      "targets": [
+        1.354523,
+        1.368302,
+        1.382081
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 13.78,
+      "entry_time": "2026-07-26T19:42:55.896830",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "49a1c3bf00",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "7e2862b3-04a",
+      "symbol": "EURJPY=X",
+      "direction": "short",
+      "entry_price": 185.918891,
+      "stop_price": 186.833841,
+      "current_stop": 186.833841,
+      "targets": [
+        185.00394,
+        184.08899,
+        183.174039
+      ],
+      "position_size": 6.111162,
+      "risk_amount": 5.59,
+      "entry_time": "2026-07-26T19:42:55.897277",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "25500746c9",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "1d2c062e-690",
+      "symbol": "EURCAD=X",
+      "direction": "long",
+      "entry_price": 1.609628,
+      "stop_price": 1.597726,
+      "current_stop": 1.597726,
+      "targets": [
+        1.62153,
+        1.633432,
+        1.645334
+      ],
+      "position_size": 710.025531,
+      "risk_amount": 8.45,
+      "entry_time": "2026-07-26T19:42:55.897406",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "119d503891",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
+    },
+    {
+      "id": "ae774c7e-811",
+      "symbol": "USDJPY=X",
+      "direction": "short",
+      "entry_price": 162.831009,
+      "stop_price": 164.304054,
+      "current_stop": 164.304054,
+      "targets": [
+        161.357964,
+        159.88492,
+        158.411875
+      ],
+      "position_size": 6.111162,
+      "risk_amount": 9.0,
+      "entry_time": "2026-07-26T19:42:55.897565",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "d66e3a052e",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -727,5 +839,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-26T17:31:11.701864"
+  "saved_at": "2026-07-26T19:42:55.901623"
 }
