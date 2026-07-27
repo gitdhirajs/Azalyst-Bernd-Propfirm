@@ -64,13 +64,36 @@ risk:
   # meant a single position occupied the only slot for 6 days and blocked every
   # other signal, producing zero track record. Raised to effectively unlimited so
   # every qualifying signal (>= alerts.min_composite_to_alert) gets paper-traded.
-  # The REAL safety cap is submit_signal()'s aggregate-open-risk check in
-  # BP_paper_trader.py: it refuses any new trade once (realized_today_loss +
-  # sum of open-position risk + this trade's risk) >= max_daily_loss_usd ($150),
-  # so full-1% TAKE trades still self-limit at ~3 concurrent (3 x $50 = $150)
-  # regardless of this number. CAUTION trades are sized at the min lot so many
-  # more of those can stack without threatening the cap.
+  # NOTE (2026-07-27 audit correction): the comment below previously claimed the
+  # aggregate-open-risk check was "the REAL safety cap" -- that was only true for
+  # orders that fill immediately. Since Phase 44 (2026-06-19) made nearly every
+  # signal start as a PENDING limit order, and check_pending_fills() promoted
+  # PENDING -> ACTIVE with ZERO re-check of this cap or of correlation, the
+  # account had accumulated 22 concurrently open positions (8 of them long-EUR/
+  # short-USD simultaneously) by 2026-07-27, none of it caught by this gate.
+  # Fixed: check_pending_fills() now re-validates max_open_positions + the loss
+  # budget + correlation at the moment a pending order actually fills, and
+  # correlation is also checked at submit time (see correlation_check_enabled
+  # below). The aggregate-open-risk check IS still real protection now that
+  # it's actually applied at both submit AND fill time:
+  #   (realized_today_loss + sum of open-position risk + this trade's risk)
+  #   >= max_daily_loss_usd ($150)
   max_open_positions: 20
+  # Correlation-aware exposure cap (Rule #12: "ALWAYS use uncorrelated positions
+  # -- max 2-3"). RulesEngine.is_correlated_to_open() (HAI 1:19:29 + Funded
+  # 0:16:46) existed since 2026-05-24 but was never called from anywhere --
+  # confirmed dead code during the 2026-07-27 audit. Now wired into
+  # BP_paper_trader.submit_signal() (both pending + immediate paths) and
+  # re-checked in check_pending_fills() at fill time. Set false to disable.
+  # Groups themselves are RulesEngine.DEFAULT_CORRELATED_GROUPS unless a
+  # `correlated_groups:` list is added at the top level of this file.
+  correlation_check_enabled: true
+  # Resting PENDING limit orders used to sit forever (TradeStatus.CANCELLED was
+  # defined but never assigned anywhere -- found live sitting 8-12 days stale on
+  # 2026-07-27). Max age in calendar days before an unfilled order expires.
+  # Flat number applies to every income_strategy; or a per-strategy dict:
+  #   pending_order_max_age_days: {weekly: 14, daily: 5, monthly: 30, intraday: 2}
+  pending_order_max_age_days: {weekly: 14, daily: 5, monthly: 30, intraday: 2}
 
 # ============================================================
 # ALERTS -- Discord signal quality filter + skip/take verdict

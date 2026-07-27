@@ -418,6 +418,7 @@ def _position_from_dict(d: Dict):
         "zone_id": d.get("zone_id"), "close_time": _dt(d.get("close_time")),
         "close_price": d.get("close_price"),
         "trade_r_multiple": d.get("trade_r_multiple", 0.0), "notes": d.get("notes", ""),
+        "income_strategy": d.get("income_strategy"),
     }
     return Position(**fields)
 

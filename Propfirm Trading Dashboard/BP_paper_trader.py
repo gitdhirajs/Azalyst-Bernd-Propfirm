@@ -12,6 +12,8 @@ from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
+from BP_rules_engine import RulesEngine
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +53,7 @@ class Position:
     close_price: Optional[float] = None
     trade_r_multiple: float = 0.0
     notes: str = ""
+    income_strategy: Optional[str] = None
 
 
 @dataclass
@@ -107,6 +110,29 @@ class PaperTrader:
             self.daily_reset_hour_utc = 22
 
         self.max_positions = self.risk_cfg.get('max_open_positions', 3)
+
+        # Correlation-aware exposure cap (Rule #12: "ALWAYS use uncorrelated
+        # positions -- max 2-3"). RulesEngine.is_correlated_to_open() carried
+        # the right groups (HAI 1:19:29 + Funded 0:16:46) since 2026-05-24 but
+        # was never called from anywhere -- confirmed dead code during the
+        # 2026-07-27 portfolio risk audit (22 concurrently open positions, 8
+        # of them long-EUR/short-USD simultaneously). Wired in below.
+        self.correlation_check_enabled = bool(self.risk_cfg.get('correlation_check_enabled', True))
+
+        # Pending limit orders used to sit forever (TradeStatus.CANCELLED was
+        # defined but never assigned anywhere). A resting order whose zone
+        # context has gone stale should expire rather than fill blind days
+        # or weeks later. Per-income-strategy defaults below; override via
+        # risk.pending_order_max_age_days in BP_config.yaml (flat number or
+        # {weekly: N, daily: N, monthly: N, intraday: N, default: N} dict).
+        _pend_cfg = self.risk_cfg.get('pending_order_max_age_days', 7)
+        if isinstance(_pend_cfg, dict):
+            self.pending_expiry_days = _pend_cfg
+        else:
+            self.pending_expiry_days = {'default': float(_pend_cfg)}
+        self._default_pending_expiry_days = {
+            'weekly': 14.0, 'monthly': 30.0, 'daily': 5.0, 'intraday': 2.0,
+        }
 
         # Bernd's live-trading practice (Funded sessions): move stop to
         # breakeven once price has covered HALF the distance to T1, not at
@@ -179,6 +205,73 @@ class PaperTrader:
             return True, f"DAILY_LOSS_BREACH: today's drawdown ${today_loss:,.2f} >= limit ${self.max_daily_loss:,.2f}"
         return False, "OK"
 
+    def _pending_expiry_days_for(self, income_strategy: Optional[str]) -> float:
+        """Max age (calendar days) a resting PENDING order may sit before it
+        expires. Strategy-specific default, overridable via
+        risk.pending_order_max_age_days in BP_config.yaml.
+        """
+        key = income_strategy or 'default'
+        if key in self.pending_expiry_days:
+            return float(self.pending_expiry_days[key])
+        if 'default' in self.pending_expiry_days and len(self.pending_expiry_days) == 1:
+            # Flat config value applies to every strategy
+            return float(self.pending_expiry_days['default'])
+        return float(self._default_pending_expiry_days.get(key, 7.0))
+
+    def _check_activation_gates(
+        self, symbol: str, risk_amount: float, exclude_id: Optional[str] = None,
+        peer_statuses: Tuple['TradeStatus', ...] = (TradeStatus.ACTIVE,),
+    ) -> Tuple[bool, str]:
+        """Shared gate: max open positions, aggregate daily/total loss budget,
+        and correlation exposure. Used both at initial submit (immediate fill)
+        and at pending->active promotion (check_pending_fills), so a resting
+        order is re-validated against CURRENT portfolio state at the moment it
+        actually becomes real risk -- not just the state at the moment it was
+        first placed, which could be days or weeks stale.
+
+        `peer_statuses` controls which open positions count as "peers" for the
+        correlation check: at submit time we also want to see other PENDING
+        orders (to stop correlated pending orders piling up in the first
+        place); at fill-time re-validation only ACTIVE peers represent real
+        simultaneous risk.
+        """
+        active_positions = [
+            p for p in self.positions.values()
+            if p.status == TradeStatus.ACTIVE and p.id != exclude_id
+        ]
+        if len(active_positions) >= self.max_positions:
+            return False, f"max_positions ({self.max_positions}) reached"
+
+        open_risk = sum(
+            p.risk_amount for p in active_positions
+            if not getattr(p, 'breakeven_triggered', False)
+        )
+        today_loss = self.today_starting_equity - self.balance
+        if today_loss + open_risk + risk_amount >= self.max_daily_loss:
+            return False, (
+                f"daily loss budget would be exceeded (realized ${today_loss:.2f} + "
+                f"open ${open_risk:.2f} + new ${risk_amount:.2f} >= limit ${self.max_daily_loss:.2f})"
+            )
+        total_loss = self.initial_balance - self.balance
+        if total_loss + open_risk + risk_amount >= self.max_total_loss:
+            return False, (
+                f"total loss budget would be exceeded (realized ${total_loss:.2f} + "
+                f"open ${open_risk:.2f} + new ${risk_amount:.2f} >= limit ${self.max_total_loss:.2f})"
+            )
+
+        if self.correlation_check_enabled:
+            peers = [
+                p for p in self.positions.values()
+                if p.status in peer_statuses and p.id != exclude_id
+            ]
+            offenders = RulesEngine.is_correlated_to_open(
+                symbol, [p.symbol for p in peers], self.config,
+            )
+            if offenders:
+                return False, f"correlated with open position(s): {offenders}"
+
+        return True, "OK"
+
     def submit_signal(self, signal: Dict) -> Optional[str]:
         """
         Submit a trade signal for paper execution.
@@ -209,42 +302,35 @@ class PaperTrader:
         # zone price (e.g. EURCHF long booked at 0.933 while price was 0.927
         # and had never traded up to the entry).
         is_pending = bool(signal.get('pending_order')) and not bool(signal.get('price_at_zone'))
+        new_risk = signal.get('risk_amount', 0.0)
 
         # Live-position gates (max open slots + loss budget) apply ONLY to an
         # order that fills NOW. A resting limit consumes no slot and no loss
-        # budget until it fills (check_pending_fills re-homes it to ACTIVE).
+        # budget until it fills -- check_pending_fills() re-validates these
+        # SAME gates again at the moment it actually fills, since a resting
+        # order can sit for days/weeks and portfolio state moves on.
         if not is_pending:
-            active_count = sum(1 for p in self.positions.values() if p.status == TradeStatus.ACTIVE)
-            if active_count >= self.max_positions:
-                logger.info(f"Max positions ({self.max_positions}) reached, skipping signal")
+            ok, reason = self._check_activation_gates(signal['symbol'], new_risk)
+            if not ok:
+                logger.info(f"[{signal['symbol']}] Immediate-fill signal rejected: {reason}")
                 return None
-
-            # Check daily/total loss limit including AGGREGATE OPEN RISK.
-            # A prop challenge is breached on EQUITY, not just realized balance:
-            # 3 open positions each risking $50 = $150 of live risk while realized
-            # today_loss is still $0. Include the sum of open positions' risk so
-            # the worst case (every open trade + this one hits its stop) cannot
-            # exceed a cap. (Audit rank 5.)
-            new_risk = signal.get('risk_amount', 0.0)
-            # A position already trailed to breakeven (or better) has ~0 remaining
-            # downside, so it does not consume the loss budget; pre-breakeven
-            # positions count their full risk (conservative).
-            open_risk = sum(
-                p.risk_amount for p in self.positions.values()
-                if p.status == TradeStatus.ACTIVE
-                and not getattr(p, 'breakeven_triggered', False)
+        elif self.correlation_check_enabled:
+            # Pending orders carry no $ risk yet, but an uncapped pile of
+            # correlated pending orders (e.g. 8 long-EUR pairs) all convert to
+            # simultaneous real risk the moment price reaches them. Block a
+            # NEW pending order from stacking onto an axis that already has
+            # an open (active OR pending) position, so the correlation limit
+            # is enforced at the earliest possible point, not just at fill.
+            peers = [p for p in self.positions.values()
+                     if p.status in (TradeStatus.ACTIVE, TradeStatus.PENDING)]
+            offenders = RulesEngine.is_correlated_to_open(
+                signal['symbol'], [p.symbol for p in peers], self.config,
             )
-            today_loss = self.today_starting_equity - self.balance
-            if today_loss + open_risk + new_risk >= self.max_daily_loss:
-                logger.info(f"Daily loss budget would be exceeded by open risk "
-                            f"(realized ${today_loss:.2f} + open ${open_risk:.2f} + "
-                            f"new ${new_risk:.2f} >= limit ${self.max_daily_loss:.2f}); skipping")
-                return None
-            total_loss = self.initial_balance - self.balance
-            if total_loss + open_risk + new_risk >= self.max_total_loss:
-                logger.info(f"Total loss budget would be exceeded by open risk "
-                            f"(realized ${total_loss:.2f} + open ${open_risk:.2f} + "
-                            f"new ${new_risk:.2f} >= limit ${self.max_total_loss:.2f}); skipping")
+            if offenders:
+                logger.info(
+                    f"[{signal['symbol']}] Pending signal rejected: correlated "
+                    f"with open position(s): {offenders}"
+                )
                 return None
 
         # Check if zone already consumed (applies to pending AND active)
@@ -287,7 +373,8 @@ class PaperTrader:
             risk_amount=signal.get('risk_amount', 0.0),
             entry_time=datetime.now(),
             status=(TradeStatus.PENDING if is_pending else TradeStatus.ACTIVE),
-            zone_id=zone_id
+            zone_id=zone_id,
+            income_strategy=signal.get('income_strategy'),
         )
 
         self.positions[pos_id] = position
@@ -312,9 +399,32 @@ class PaperTrader:
         isn't opened and closed on the same bar.
         """
         filled: List[str] = []
-        for pos in self.positions.values():
+        # Snapshot to a list: cancellations below mutate self.positions, which
+        # would raise "dictionary changed size during iteration" against a
+        # live .values() view.
+        for pos in list(self.positions.values()):
             if pos.status != TradeStatus.PENDING:
                 continue
+
+            # Expire stale resting orders (2026-07-27 audit fix: TradeStatus.
+            # CANCELLED was defined but never assigned anywhere -- a pending
+            # order sat forever, filling blind on whatever price eventually
+            # wandered back regardless of how stale its underlying zone/bias
+            # had become). Age is measured from entry_time, which submit_signal
+            # sets to the moment the order was first placed.
+            age_days = (datetime.now() - pos.entry_time).total_seconds() / 86400.0
+            max_age = self._pending_expiry_days_for(pos.income_strategy)
+            if age_days >= max_age:
+                pos.status = TradeStatus.CANCELLED
+                pos.close_time = datetime.now()
+                self.trade_history.append(pos)
+                del self.positions[pos.id]
+                logger.info(
+                    f"[{pos.symbol}] PENDING limit EXPIRED after {age_days:.1f}d "
+                    f"(max {max_age:.0f}d for strategy={pos.income_strategy}) -> CANCELLED"
+                )
+                continue
+
             prices = current_prices.get(pos.symbol, {})
             if not prices:
                 continue
@@ -326,11 +436,34 @@ class PaperTrader:
                 (pos.direction == TradeDirection.LONG and low is not None and low <= entry)
                 or (pos.direction == TradeDirection.SHORT and high is not None and high >= entry)
             )
-            if reached:
-                pos.status = TradeStatus.ACTIVE
-                pos.entry_time = datetime.now()
-                filled.append(pos.id)
-                logger.info(f"[{pos.symbol}] PENDING limit FILLED at {entry:.5f} -> ACTIVE")
+            if not reached:
+                continue
+
+            # Re-validate the SAME gates submit_signal checks for an immediate
+            # fill (max positions, aggregate loss budget, correlation) -- a
+            # resting order can be days/weeks old, and the portfolio it would
+            # now join may no longer have room for it. Correlation is checked
+            # against ACTIVE peers only here: other still-pending orders carry
+            # no real risk yet, and were already screened against each other
+            # at submit time.
+            ok, reason = self._check_activation_gates(
+                pos.symbol, pos.risk_amount, exclude_id=pos.id,
+            )
+            if not ok:
+                pos.status = TradeStatus.CANCELLED
+                pos.close_time = datetime.now()
+                self.trade_history.append(pos)
+                del self.positions[pos.id]
+                logger.info(
+                    f"[{pos.symbol}] PENDING limit reached entry but CANCELLED "
+                    f"instead of filling: {reason}"
+                )
+                continue
+
+            pos.status = TradeStatus.ACTIVE
+            pos.entry_time = datetime.now()
+            filled.append(pos.id)
+            logger.info(f"[{pos.symbol}] PENDING limit FILLED at {entry:.5f} -> ACTIVE")
         return filled
 
     def get_pending_orders(self) -> List[Dict]:

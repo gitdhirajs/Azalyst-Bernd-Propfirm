@@ -450,13 +450,23 @@ class RulesEngine:
             # E1/E2: limit order at zone proximal (pending if price not yet there,
             # immediate fill if price is inside the zone).
             zone_height = abs(best_zone['proximal'] - best_zone['distal'])
+            # Rule #8 exception (CLAUDE.md): HTF weekly/monthly income trades
+            # use the DISTAL LINE ONLY as the stop (no -33% extension) — this
+            # is what achieves the documented 4:1 R:R on the higher timeframe.
+            # -33% applies only to LTF refinement / pattern-confirmation
+            # entries. This was documented as already fixed (Phase 4+5) but
+            # the distal-only branch never actually existed in this function
+            # (found during the 2026-07-27 portfolio risk audit) — every
+            # weekly/monthly signal was silently getting the LTF-style
+            # extended stop instead.
+            _use_distal_only = income_strategy in ('weekly', 'monthly')
             if zone_dir_str == 'demand':
                 entry = (best_zone['proximal'] + best_zone['distal']) / 2.0 if prefer_midpoint_entry else best_zone['proximal']
-                stop = best_zone['distal'] - 0.33 * zone_height
+                stop = best_zone['distal'] if _use_distal_only else best_zone['distal'] - 0.33 * zone_height
                 direction = 'long'
             else:
                 entry = (best_zone['proximal'] + best_zone['distal']) / 2.0 if prefer_midpoint_entry else best_zone['proximal']
-                stop = best_zone['distal'] + 0.33 * zone_height
+                stop = best_zone['distal'] if _use_distal_only else best_zone['distal'] + 0.33 * zone_height
                 direction = 'short'
             targets = self._calculate_targets(entry, stop, direction)
             _entry_type = 'E2' if prefer_midpoint_entry else 'E1'
@@ -495,7 +505,7 @@ class RulesEngine:
         # the default; entry_options are exposed so the dashboard can show
         # all choices side-by-side.
         primary_target = targets[1] if len(targets) >= 2 else targets[0]
-        entry_options = self.build_entry_options(best_zone, primary_target, pattern_signal)
+        entry_options = self.build_entry_options(best_zone, primary_target, pattern_signal, income_strategy=income_strategy)
         recommended   = self.recommend_entry_option(entry_options, min_rr=2.0)
 
         # Auto-refine: per OTC L7 frame 1420 + Hybrid AI Mod 6 L6, when the
@@ -511,8 +521,15 @@ class RulesEngine:
                     income_strategy=income_strategy, min_rr=2.0,
                 )
                 if refined_zone is not None:
+                    # Refined zones are always an LTF sub-zone (that's the point
+                    # of refinement), so Rule #8's distal-only exception does NOT
+                    # apply here even when the parent income_strategy is weekly/
+                    # monthly — force the -33% branch by passing a non-exempt
+                    # strategy name, matching refine_zone()'s own docstring
+                    # ("Stop placement uses LTF distal -33% by default").
                     refined_options = self.build_entry_options(
                         refined_zone, primary_target, pattern_signal,
+                        income_strategy='daily',
                     )
                     refined_rec = self.recommend_entry_option(refined_options, min_rr=2.0)
                     if refined_rec['rr'] > recommended['rr']:
@@ -528,6 +545,31 @@ class RulesEngine:
                         targets = self._calculate_targets(entry, stop, direction)
             except Exception as e:
                 logger.warning(f"Auto-refine failed: {e}")
+
+        # == STEP 5a: Real-target R:R floor (Rule #2, 2026-07-27 audit fix) ==
+        # Reject if the nearest opposing HTF zone (a genuine external target)
+        # is closer than 2R away. When no opposing zone exists we cannot
+        # independently verify R:R, so we log it and proceed rather than
+        # invent a block on untested grounds — this keeps behavior
+        # unchanged for the (common) no-opposing-zone case while adding a
+        # real check wherever we actually have the data to make one.
+        _risk_final = abs(entry - stop)
+        _real_target = self._find_opposing_target(htf_zones, direction, entry)
+        if _real_target is not None and _risk_final > 0:
+            _real_rr = abs(_real_target - entry) / _risk_final
+            if _real_rr < 2.0:
+                logger.info(
+                    f"[{symbol}] Rejected: real R:R to nearest opposing zone "
+                    f"{_real_rr:.2f} below minimum 2.0 (target={_real_target:.5f}, "
+                    f"entry={entry:.5f}, stop={stop:.5f})"
+                )
+                return None
+        else:
+            logger.info(
+                f"[{symbol}] No opposing HTF zone found in profit direction — "
+                f"real R:R not independently verified, proceeding on synthetic "
+                f"R-ladder only"
+            )
 
         # == STEP 5b: Phase 46 (hardened) distance-to-entry gate ==
         # Runs AFTER refine_zone, on the FINAL entry/stop, for ALL entry types
@@ -2401,11 +2443,43 @@ class RulesEngine:
             return [entry + risk, entry + 2 * risk, entry + 3 * risk]
         return [entry - risk, entry - 2 * risk, entry - 3 * risk]
 
+    def _find_opposing_target(
+        self, htf_zones: List[Dict], direction: str, entry: float,
+    ) -> Optional[float]:
+        """Nearest opposing-type HTF zone's proximal in the profit direction
+        from entry — a genuine external target.
+
+        Added 2026-07-27 portfolio-risk audit: `_calculate_targets()` above
+        produces the 1R/2R/3R exit ladder purely from (entry, stop) — T2 is
+        BY CONSTRUCTION exactly 2R from entry. Rule #2 ("ALWAYS ensure
+        minimum 1:2 RRR") had been checked by feeding that same synthetic 2R
+        target back into `build_entry_options()`'s rr() calc, which is
+        circular (E1's R:R is trivially always exactly 2.0; E2/E3 are always
+        >= 2.0 purely because they enter closer to the stop against the same
+        target — none of this reflects real room-to-run). This function finds
+        an actual opposing zone instead. Returns None when no opposing zone
+        exists in the profit direction, so the caller can distinguish "really
+        checked and it's tight" from "nothing to check against".
+        """
+        opposing_type = 'supply' if direction == 'long' else 'demand'
+        candidates = [z for z in htf_zones if z.get('zone_type') == opposing_type]
+        if direction == 'long':
+            candidates = [z for z in candidates if z['proximal'] > entry]
+            if not candidates:
+                return None
+            return min(candidates, key=lambda z: z['proximal'])['proximal']
+        else:
+            candidates = [z for z in candidates if z['proximal'] < entry]
+            if not candidates:
+                return None
+            return max(candidates, key=lambda z: z['proximal'])['proximal']
+
     def build_entry_options(
         self,
         zone: Dict,
         target: float,
         pattern_signal: Optional[Dict] = None,
+        income_strategy: str = 'weekly',
     ) -> List[Dict]:
         """Build the three textbook entry options (OTC 2025 Lesson 7).
 
@@ -2417,17 +2491,18 @@ class RulesEngine:
         E3 (Confirmation)  — entry on candlestick pattern that fired inside
                              the zone, lowest fill prob, highest confidence.
 
-        ALL three use the same -33% Fibonacci stop measured from the zone
-        distal -- that's the textbook rule. Returns a list of dicts the
-        caller can present to the user; the caller picks whichever has
-        the best R:R that meets minimum.
+        E1/E2 use the -33% Fibonacci stop measured from the zone distal for
+        daily/intraday strategies. Rule #8 exception: weekly/monthly HTF
+        income trades use the DISTAL LINE ONLY (no -33% extension), matching
+        the same branch in run_seven_step_process's inline entry calc — kept
+        in sync so the displayed R:R here matches the stop actually traded.
         """
         proximal = zone['proximal']
         distal   = zone['distal']
         zone_height = abs(proximal - distal)
         is_demand = zone['zone_type'] == 'demand'
         sign = +1 if is_demand else -1
-        stop = distal - sign * 0.33 * zone_height
+        stop = distal if income_strategy in ('weekly', 'monthly') else distal - sign * 0.33 * zone_height
         direction = 'long' if is_demand else 'short'
         midpoint = (proximal + distal) / 2.0
 
@@ -2685,20 +2760,70 @@ class RulesEngine:
         ['CL=F', 'NG=F', 'USO', 'UNG'],
     ]
 
+    @staticmethod
     def is_correlated_to_open(
-        self, candidate_symbol: str, open_symbols: List[str],
+        candidate_symbol: str, open_symbols: List[str],
+        config: Optional[Dict] = None,
     ) -> Optional[List[str]]:
-        """Return the offending peer symbols if `candidate_symbol` is in any
-        correlated group with any currently-open symbol; else None.
+        """Return the offending peer symbols if `candidate_symbol` is
+        correlated with any currently-open symbol; else None.
+
+        Static (no `self`) so BP_paper_trader.py can call this at
+        submit-time / fill-time without constructing a full RulesEngine.
+        Was previously an instance method that was never actually called
+        from anywhere — the rule existed but nothing wired it into the
+        live submit_signal() path (found during the 2026-07-27 portfolio
+        risk audit).
+
+        Two mechanisms, found needed during that same audit:
+          - Forex (6-letter '=X' pairs): correlation is CURRENCY-LEG overlap
+            (any shared base or quote currency), not static group membership.
+            The original DEFAULT_CORRELATED_GROUPS forex lists (1) never
+            stripped the '=X' yfinance suffix, so 'EURUSD=X' could never
+            match the bare 'EURUSD' entries — a silent no-op even once
+            wired in — and (2) only covered USD/EUR/CHF axes, missing
+            crosses like EURCAD/EURAUD/EURNZD/CADCHF/GBPCAD entirely. The
+            live account had exactly those crosses stacked (2x EURCAD, 2x
+            EURNZD, EURAUD, EURGBP, EURCHF, EURUSD x2 — 8 EUR-leg positions
+            simultaneously) which the old group lists would have missed even
+            with the suffix bug fixed. Leg-overlap generalizes to every
+            cross without hand-maintaining a group per currency.
+          - Everything else (equity indices, PMs, energy — '=F'/ETF tickers):
+            static DEFAULT_CORRELATED_GROUPS membership, since those symbols
+            aren't cleanly leg-parseable.
         """
-        groups = self.config.get('correlated_groups', self.DEFAULT_CORRELATED_GROUPS)
-        s = candidate_symbol.upper().replace('/', '')
-        norm_open = [o.upper().replace('/', '') for o in open_symbols]
+        config = config or {}
+
+        def _norm(sym: str) -> str:
+            s = sym.upper().replace('/', '')
+            return s[:-2] if s.endswith('=X') else s
+
+        def _fx_legs(norm_sym: str) -> Optional[Tuple[str, str]]:
+            if len(norm_sym) == 6 and norm_sym.isalpha():
+                return norm_sym[:3], norm_sym[3:]
+            return None
+
+        s_norm = _norm(candidate_symbol)
+        s_legs = _fx_legs(s_norm)
         offenders: List[str] = []
+
+        if s_legs is not None:
+            for o in open_symbols:
+                o_norm = _norm(o)
+                if o_norm == s_norm:
+                    continue
+                o_legs = _fx_legs(o_norm)
+                if o_legs is not None and set(s_legs) & set(o_legs):
+                    offenders.append(o)
+            return offenders or None
+
+        groups = config.get('correlated_groups', RulesEngine.DEFAULT_CORRELATED_GROUPS)
         for grp in groups:
-            grp_u = [g.upper().replace('/', '') for g in grp]
-            if s in grp_u:
-                offenders.extend([o for o in norm_open if o != s and o in grp_u])
+            grp_norm = {_norm(g) for g in grp}
+            if s_norm in grp_norm:
+                for o in open_symbols:
+                    if _norm(o) != s_norm and _norm(o) in grp_norm and o not in offenders:
+                        offenders.append(o)
         return offenders or None
 
     def _calculate_position_size(
