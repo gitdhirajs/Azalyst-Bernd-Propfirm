@@ -2810,7 +2810,20 @@ class RulesEngine:
     ) -> str:
         """Returns 'best' | 'good' | 'acceptable' | 'reject'.
 
-        location ∈ {'very_cheap','cheap','equilibrium','expensive','very_expensive'}
+        location ∈ {'bullish','bearish','neutral'} -- NOT the 5-value cheap/
+        expensive Fib vocabulary the original docstring described. Fixed
+        2026-07-27 (same day this was wired in): `_analyze_htf` only ever
+        returns 'bullish'/'bearish'/'neutral' for location everywhere in this
+        codebase (grep confirmed -- no 'cheap'/'expensive' string appears
+        anywhere in _analyze_htf's actual return values). The original
+        cheap/expensive checks could never match, silently defaulting every
+        sideways-trend demand/supply setup to 'reject' regardless of how
+        favorable its location actually was (caught via a live SNPS signal:
+        location=bullish + trend=sideways got gradeded 'reject' when it
+        should have been 'acceptable'). 'bullish' location IS the "cheap for
+        a demand zone" reading in this codebase's vocabulary; 'bearish' IS
+        the "expensive for a supply zone" reading -- same semantics as
+        before, corrected vocabulary.
         trend    ∈ {'uptrend','downtrend','sideways'}
         zone_type∈ {'demand','supply'}
         """
@@ -2819,20 +2832,20 @@ class RulesEngine:
         tr = trend.lower()
         # Demand setups
         if z == 'demand':
-            if loc in ('cheap', 'very_cheap') and tr == 'uptrend':
+            if loc == 'bullish' and tr == 'uptrend':
                 return 'best'
             if tr == 'uptrend':
                 return 'good'                    # trend aligned, location not extreme
-            if loc in ('cheap', 'very_cheap') and tr == 'sideways':
+            if loc == 'bullish' and tr == 'sideways':
                 return 'acceptable'              # location aligned, trend sideways
             return 'reject'
         # Supply setups
         if z == 'supply':
-            if loc in ('expensive', 'very_expensive') and tr == 'downtrend':
+            if loc == 'bearish' and tr == 'downtrend':
                 return 'best'
             if tr == 'downtrend':
                 return 'good'
-            if loc in ('expensive', 'very_expensive') and tr == 'sideways':
+            if loc == 'bearish' and tr == 'sideways':
                 return 'acceptable'
             return 'reject'
         return 'reject'
