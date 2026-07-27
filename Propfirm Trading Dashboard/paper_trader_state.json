@@ -51,35 +51,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
-      "id": "8f63c61a-26e",
-      "symbol": "EURNZD=X",
-      "direction": "long",
-      "entry_price": 1.81017,
-      "stop_price": 1.750094,
-      "current_stop": 1.750094,
-      "targets": [
-        1.870246,
-        1.930322,
-        1.990399
-      ],
-      "position_size": 582.34334,
-      "risk_amount": 34.98,
-      "entry_time": "2026-07-15T09:27:47.855941",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "509a60ed6f",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "4b4ac655-131",
@@ -107,7 +80,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "5f863eea-e18",
@@ -135,91 +109,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
-      "id": "b356a4e5-7b7",
-      "symbol": "GBPAUD=X",
-      "direction": "long",
-      "entry_price": 1.90022,
-      "stop_price": 1.875362,
-      "current_stop": 1.875362,
-      "targets": [
-        1.925078,
-        1.949935,
-        1.974793
-      ],
-      "position_size": 696.912646,
-      "risk_amount": 17.32,
-      "entry_time": "2026-07-19T19:39:06.053383",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "39a09d06af",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
-      "id": "6a20ab43-4c0",
-      "symbol": "AUDCHF=X",
-      "direction": "short",
-      "entry_price": 0.59301,
-      "stop_price": 0.613243,
-      "current_stop": 0.613243,
-      "targets": [
-        0.572777,
-        0.552543,
-        0.53231
-      ],
-      "position_size": 1236.644237,
-      "risk_amount": 25.02,
-      "entry_time": "2026-07-19T23:19:36.254409",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "e23511ef5d",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
-    },
-    {
-      "id": "1a272641-612",
-      "symbol": "USDCAD=X",
-      "direction": "short",
-      "entry_price": 1.417351,
-      "stop_price": 1.426763,
-      "current_stop": 1.426763,
-      "targets": [
-        1.407939,
-        1.398527,
-        1.389115
-      ],
-      "position_size": 714.183683,
-      "risk_amount": 6.72,
-      "entry_time": "2026-07-20T04:14:46.743204",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "753cf77188",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "5da26721-6fc",
@@ -247,7 +138,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "5631b6b8-356",
@@ -275,7 +167,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "a87f2df6-622",
@@ -303,7 +196,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "d169aec6-49c",
@@ -331,7 +225,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "e2e675bd-8c9",
@@ -359,7 +254,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "c4144eb0-8f6",
@@ -387,7 +283,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "d9abd285-739",
@@ -415,7 +312,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "db43b42d-0cf",
@@ -443,7 +341,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "d849a8eb-4bf",
@@ -471,7 +370,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "88a84319-53c",
@@ -499,7 +399,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "c603f5ce-eca",
@@ -527,7 +428,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "7e2862b3-04a",
@@ -555,7 +457,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "1d2c062e-690",
@@ -583,7 +486,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "ae774c7e-811",
@@ -611,7 +515,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "caef3bb0-1d5",
@@ -639,7 +544,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "b7e11b0e-99d",
@@ -667,7 +573,8 @@
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     }
   ],
   "trade_history": [
@@ -697,7 +604,8 @@
       "close_time": "2026-07-14T15:56:01.895394",
       "close_price": 1.139572,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "b0c22db4-696",
@@ -725,7 +633,8 @@
       "close_time": "2026-07-14T17:41:19.650391",
       "close_price": 0.923565,
       "trade_r_multiple": 0.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "06e27bef-e67",
@@ -753,7 +662,8 @@
       "close_time": "2026-07-18T09:05:13.892889",
       "close_price": 1.956569,
       "trade_r_multiple": -1.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "5d17ee6d-554",
@@ -781,7 +691,8 @@
       "close_time": "2026-07-19T09:24:12.473509",
       "close_price": 1.956569,
       "trade_r_multiple": -1.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "445d056d-c99",
@@ -809,7 +720,8 @@
       "close_time": "2026-07-20T11:20:20.772185",
       "close_price": 1.631347,
       "trade_r_multiple": -1.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "0c97542a-e7e",
@@ -837,7 +749,8 @@
       "close_time": "2026-07-21T09:46:12.481418",
       "close_price": 0.702055,
       "trade_r_multiple": -1.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "a80e405e-fc3",
@@ -865,7 +778,8 @@
       "close_time": "2026-07-23T00:19:39.732798",
       "close_price": 0.817949,
       "trade_r_multiple": -1.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
     },
     {
       "id": "e241603d-9f1",
@@ -893,8 +807,125 @@
       "close_time": "2026-07-26T22:20:10.357069",
       "close_price": 1.902342,
       "trade_r_multiple": -1.0,
-      "notes": ""
+      "notes": "",
+      "income_strategy": null
+    },
+    {
+      "id": "8f63c61a-26e",
+      "symbol": "EURNZD=X",
+      "direction": "long",
+      "entry_price": 1.81017,
+      "stop_price": 1.750094,
+      "current_stop": 1.750094,
+      "targets": [
+        1.870246,
+        1.930322,
+        1.990399
+      ],
+      "position_size": 582.34334,
+      "risk_amount": 34.98,
+      "entry_time": "2026-07-15T09:27:47.855941",
+      "status": "cancelled",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "509a60ed6f",
+      "close_time": "2026-07-27T08:00:00.471229",
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": null
+    },
+    {
+      "id": "b356a4e5-7b7",
+      "symbol": "GBPAUD=X",
+      "direction": "long",
+      "entry_price": 1.90022,
+      "stop_price": 1.875362,
+      "current_stop": 1.875362,
+      "targets": [
+        1.925078,
+        1.949935,
+        1.974793
+      ],
+      "position_size": 696.912646,
+      "risk_amount": 17.32,
+      "entry_time": "2026-07-19T19:39:06.053383",
+      "status": "cancelled",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "39a09d06af",
+      "close_time": "2026-07-27T08:00:00.471477",
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": null
+    },
+    {
+      "id": "6a20ab43-4c0",
+      "symbol": "AUDCHF=X",
+      "direction": "short",
+      "entry_price": 0.59301,
+      "stop_price": 0.613243,
+      "current_stop": 0.613243,
+      "targets": [
+        0.572777,
+        0.552543,
+        0.53231
+      ],
+      "position_size": 1236.644237,
+      "risk_amount": 25.02,
+      "entry_time": "2026-07-19T23:19:36.254409",
+      "status": "cancelled",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "e23511ef5d",
+      "close_time": "2026-07-27T08:00:00.471609",
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": null
+    },
+    {
+      "id": "1a272641-612",
+      "symbol": "USDCAD=X",
+      "direction": "short",
+      "entry_price": 1.417351,
+      "stop_price": 1.426763,
+      "current_stop": 1.426763,
+      "targets": [
+        1.407939,
+        1.398527,
+        1.389115
+      ],
+      "position_size": 714.183683,
+      "risk_amount": 6.72,
+      "entry_time": "2026-07-20T04:14:46.743204",
+      "status": "cancelled",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "753cf77188",
+      "close_time": "2026-07-27T08:00:00.471717",
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": null
     }
   ],
-  "saved_at": "2026-07-27T04:10:59.135717"
+  "saved_at": "2026-07-27T08:00:00.475504"
 }
