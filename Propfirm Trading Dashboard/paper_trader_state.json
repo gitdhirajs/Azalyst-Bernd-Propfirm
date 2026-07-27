@@ -640,6 +640,34 @@
       "close_price": null,
       "trade_r_multiple": 0.0,
       "notes": ""
+    },
+    {
+      "id": "b7e11b0e-99d",
+      "symbol": "USDCHF=X",
+      "direction": "short",
+      "entry_price": 0.805274,
+      "stop_price": 0.817997,
+      "current_stop": 0.817997,
+      "targets": [
+        0.792551,
+        0.779828,
+        0.767105
+      ],
+      "position_size": 1227.114306,
+      "risk_amount": 15.61,
+      "entry_time": "2026-07-27T04:10:59.132246",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "0ab74572f0",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": ""
     }
   ],
   "trade_history": [
@@ -868,5 +896,5 @@
       "notes": ""
     }
   ],
-  "saved_at": "2026-07-26T23:20:49.960257"
+  "saved_at": "2026-07-27T04:10:59.135717"
 }
