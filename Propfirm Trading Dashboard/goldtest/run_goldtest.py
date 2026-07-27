@@ -460,6 +460,7 @@ def run_case(case: Dict, config: Dict) -> Dict:
                     cot_df, htf_df, val_refs, seasonal_df, asset_class,
                     opposing_cot_df=opposing_cot_df, symbol=symbol,
                     constituent_dfs=constituent_dfs if constituent_dfs else None,
+                    htf=htf,
                 )
                 biases = {
                     'location':    ht_bias.get('location'),

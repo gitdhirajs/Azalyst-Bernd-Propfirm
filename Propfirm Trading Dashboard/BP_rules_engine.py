@@ -300,6 +300,7 @@ class RulesEngine:
             opposing_cot_df=opposing_cot_df,
             symbol=symbol,
             constituent_dfs=constituent_dfs,
+            htf=htf,
         )
         logger.info(f"[{symbol}] Fundamentals: COT={fund_bias['cot']}, Val={fund_bias['valuation']}, Seas={fund_bias['seasonality']}")
 
@@ -494,7 +495,32 @@ class RulesEngine:
             trade_context = 'anticipatory'
         else:
             trade_context = 'standard'
-        position_size = self._calculate_position_size(entry, stop, trade_context)
+
+        # Action-matrix tier scaling (OTC L4 slide, "this is our action
+        # matrix to simplify everything"). Added 2026-07-27: action_matrix_
+        # grade() and ACTION_TIER_SIZE_FACTOR were fully implemented but
+        # never called from anywhere -- a 'good' setup (trend-aligned, not
+        # at an extreme location) was getting the exact same position size
+        # as a 'best' setup (trend-aligned AND at an extreme location),
+        # when the methodology says 'good' should be sized at 75%.
+        # Restricted to trade_context=='standard': counter_trend/anticipatory
+        # already have their own reduced-risk multiplier via
+        # _calculate_position_size, and action_matrix_grade has no concept
+        # of anticipatory/counter-trend setups (its 'reject' default would
+        # wrongly veto a legitimate anticipatory trade the decision-matrix
+        # gate above already approved). A 'reject' grade within a standard
+        # context is mapped to the same 0.5 floor as 'acceptable' rather
+        # than 0.0 -- this only scales size, it never blocks a trade outright
+        # (the equilibrium/decision-matrix gates earlier already own that).
+        _action_tier = None
+        _tier_factor = 1.0
+        if trade_context == 'standard':
+            _action_tier = self.action_matrix_grade(zone_type, location, trend)
+            _tier_factor = self.ACTION_TIER_SIZE_FACTOR.get(_action_tier, 1.0)
+            if _action_tier == 'reject':
+                _tier_factor = 0.5
+
+        position_size = self._calculate_position_size(entry, stop, trade_context) * _tier_factor
 
         r_mult_targets = [self.stop_config.get('breakeven_at_r', 1.0),
                          self.stop_config.get('partial_take_r', 2.0),
@@ -664,6 +690,7 @@ class RulesEngine:
             'has_big_brother': bool(best_zone.get('has_big_brother')),
             'big_brother_id':  best_zone.get('big_brother_id'),
             'trade_context': trade_context,   # standard / counter_trend / anticipatory
+            'action_tier': _action_tier,      # best / good / acceptable / reject / None (non-standard context)
             'zone_id': best_zone['id'],
             'income_strategy': income_strategy,
             'risk_amount': round(abs(entry - stop) * position_size, 2),
@@ -1275,6 +1302,65 @@ class RulesEngine:
         )
         return candidate
 
+    def _constituent_zone_bias(
+        self,
+        index_symbol: str,
+        constituent_dfs: Dict[str, "pd.DataFrame"],
+        timeframe: str,
+    ) -> str:
+        """Zone-quality-based equity-index bias from constituent stocks.
+
+        Added 2026-07-27 (portfolio-risk / constituent-routing follow-up).
+        Complements `_constituent_proxy_bias` (SMA mean-reversion only) with
+        a genuine zone-detection pass on the primary constituents (AAPL+MSFT
+        for NQ/ES; MSFT+UNH for YM). Bernd routes an index-level bullish
+        thesis through the constituents' own qualified demand zones when the
+        index itself has no zone at ATH -- 01_hybrid_ai.txt [2:01:07]: "if
+        apple doesn't rally the market doesn't rally... if the road map says
+        from January be bullish then apple has to be bullish from January
+        onwards." Previously this routing only checked a Valuation-SMA
+        proxy, never an actual zone -- this was the documented "still
+        deferred: stock-level zone search" gap (Phase 26 wrap-up: "System
+        correctly returns hold for index futures and would need stock-level
+        zone search routed from the index thesis to convert these").
+
+        Returns 'bullish' / 'bearish' / 'neutral' from the qualified zones
+        (min composite 6.0, same threshold run_seven_step_process uses)
+        found on the primary constituents. Does NOT attempt to translate a
+        constituent's zone levels (entry/stop) onto the index's own price
+        scale -- that's a different instrument with a different price, so
+        this only contributes a DIRECTIONAL vote, same role as the existing
+        SMA-proxy, not a tradeable entry for the index itself.
+        """
+        spec = EQUITY_INDEX_CONSTITUENTS.get(index_symbol, {})
+        primary_tickers = spec.get('primary', [])
+        biases: List[str] = []
+        for ticker in primary_tickers:
+            df = constituent_dfs.get(ticker) if constituent_dfs else None
+            if df is None or df.empty:
+                continue
+            try:
+                zones = self.zone_detector.detect_zones(df, ticker, timeframe)
+                ranked = self.zone_detector.rank_zones(zones, min_score=6.0)
+            except Exception as exc:
+                logger.debug(f"Constituent zone scan [{ticker}] failed: {exc}")
+                continue
+            if not ranked:
+                continue
+            best = ranked[0]
+            biases.append('bullish' if best['zone_type'] == 'demand' else 'bearish')
+
+        if not biases:
+            return 'neutral'
+        bull = sum(1 for b in biases if b == 'bullish')
+        bear = sum(1 for b in biases if b == 'bearish')
+        candidate = 'bullish' if bull > bear else 'bearish' if bear > bull else 'neutral'
+        logger.info(
+            f"[{index_symbol}] Constituent zone-scan bias: "
+            f"primary={biases} → {candidate}"
+        )
+        return candidate
+
     @staticmethod
     def _stock_valuation_proxy(
         price_df: pd.DataFrame,
@@ -1374,6 +1460,7 @@ class RulesEngine:
         opposing_cot_df: Optional[pd.DataFrame] = None,
         symbol: Optional[str] = None,
         constituent_dfs: Optional[Dict[str, "pd.DataFrame"]] = None,
+        htf: str = '1wk',
     ) -> Dict[str, str]:
         """Step 3: COT, Valuation, Seasonality bias (asset-class aware).
 
@@ -1646,6 +1733,24 @@ class RulesEngine:
                 constituent_bias = self._constituent_proxy_bias(symbol, constituent_dfs)
             except Exception as e:
                 logger.warning(f"Constituent proxy bias failed: {e}")
+            # 2026-07-27: combine with a genuine zone-detection pass on the
+            # constituents (previously only the SMA-mean-reversion proxy was
+            # checked -- the documented "stock-level zone search" gap). A
+            # real qualified demand/supply zone on AAPL/MSFT is at least as
+            # strong evidence as the SMA proxy, so either signal being
+            # directional (with the other not actively contradicting) is
+            # enough to route the thesis. Zone evidence never downgrades an
+            # SMA-proxy read to neutral -- it can only add or confirm.
+            try:
+                zone_bias = self._constituent_zone_bias(symbol, constituent_dfs, htf)
+                if constituent_bias == 'neutral' and zone_bias != 'neutral':
+                    constituent_bias = zone_bias
+                elif constituent_bias != 'neutral' and zone_bias != 'neutral' and zone_bias != constituent_bias:
+                    # Proxy and zone-scan disagree -- conflicting evidence,
+                    # don't let either one drive the vote.
+                    constituent_bias = 'neutral'
+            except Exception as e:
+                logger.warning(f"Constituent zone bias failed: {e}")
 
         return {
             'cot': cot_bias,
