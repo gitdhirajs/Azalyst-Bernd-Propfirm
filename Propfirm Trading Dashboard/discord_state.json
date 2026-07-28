@@ -1,21 +1,7 @@
 {
-  "signal_ids_seen": [],
-  "open_position_ids_seen": [
-    "ab0cc824-4d0",
-    "4b4ac655-131",
-    "5f863eea-e18",
-    "5da26721-6fc",
-    "5631b6b8-356",
-    "d169aec6-49c",
-    "e2e675bd-8c9",
-    "c4144eb0-8f6",
-    "d849a8eb-4bf",
-    "88a84319-53c",
-    "c603f5ce-eca",
-    "7e2862b3-04a",
-    "1d2c062e-690",
-    "ae774c7e-811",
-    "caef3bb0-1d5"
+  "signal_ids_seen": [
+    "4cafc00d2c"
   ],
-  "last_sent_at": "2026-07-28T06:48:06.671412+00:00"
+  "open_position_ids_seen": [],
+  "last_sent_at": "2026-07-28T22:23:27.862229+00:00"
 }

@@ -11,11 +11,41 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 5000.0,
-  "current_date": "2026-07-28",
+  "current_date": "2026-07-29",
   "account_blown": false,
   "zone_memory": {},
   "challenge_started_at": "2026-07-28T20:36:16.952131",
-  "open_positions": [],
+  "open_positions": [
+    {
+      "id": "408adba2-4cd",
+      "symbol": "CHFJPY=X",
+      "direction": "short",
+      "entry_price": 200.236778,
+      "stop_price": 201.908107,
+      "current_stop": 201.908107,
+      "targets": [
+        198.56545,
+        196.894122,
+        195.222793
+      ],
+      "position_size": 6.10251,
+      "risk_amount": 10.2,
+      "entry_time": "2026-07-28T22:23:26.556436",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "4cafc00d2c",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
+    }
+  ],
   "trade_history": [],
-  "saved_at": "2026-07-28T20:40:06.055480"
+  "saved_at": "2026-07-28T22:23:26.557128"
 }
