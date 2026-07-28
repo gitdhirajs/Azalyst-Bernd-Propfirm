@@ -2,14 +2,14 @@
   "balance": 4929.790261324818,
   "initial_balance": 5000.0,
   "closed_pnl_total": -70.20973867518182,
-  "total_trades": 9,
+  "total_trades": 10,
   "winning_trades": 0,
   "losing_trades": 7,
-  "scratch_trades": 2,
+  "scratch_trades": 3,
   "peak_balance": 5000.0,
   "max_drawdown_pct": 1.404194773503641,
   "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_trades": 1,
   "today_starting_equity": 4929.790261324818,
   "current_date": "2026-07-28",
   "account_blown": false,
@@ -22,7 +22,8 @@
     "6ef4bc7b55": true,
     "aae79d6bae": true,
     "e45342b9b0": true,
-    "0ab74572f0": true
+    "0ab74572f0": true,
+    "86dba18a77": true
   },
   "challenge_started_at": "2026-07-14T17:00:25.420041",
   "open_positions": [
@@ -310,35 +311,6 @@
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "74774864ff",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": "",
-      "income_strategy": null
-    },
-    {
-      "id": "db43b42d-0cf",
-      "symbol": "AUDUSD=X",
-      "direction": "short",
-      "entry_price": 0.69906,
-      "stop_price": 0.703936,
-      "current_stop": 0.703936,
-      "targets": [
-        0.694184,
-        0.689308,
-        0.684432
-      ],
-      "position_size": 1000.0,
-      "risk_amount": 4.88,
-      "entry_time": "2026-07-24T09:42:00.668922",
-      "status": "active",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "86dba18a77",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
@@ -926,7 +898,36 @@
       "trade_r_multiple": -1.0,
       "notes": "",
       "income_strategy": null
+    },
+    {
+      "id": "db43b42d-0cf",
+      "symbol": "AUDUSD=X",
+      "direction": "short",
+      "entry_price": 0.69906,
+      "stop_price": 0.703936,
+      "current_stop": 0.69906,
+      "targets": [
+        0.694184,
+        0.689308,
+        0.684432
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 4.88,
+      "entry_time": "2026-07-24T09:42:00.668922",
+      "status": "closed",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": true,
+      "trail_stop_level": null,
+      "zone_id": "86dba18a77",
+      "close_time": "2026-07-28T06:48:05.536038",
+      "close_price": 0.69906,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": null
     }
   ],
-  "saved_at": "2026-07-28T03:44:35.752229"
+  "saved_at": "2026-07-28T06:48:05.539331"
 }
