@@ -7429,5 +7429,30 @@
     "win_rate": 0.0,
     "total_trades": 0,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-07-29T03:44:32.706111",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 2,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "GBPJPY=X",
+        "direction": "short",
+        "entry": 218.628153,
+        "composite": 6.65
+      },
+      {
+        "symbol": "AUDJPY=X",
+        "direction": "short",
+        "entry": 114.275609,
+        "composite": 7.65
+      }
+    ]
   }
 ]
