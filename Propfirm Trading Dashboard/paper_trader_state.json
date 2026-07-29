@@ -30,8 +30,8 @@
       ],
       "position_size": 6.10251,
       "risk_amount": 10.2,
-      "entry_time": "2026-07-28T22:23:26.556436",
-      "status": "pending",
+      "entry_time": "2026-07-29T19:51:09.574582",
+      "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
@@ -47,5 +47,5 @@
     }
   ],
   "trade_history": [],
-  "saved_at": "2026-07-29T17:45:42.396961"
+  "saved_at": "2026-07-29T19:51:09.575272"
 }
