@@ -2,27 +2,30 @@
   "balance": 5000.0,
   "initial_balance": 5000.0,
   "closed_pnl_total": 0.0,
-  "total_trades": 0,
+  "total_trades": 1,
   "winning_trades": 0,
   "losing_trades": 0,
-  "scratch_trades": 0,
+  "scratch_trades": 1,
   "peak_balance": 5000.0,
   "max_drawdown_pct": 0.0,
   "daily_pnl": 0.0,
-  "daily_trades": 0,
+  "daily_trades": 1,
   "today_starting_equity": 5000.0,
   "current_date": "2026-07-30",
   "account_blown": false,
-  "zone_memory": {},
+  "zone_memory": {
+    "4cafc00d2c": true
+  },
   "challenge_started_at": "2026-07-28T20:36:16.952131",
-  "open_positions": [
+  "open_positions": [],
+  "trade_history": [
     {
       "id": "408adba2-4cd",
       "symbol": "CHFJPY=X",
       "direction": "short",
       "entry_price": 200.236778,
       "stop_price": 201.908107,
-      "current_stop": 201.908107,
+      "current_stop": 200.236778,
       "targets": [
         198.56545,
         196.894122,
@@ -31,21 +34,20 @@
       "position_size": 6.10251,
       "risk_amount": 10.2,
       "entry_time": "2026-07-29T19:51:09.574582",
-      "status": "active",
+      "status": "closed",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "4cafc00d2c",
-      "close_time": null,
-      "close_price": null,
+      "close_time": "2026-07-30T14:40:47.869263",
+      "close_price": 200.236778,
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
     }
   ],
-  "trade_history": [],
-  "saved_at": "2026-07-30T12:09:48.476532"
+  "saved_at": "2026-07-30T14:40:47.869784"
 }
