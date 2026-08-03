@@ -8166,5 +8166,17 @@
     "win_rate": 0.0,
     "total_trades": 1,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-08-03T20:01:37.815309",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 0,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": []
   }
 ]
