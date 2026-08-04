@@ -8222,5 +8222,24 @@
         "composite": 6.85
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-04T03:42:46.600553",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "EURNZD=X",
+        "direction": "long",
+        "entry": 1.959598,
+        "composite": 7.85
+      }
+    ]
   }
 ]
