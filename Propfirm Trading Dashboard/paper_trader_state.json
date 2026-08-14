@@ -46,6 +46,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "c2931d68-ceb",
+      "symbol": "GBPCAD=X",
+      "direction": "short",
+      "entry_price": 1.882915,
+      "stop_price": 1.896291,
+      "current_stop": 1.896291,
+      "targets": [
+        1.869539,
+        1.856163,
+        1.842787
+      ],
+      "position_size": 719.119247,
+      "risk_amount": 9.62,
+      "entry_time": "2026-08-14T06:49:18.704367",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "7b9b844f46",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -79,5 +108,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-14T05:11:16.135383"
+  "saved_at": "2026-08-14T06:49:18.705238"
 }
