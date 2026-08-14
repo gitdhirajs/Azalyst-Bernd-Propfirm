@@ -321,11 +321,12 @@ def _composite_of(s: Dict) -> float:
 
 
 def signal_verdict(s: Dict) -> Tuple[str, str]:
-    """Return (verdict_label, location_note) so every alert carries an
-    explicit skip-or-take call.
+    """Return (verdict_label, location_note).
 
-    verdict = [TAKE] (composite >= 7, clean) / [CAUTION] (5.5-7, or
-    counter-trend, or an opposing zone in the path) / [SKIP] (< 5.5).
+    2026-08-14: user wants every signal traded, none skipped or downgraded --
+    the composite-score gate (TAKE/CAUTION/SKIP tiers) is removed. Every
+    signal is [TAKE]; counter-trend / opposing-zone context is kept as an
+    informational note only, it no longer changes the verdict.
     location = whether price is AT the zone now, or the order is PENDING."""
     comp = _composite_of(s)
     ctx = s.get("trade_context", "standard")
@@ -333,18 +334,13 @@ def signal_verdict(s: Dict) -> Tuple[str, str]:
     at_zone = bool(s.get("price_at_zone"))
     pending = bool(s.get("pending_order"))
 
-    tier = "TAKE" if comp >= 7.0 else ("CAUTION" if comp >= 5.5 else "SKIP")
     notes = []
     if ctx == "counter_trend":
         notes.append("counter-trend, half size")
-        if tier == "TAKE":
-            tier = "CAUTION"
     if speed_bump:
         notes.append("opposing zone in path")
-        if tier == "TAKE":
-            tier = "CAUTION"
 
-    label = f"[{tier}]  composite {comp:.1f}/10"
+    label = f"[TAKE]  composite {comp:.1f}/10"
     if notes:
         label += "  (" + "; ".join(notes) + ")"
 
@@ -359,11 +355,9 @@ def signal_verdict(s: Dict) -> Tuple[str, str]:
 
 
 def _signal_verdict_header() -> List[str]:
-    _take_bar = _load_min_composite()
     return [
         "NEW SIGNALS THIS SCAN",
-        f"  [TAKE] = pinged + paper-traded at 1% | "
-        f"[CAUTION] = pinged + paper-traded at MIN lot (composite < {_take_bar:g})",
+        "  [TAKE] = pinged + paper-traded. No signal is skipped or downgraded.",
         "",
     ]
 
@@ -390,9 +384,6 @@ def _format_signal_block(s: Dict, take_bar: float) -> str:
     out = [f"  {sym:14s}  {dir_:5s}"]
     _v_label, _v_loc = signal_verdict(s)
     out.append(f"    >> VERDICT     : {_v_label}")
-    if composite < take_bar:
-        out.append(f"    (!) CAUTION    : low conviction -- paper-traded at MIN "
-                   f"lot only (not the full 1%; composite {composite:.1f} < {take_bar:g})")
     if _v_loc:
         out.append(f"    Location       : {_v_loc}")
     out.append(f"    Entry          : {fmt_price(entry, 12)}")
