@@ -104,6 +104,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "cb1d24ab-5e9",
+      "symbol": "CADCHF=X",
+      "direction": "short",
+      "entry_price": 0.584845,
+      "stop_price": 0.585922,
+      "current_stop": 0.585922,
+      "targets": [
+        0.583767,
+        0.58269,
+        0.581612
+      ],
+      "position_size": 1230.012265,
+      "risk_amount": 1.32,
+      "entry_time": "2026-08-15T08:52:08.083282",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "ce0ef5f9ce",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -137,5 +166,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-15T07:49:21.156181"
+  "saved_at": "2026-08-15T08:52:08.084638"
 }
