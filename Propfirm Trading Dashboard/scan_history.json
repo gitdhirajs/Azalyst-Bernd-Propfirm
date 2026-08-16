@@ -11885,5 +11885,30 @@
         "composite": 6.85
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-16T14:42:33.185992",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 2,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "AUDNZD=X",
+        "direction": "long",
+        "entry": 1.10413,
+        "composite": 6.85
+      },
+      {
+        "symbol": "CADCHF=X",
+        "direction": "short",
+        "entry": 0.584845,
+        "composite": 6.65
+      }
+    ]
   }
 ]
