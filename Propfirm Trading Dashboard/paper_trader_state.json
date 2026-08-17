@@ -105,6 +105,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "8e777617-c00",
+      "symbol": "USDJPY=X",
+      "direction": "short",
+      "entry_price": 162.143005,
+      "stop_price": 164.547881,
+      "current_stop": 164.547881,
+      "targets": [
+        159.73813,
+        157.333254,
+        154.928379
+      ],
+      "position_size": 6.294692,
+      "risk_amount": 15.14,
+      "entry_time": "2026-08-17T07:22:30.065751",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "36417b5cd1",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -196,5 +225,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-17T05:56:38.269684"
+  "saved_at": "2026-08-17T07:22:30.067026"
 }
