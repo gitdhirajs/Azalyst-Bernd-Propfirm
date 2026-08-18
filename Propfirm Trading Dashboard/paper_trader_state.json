@@ -134,6 +134,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "4c6b85ef-41d",
+      "symbol": "^GDAXI",
+      "direction": "short",
+      "entry_price": 26287.266498,
+      "stop_price": 26659.273574,
+      "current_stop": 26659.273574,
+      "targets": [
+        25915.259422,
+        25543.252346,
+        25171.24527
+      ],
+      "position_size": 0.1,
+      "risk_amount": 37.2,
+      "entry_time": "2026-08-18T07:58:45.907656",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "9f79703fe9",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -225,5 +254,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-18T07:11:01.417164"
+  "saved_at": "2026-08-18T07:58:45.908641"
 }

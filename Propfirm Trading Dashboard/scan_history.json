@@ -12499,5 +12499,30 @@
         "composite": 7.4
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-18T07:56:21.296465",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 2,
+    "auto_traded": 1,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "GBPCAD=X",
+        "direction": "short",
+        "entry": 1.882915,
+        "composite": 7.4
+      },
+      {
+        "symbol": "^GDAXI",
+        "direction": "short",
+        "entry": 26287.266498,
+        "composite": 9.0
+      }
+    ]
   }
 ]
