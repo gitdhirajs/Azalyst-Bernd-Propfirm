@@ -12921,5 +12921,42 @@
         "composite": 9.0
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-19T05:48:59.762168",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 4,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "EURGBP=X",
+        "direction": "long",
+        "entry": 0.855425,
+        "composite": 7.65
+      },
+      {
+        "symbol": "AUDJPY=X",
+        "direction": "short",
+        "entry": 113.106781,
+        "composite": 7.85
+      },
+      {
+        "symbol": "AUDNZD=X",
+        "direction": "long",
+        "entry": 1.10413,
+        "composite": 6.85
+      },
+      {
+        "symbol": "^GDAXI",
+        "direction": "short",
+        "entry": 26287.266498,
+        "composite": 9.0
+      }
+    ]
   }
 ]
