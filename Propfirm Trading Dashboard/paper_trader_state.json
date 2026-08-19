@@ -141,7 +141,7 @@
       "direction": "short",
       "entry_price": 26287.266498,
       "stop_price": 26659.273574,
-      "current_stop": 26659.273574,
+      "current_stop": 26287.266498,
       "targets": [
         25915.259422,
         25543.252346,
@@ -155,7 +155,7 @@
       "partial_taken": false,
       "partial_qty": 0.0,
       "partial_price": 0.0,
-      "breakeven_triggered": false,
+      "breakeven_triggered": true,
       "trail_stop_level": null,
       "zone_id": "9f79703fe9",
       "close_time": null,
@@ -254,5 +254,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-19T08:00:48.539432"
+  "saved_at": "2026-08-19T09:01:46.891471"
 }
