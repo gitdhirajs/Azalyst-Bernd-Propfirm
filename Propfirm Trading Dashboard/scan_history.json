@@ -13196,5 +13196,24 @@
         "composite": 6.85
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-19T16:50:10.287550",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "EURGBP=X",
+        "direction": "long",
+        "entry": 0.855425,
+        "composite": 7.65
+      }
+    ]
   }
 ]
