@@ -13403,5 +13403,24 @@
         "composite": 4.95
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-20T03:12:20.431514",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 3,
+    "signals_summary": [
+      {
+        "symbol": "USDCAD=X",
+        "direction": "long",
+        "entry": 1.37613,
+        "composite": 4.95
+      }
+    ]
   }
 ]
