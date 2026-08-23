@@ -122,8 +122,8 @@
       ],
       "position_size": 1360.821962,
       "risk_amount": 3.82,
-      "entry_time": "2026-08-19T21:48:12.477557",
-      "status": "pending",
+      "entry_time": "2026-08-23T21:43:06.658799",
+      "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
@@ -285,5 +285,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-23T20:46:39.369603"
+  "saved_at": "2026-08-23T21:43:06.660468"
 }
