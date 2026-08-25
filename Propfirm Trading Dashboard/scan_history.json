@@ -15706,5 +15706,24 @@
         "composite": 6.85
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-25T16:58:43.283717",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5067.75,
+    "closed_pnl": 67.75,
+    "win_rate": 1.0,
+    "total_trades": 5,
+    "signals_summary": [
+      {
+        "symbol": "AUDNZD=X",
+        "direction": "long",
+        "entry": 1.10413,
+        "composite": 6.85
+      }
+    ]
   }
 ]
