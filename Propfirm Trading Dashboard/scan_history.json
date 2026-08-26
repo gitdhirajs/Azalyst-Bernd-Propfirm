@@ -16225,5 +16225,30 @@
         "composite": 6.85
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-26T20:07:27.107928",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 2,
+    "auto_traded": 0,
+    "account_balance": 5067.75,
+    "closed_pnl": 67.75,
+    "win_rate": 1.0,
+    "total_trades": 6,
+    "signals_summary": [
+      {
+        "symbol": "EURGBP=X",
+        "direction": "long",
+        "entry": 0.855425,
+        "composite": 7.65
+      },
+      {
+        "symbol": "AUDNZD=X",
+        "direction": "long",
+        "entry": 1.10413,
+        "composite": 6.85
+      }
+    ]
   }
 ]
