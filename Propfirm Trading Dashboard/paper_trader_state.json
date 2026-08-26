@@ -9,9 +9,9 @@
   "peak_balance": 5067.750075,
   "max_drawdown_pct": 0.0,
   "daily_pnl": 0.0,
-  "daily_trades": 1,
+  "daily_trades": 0,
   "today_starting_equity": 5067.750075,
-  "current_date": "2026-08-26",
+  "current_date": "2026-08-27",
   "account_blown": false,
   "zone_memory": {
     "4cafc00d2c": true,
@@ -345,5 +345,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-26T20:11:01.534591"
+  "saved_at": "2026-08-26T23:44:52.787639"
 }
