@@ -82,35 +82,6 @@
       "income_strategy": "weekly"
     },
     {
-      "id": "c543b696-2a2",
-      "symbol": "GBPCHF=X",
-      "direction": "long",
-      "entry_price": 1.092395,
-      "stop_price": 1.081842,
-      "current_stop": 1.081842,
-      "targets": [
-        1.102948,
-        1.113501,
-        1.124054
-      ],
-      "position_size": 1242.390374,
-      "risk_amount": 13.11,
-      "entry_time": "2026-08-26T13:29:04.493639",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "98520dca0c",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": "",
-      "income_strategy": "weekly"
-    },
-    {
       "id": "3ec71174-a2e",
       "symbol": "EURNZD=X",
       "direction": "long",
@@ -133,6 +104,35 @@
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "8d77e8b29d",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
+    },
+    {
+      "id": "c543b696-2a2",
+      "symbol": "GBPCHF=X",
+      "direction": "long",
+      "entry_price": 1.092395,
+      "stop_price": 1.081842,
+      "current_stop": 1.081842,
+      "targets": [
+        1.102948,
+        1.113501,
+        1.124054
+      ],
+      "position_size": 1242.390374,
+      "risk_amount": 13.11,
+      "entry_time": "2026-08-27T20:37:50.763888",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "98520dca0c",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
@@ -345,5 +345,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-27T10:00:09.280750"
+  "saved_at": "2026-08-27T20:37:50.765537"
 }
