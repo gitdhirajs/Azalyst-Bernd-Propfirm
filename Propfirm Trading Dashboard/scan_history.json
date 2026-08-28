@@ -16312,5 +16312,17 @@
         "composite": 7.3
       }
     ]
+  },
+  {
+    "scan_time": "2026-08-28T18:47:58.567534",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 0,
+    "auto_traded": 0,
+    "account_balance": 5067.75,
+    "closed_pnl": 67.75,
+    "win_rate": 1.0,
+    "total_trades": 7,
+    "signals_summary": []
   }
 ]
