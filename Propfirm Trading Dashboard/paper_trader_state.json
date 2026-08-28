@@ -11,7 +11,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 5067.750075,
-  "current_date": "2026-08-27",
+  "current_date": "2026-08-28",
   "account_blown": false,
   "zone_memory": {
     "4cafc00d2c": true,
@@ -133,6 +133,35 @@
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "98520dca0c",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
+    },
+    {
+      "id": "2bcb79b8-994",
+      "symbol": "AUDUSD=X",
+      "direction": "short",
+      "entry_price": 0.71886,
+      "stop_price": 0.721097,
+      "current_stop": 0.721097,
+      "targets": [
+        0.716623,
+        0.714386,
+        0.712149
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 2.24,
+      "entry_time": "2026-08-28T05:30:53.370502",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "6ef4bc7b55",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
@@ -345,5 +374,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-27T20:37:50.765537"
+  "saved_at": "2026-08-28T05:30:53.371867"
 }
