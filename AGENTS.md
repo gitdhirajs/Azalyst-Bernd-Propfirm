@@ -242,7 +242,7 @@ D:\Azalyst Bernd Skorupinski\
 
 1. **Individual stock Valuation** (~12 FT failures) — NFLX/GOOGL/MSFT/AMZN read overvalued vs rising 2023 rates with standard ZB/GC formula; Bernd reads "undervalued" because he uses `CampusValuationTool_V2`. Not fixable without that Pine Script.
 2. **Equity index location override via presidential/sannial cycle** (~18 goldtest failures) — NQ/ES/YM near ATH shows Location=expensive, but Bernd buys because year-3 pre-election cycle is overwhelmingly bullish. Our `BP_roadmap.py` has the cycle data but uses it only as `roadmap_warning`, not a hard Location override.
-3. **Forex location calculation** (remaining forex failures) — ±69 threshold fix + USD-base COT inversion applied; remaining failures are USDJPY×4 (COT neutral), 6S=F×3 (Valuation veto on Bernd discretionary supply trades), EURUSD×1 (Bernd counters his own COT signal).
+3. **Forex location calculation** (remaining forex failures) — USD-base COT inversion applied; remaining failures are USDJPY×4 (COT neutral), 6S=F×3 (Valuation veto on Bernd discretionary supply trades), EURUSD×1 (Bernd counters his own COT signal). ⚠️ **Correction (Phase 46, 2026-07)**: the ±69 forex Valuation threshold mentioned above as "fixed" was ITSELF reverted back to the general ±75 default — a full-corpus frame audit found zero on-screen sightings of ±69 anywhere (5 independent chart frames all show ±75); the ±69 figure traced only to an unconfirmed `Blueprint - Cheatsheet.xlsx` annotation. See CLAUDE.md "Phase 46" section.
 4. **Phase 2B numeric-threshold frame verification** — 40 rules in queue at `_phase8_rebuild/phase2_frame_verify/queue_numeric_rules.jsonl`. ~400k Sonnet to complete.
 5. **Seasonality forward-projection visual reading** — Pine Script projects 30 bars forward; our slope-over-20 is a faithful but limited proxy.
 6. **NG=F goldtest class mismatch** — gold_cases_phase8.yaml has NG=F as `asset_class: energies` but live scanner uses `nat_gas` effective class (via `NAT_GAS_SYMBOLS`). Low priority since only 2 NG cases in goldtest.
@@ -304,3 +304,26 @@ If Stage-2 full-signal drops below 13 or any false positives appear, something h
 **CFTC API confirmed working.** `fetch_cot_data(get_cftc_code('GC=F'))` = `fetch_cot_data('088691')` returns real CFTC data. Direct symbol call `fetch_cot_data('GC=F')` returns no-match → empty DataFrame (Phase 25 changed: was simulation, now neutral). Goldtest uses correct `get_cftc_code()` flow.
 
 **Goldtest display format note**: The goldtest terminal output "OK/DIVERGE" shows Stage 2 (`bias_match` — full signal including zone arrival). Stage 1 (`bias_only_match`) is computed from `gold_results.json` post-run by `parse_results.py`. The progression table above uses Stage 1.
+
+---
+
+**⚠️ Staleness notice**: Everything above this line describes the project through Phase 25 (2026-05-08). Phases 26-45 happened but were never backfilled into this file — **CLAUDE.md is the authoritative, up-to-date source** for anything after Phase 25. Do not trust the Stage-1/Stage-2 numbers or "current state" claims above as current; they are Phase 25 snapshots.
+
+## Phase 46 (2026-07-17) — full 179-chapter indicator-CALCULATION audit
+
+A different kind of audit than everything above: instead of checking whether the engine's *directional bias* matches Bernd's trade calls, this one checked whether the engine's *indicator math* (Valuation reference symbols/ROC/thresholds, COT group/lookback, ZigZag %) matches what Bernd actually configures on screen. One-agent-per-chapter sequential extraction (kept deliberately sequential, not parallel, to stay under session rate limits) across all 177 readable chapters, then category-synthesis + final-merge agents. 720 raw findings, 9 CONFIRMED_DRIFT, 22 CONFLICTING, 29 LOW_CONFIDENCE, 42 CONFIRMED_MATCH.
+
+**7 fixes applied** (all settings-dialog or multi-frame confirmed):
+1. CC=F (Cocoa) COT: Non-Commercials/26w → **Commercials/52w, Non-Comm disabled**
+2. CL=F (Crude) COT lookback: 52w → **26w**
+3. Forex + crypto Valuation refs: DXY-only → **3-ref (DXY+ZB+GC)**
+4. Forex Valuation threshold: ±69 → **±75** (see correction note in the deferred-items list above)
+5. GC=F (Gold) Valuation ROC: 13 → **10**
+6. SI=F (Silver) weekly ZigZag: uncoded → **10%**
+7. ES=F (E-mini S&P) ZigZag: tiered 10/6/3 → **flat 5% all timeframes**
+
+**Goldtest regression (160-case, `gold_cases_phase8.yaml`)**: Stage-1 115/156=73.7% → **116/156=74.4%** (+1). Stage-2 21/160=13.1% → **26/160=16.2% (+5)**. Zero new false positives. Zero new wrong-direction cases (same 4 known ones — #14 YM=F, #106/#154 CT=F, #131 AAPL — preserved).
+
+Full evidence, per-fix citations, and the forex reference-set re-investigation (which caught a "teaching-session narrowing" trap — see `feedback_phase42.md` memory) are documented in `CLAUDE.md`'s "Phase 46" section. Files changed: `BP_rules_engine.py`, `BP_config.yaml`, `run_scanner.py`, `goldtest/run_goldtest.py`, plus `methodology/03_fundamentals.md`, `methodology/07_asset_class_cheatsheet.md`, `SKILL.md`. Also synced into the `pdf_analysis/scanner_workspace/` dev-sandbox copies of the 4 code files (not the divergent live-deployment parts of `BP_config.yaml`).
+
+**Still deferred after Phase 46**: individual-stock Gold-ref toggling pattern (looks like the same teaching-narrowing artifact as forex — needs the same two-pass verification, not a blind swap), YM=F dual-ROC (10+30) overlay architecture, SI=F ROC chronological drift (10 in 2023 → 30 in 2024, not yet investigated), equity-index dual-ROC (13+30) pattern, and whether COT should apply to equities/indices at all (Ch.072's Finite-vs-Infinite-market framework — architecturally significant, not yet investigated).

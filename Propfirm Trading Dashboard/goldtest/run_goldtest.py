@@ -21,6 +21,7 @@ Output: gold_results.json (machine-readable) + console summary.
 View results: open gold_diff.html in a browser.
 """
 
+import os
 import sys
 import json
 import yaml
@@ -210,6 +211,18 @@ def slice_cot_to_date(cot_df: "pd.DataFrame", call_date: datetime) -> "pd.DataFr
     if hasattr(idx, "tz") and idx.tz is not None:
         idx = idx.tz_localize(None)
     cutoff = pd.Timestamp(call_date)
+
+    # PUBLICATION LAG (2026-08-25). CFTC reports positions as of Tuesday but does
+    # not publish until Friday ~15:30 ET. Slicing on report_date alone therefore
+    # leaks up to 3 days of future information: a call made on Wednesday could
+    # see Tuesday's report, which nobody could read until that Friday.
+    #   BP_COT_PUBLAG=0 -> legacy behaviour (report_date <= call_date)
+    #   default          -> require report_date + 3d <= call_date
+    # Default is the corrected behaviour: a lookahead leak is cheating, and the
+    # harness exists to measure honestly. Flag retained to quantify the delta.
+    import os as _os
+    if _os.environ.get("BP_COT_PUBLAG") != "0":
+        cutoff = cutoff - pd.Timedelta(days=3)
     return cot_df.loc[idx <= cutoff].copy()
 
 
@@ -268,10 +281,34 @@ def fetch_constituent_dfs_at_date(
     """
     import pandas as pd
 
+    # C-98 (2026-08-27) EXPERIMENTAL, DEFAULT OFF -- BP_BASKET_INHERIT=1
+    #
+    # The Phase 39 "BASKET UNDERVALUATION INHERITANCE" branch in
+    # BP_rules_engine._bias_consensus fires when a mega-cap stock's `constituent`
+    # bias is bullish. It has never been able to fire, because the PRODUCER of
+    # that bias is gated to `asset_class == 'equity_indices'` while the CONSUMER
+    # checks individual stock symbols. Producer indices, consumer stocks.
+    #
+    # This gate is the first half of the break: for a basket-member stock,
+    # `symbol not in EQUITY_INDEX_CONSTITUENT_STOCKS` is True (the dict is keyed
+    # by NQ=F / ES=F / YM=F only), so constituent_dfs comes back {} and the
+    # producer's `and constituent_dfs` test fails before it starts.
+    #
+    # With the flag, a basket member gets AAPL + MSFT fetched -- the same two
+    # tickers the index path uses, per Ch.157 verbatim: "the two most important
+    # stocks is Apple and is Microsoft."
+    _BASKET = {'GOOG', 'GOOGL', 'META', 'NVDA', 'AMZN', 'NFLX', 'TSLA', 'AAPL', 'MSFT'}
     if symbol not in EQUITY_INDEX_CONSTITUENT_STOCKS:
-        return {}
-
-    stocks = EQUITY_INDEX_CONSTITUENT_STOCKS[symbol]
+        if os.environ.get('BP_BASKET_INHERIT') == '1' and symbol in _BASKET:
+            # a stock is not its own peer -- exclude self so AAPL does not
+            # inherit from AAPL
+            stocks = [s for s in ('AAPL', 'MSFT') if s != symbol]
+            if not stocks:
+                return {}
+        else:
+            return {}
+    else:
+        stocks = EQUITY_INDEX_CONSTITUENT_STOCKS[symbol]
     end = call_date.strftime("%Y-%m-%d")
     if htf in ("60m", "15m", "30m"):
         start = (call_date - timedelta(days=720)).strftime("%Y-%m-%d")
@@ -356,6 +393,53 @@ def compare_call(bernd: Dict, system: Optional[Dict]) -> Dict:
 # Main per-case run
 # ============================================================
 
+# ---------------------------------------------------------------------------
+# Shared DataFetcher.
+#
+# Two reasons this is module-level and full-history:
+#
+#  1. full_history_cot=True is REQUIRED for correctness. The default fetch caps
+#     at $limit=260 (~5 years). The goldtest replays 2023-2024 dates, so a 260-
+#     week window that starts ~2021 leaves the 26w index truncated near its
+#     start and the 156w extreme overlay truncated for essentially every 2023
+#     case. Verified against lecture frames: GC1! weekly 2021-11-08 commercial
+#     reads 1.26 on the truncated fetch vs 18.10 on full history -- and 18.10 is
+#     exactly what Bernd's chart shows (Lesson 2 frame_002139).
+#
+#  2. DataFetcher caches COT per instance. run_case() used to build a fresh
+#     DataFetcher per case, so nothing was ever reused; with full history that
+#     would re-paginate the whole CFTC archive on every single case. Sharing one
+#     instance keeps the fetch to once per CFTC code for the whole run.
+#
+# Safe as a module global: run_case() is called sequentially (no thread/process
+# pool anywhere in this harness).
+_FETCHER: Optional[DataFetcher] = None
+
+# CFTC snapshot mode for this run; set from --cot-snapshot in main().
+#   "off"   (default) live CFTC API -- results will drift as CFTC revises data
+#   "write" live API, then pin each result to ./cot_snapshot/
+#   "read"  offline, read only the pinned snapshot -> byte-reproducible runs
+# Default stays "off" so existing workflows are unchanged; a missing snapshot in
+# read mode yields empty COT (neutral), which would silently skew scores, so it
+# must be an explicit opt-in after running build_cot_snapshot.py.
+_COT_SNAPSHOT_MODE = "off"
+# OHLCV pinning mode, set from --ohlcv-snapshot. Kept separate from the COT flag
+# because the two feeds fail differently: CFTC revises history, Yahoo re-splices
+# and intermittently drops symbols. A run is only fully reproducible when BOTH
+# are "read" -- pinning COT alone still leaves ~2.5pp of price-feed variance,
+# which is larger than most effects being A/B tested.
+_OHLCV_SNAPSHOT_MODE = "off"
+
+
+def _get_fetcher() -> DataFetcher:
+    global _FETCHER
+    if _FETCHER is None:
+        _FETCHER = DataFetcher(full_history_cot=True,
+                               cot_snapshot_mode=_COT_SNAPSHOT_MODE,
+                               ohlcv_snapshot_mode=_OHLCV_SNAPSHOT_MODE)
+    return _FETCHER
+
+
 def run_case(case: Dict, config: Dict) -> Dict:
     """Replay one case end-to-end and return a result row."""
     symbol     = case["symbol"]
@@ -368,7 +452,7 @@ def run_case(case: Dict, config: Dict) -> Dict:
     tf = STRATEGY_TIMEFRAMES.get(strategy, STRATEGY_TIMEFRAMES["monthly"])
     htf, ltf = tf["htf"], tf["ltf"]
 
-    fetcher = DataFetcher()
+    fetcher = _get_fetcher()
     engine  = RulesEngine(config)
 
     result = {
@@ -446,6 +530,7 @@ def run_case(case: Dict, config: Dict) -> Dict:
         # and run the consensus check, decoupled from zone-arrival.
         bias_only = "neutral"
         bias_components = {}
+        bias_only_error = None   # set when the Stage-1 path raises (see below)
         try:
             htf_df = ohlcv.get(htf)
             if htf_df is not None and not htf_df.empty:
@@ -496,8 +581,17 @@ def run_case(case: Dict, config: Dict) -> Dict:
                     'hold': 'neutral', 'neutral': 'neutral',
                 }.get(consensus, 'neutral')
                 bias_components = biases
-        except Exception:
-            pass
+        except Exception as exc:
+            # Previously `pass`, which silently turned any failure in the
+            # Stage-1 path into bias_only='neutral'. That is indistinguishable
+            # from a genuine "no directional edge" verdict, so fetch errors were
+            # scored as real neutral calls -- measured at 6 of 441 cases in the
+            # 2026-08-25 out-of-sample run. Record it instead so the harness can
+            # separate "engine held" from "engine never ran".
+            bias_only_error = f"{type(exc).__name__}: {exc}"
+            import traceback as _tb
+            logger.debug("bias_only path failed for %s @ %s\n%s",
+                         symbol, case.get("call_date"), _tb.format_exc())
 
         if signal:
             result["system"] = {
@@ -512,6 +606,7 @@ def run_case(case: Dict, config: Dict) -> Dict:
                 "reasoning":      signal.get("reasoning"),
                 "bias_only":      bias_only,
                 "bias_components": bias_components,
+                "bias_only_error":  bias_only_error,
             }
         else:
             result["system"] = {
@@ -519,6 +614,7 @@ def run_case(case: Dict, config: Dict) -> Dict:
                 "no_signal_reason":   "no qualified zone or bias mismatch (bias_only shows directional analysis)",
                 "bias_only":          bias_only,
                 "bias_components":    bias_components,
+                "bias_only_error":  bias_only_error,
             }
 
         result["verdict"] = compare_call(case, result["system"])
@@ -542,6 +638,18 @@ def main():
     parser.add_argument("--cases-file", default=str(SCRIPT_DIR / "gold_cases.yaml"))
     parser.add_argument("--output", default=str(SCRIPT_DIR / "gold_results.json"))
     parser.add_argument("--config", default=str(PROJECT_DIR / "BP_config.yaml"))
+    parser.add_argument("--ohlcv-snapshot", choices=["off", "write", "read", "fill"],
+                        default="off",
+                        help="OHLCV snapshot mode. Pair with --cot-snapshot read "
+                             "for a fully offline, byte-reproducible run.")
+    parser.add_argument("--cot-snapshot", choices=["off", "write", "read"],
+                        default="off",
+                        help="CFTC snapshot mode. 'off' (default) uses the live "
+                             "API — note CFTC revises history, so scores drift. "
+                             "'write' pins this run's data to ./cot_snapshot/. "
+                             "'read' runs offline from that pin for fully "
+                             "reproducible results (build it first with "
+                             "build_cot_snapshot.py).")
     args = parser.parse_args()
 
     cases_path = Path(args.cases_file)
@@ -566,6 +674,20 @@ def main():
     if not cases:
         print("No cases match the filter.", file=sys.stderr)
         sys.exit(1)
+
+    # Pin (or record) the CFTC dataset for this run. See _COT_SNAPSHOT_MODE.
+    global _COT_SNAPSHOT_MODE, _OHLCV_SNAPSHOT_MODE
+    _COT_SNAPSHOT_MODE = args.cot_snapshot
+    _OHLCV_SNAPSHOT_MODE = args.ohlcv_snapshot
+    if args.ohlcv_snapshot == "read":
+        print("  [OHLCV] snapshot mode=read — offline, pinned price data")
+    elif args.ohlcv_snapshot in ("write", "fill"):
+        print(f"  [OHLCV] snapshot mode={args.ohlcv_snapshot} — pinning price data to disk")
+    if args.cot_snapshot == "read":
+        print("  [COT] snapshot mode=read — offline, pinned dataset "
+              "(reproducible; missing codes -> neutral)")
+    elif args.cot_snapshot == "write":
+        print("  [COT] snapshot mode=write — live fetch, pinning results to disk")
 
     with open(args.config, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)

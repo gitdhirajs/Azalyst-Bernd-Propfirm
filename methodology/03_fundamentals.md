@@ -279,11 +279,13 @@ def retailer_contrarian_signal(retail_cot_index):
 
 | Asset Class | Lookback Period | Primary Group | Usage |
 |-------------|----------------|---------------|-------|
-| **Energies** (CL/BZ) | 52 weeks + 156w extreme | Commercials | Trade WITH hedgers |
+| **Crude Oil** (CL=F) | **26 weeks** + 156w extreme | Commercials | Trade WITH hedgers. Reverted from 52w (full-corpus indicator audit, 2026-07) — two independent settings-dialog frames confirm `WeeklyLookBack=26` for @CL specifically. |
+| **Other Energies** (BZ etc.) | 52 weeks + 156w extreme | Commercials | Trade WITH hedgers. No frame evidence yet to change these from the general commodity default. |
 | **Precious Metals** (GC/SI/PL/PA) | **26 weeks** + 156w extreme | **Commercials ① (non-contrarian)** | Trade WITH Commercials. Phase 14 (26w) + Phase 17 (Commercials primary) corrections. |
 | **Natural Gas** (NG=F) | 26 weeks | **Retailers ① CONTRARIAN** | FADE the crowd. Extreme retail SHORT = bullish; extreme retail LONG = bearish. Phase 12 correction. |
 | **Grains + Cotton** (ZC/ZW/ZS/CT) | 52 weeks | Commercials | Trade with hedgers (planting/harvest cycle). Phase 14 correction from Non-Commercials. |
-| **Tropical Soft Commodities** (CC/SB/OJ) | 26 weeks | Non-Commercials | Divergence focus |
+| **Cocoa** (CC=F) | **52 weeks** | **Commercials, Non-Commercials disabled** | Moved out of the tropical-softs Non-Commercials grouping (full-corpus indicator audit, 2026-07) — two independent settings-dialog frames both show `DisplayNonCommercialTradersIndex=false` + `WeeksLookBack=52`. |
+| **Tropical Soft Commodities** (SB/OJ) | 26 weeks | Non-Commercials | Divergence focus |
 | **Coffee** (KC=F) | 52 weeks | Commercials | Trade WITH Commercials. Phase 16 correction. |
 | **Forex** | 26 weeks | Non-Commercials | Divergence focus |
 | **Equities / Equity Indices** | 26 weeks | Non-Commercials | Divergence focus |
@@ -406,14 +408,14 @@ def valuation_score(asset_roc, reference_rocs):
 
 | Asset Class | Reference Benchmarks | ROC Period | Special Notes |
 |-------------|---------------------|------------|---------------|
-| **Forex** | DXY (Dollar Index) only | 10 | Compare currency vs Dollar strength |
+| **Forex** | **DXY + Bonds (ZB) + Gold (GC)** | 10 | Reverted from DXY-only (full-corpus indicator audit, 2026-07) — a genuine LIVE session (CW05 FX Edition, Jan 2024) shows CHF and GBP both with all 3 refs simultaneously active; earlier single-ref sightings were teaching-session narrowings. Threshold also reverted from ±69 to the general ±75 — zero on-screen sightings of 69 found anywhere in the corpus. |
 | **Stocks / Equity Indices** | **ZB** (Long Bond) + **DXY** only | 10 | **ZN removed (Phase 21 correction)**. Valuation is PRIMARY/LEADING for stocks. SPY RS proxy (Phase 26) for individual stocks: underperformed SPY >10% over 52w = undervalued; outperformed >15% = overvalued. |
 | **Commodities** | DXY + Gold (GC) + Bonds (ZB) | 10 | All three references used |
-| **Precious Metals (Gold/Silver)** | DXY + ZB (Bonds) + GC (Gold) | 10 | Silver: Bonds ticker = @VD not @US |
+| **Precious Metals (Gold/Silver)** | DXY + ZB (Bonds) + GC (Gold) | Gold: **10** (reverted from 13, full-corpus audit 2026-07 — the 13 value traced to a single Nov 2023 frame; 7 independent chapters spanning the corpus show `Length=10`). Silver: 30. | Silver: Bonds ticker = @VD not @US |
 | **Platinum** | ZB (Bonds) + Gold (GC) + DXY | 10 | Phase 41 chunk 3 correction: CW35 Aug 2023 and FT Signals Mar 2023 frames confirm @PL and @PA both use @US+@GC+$DXY (3 refs). Earlier "no Bonds" statement was incorrect. |
 | **Energies** | DXY + ZB (Bonds) + GC (Gold) | 10 | Standard commodity triple reference |
 | **Natural Gas (NG=F)** | **EXCLUDED — do not use Valuation** | N/A | Phase 16/25 correction. Weather/supply shocks make DXY-relative Valuation uninformative for NG. Valuation vote is omitted from NG=F bias consensus entirely. |
-| **Crypto** | DXY only | 10 | Same as Forex |
+| **Crypto** | **DXY + Bonds (ZB) + Gold (GC)** | 10 | Reverted from DXY-only (full-corpus indicator audit, 2026-07) — 8 independent chapters spanning Apr 2023-Feb 2024 all show the identical 3-reference signature live on BTC charts. |
 
 **Pine Script default `Length=10` across ALL asset classes** (CampusValuationTool source confirmed via Phase 7 audit). A previous version of these docs claimed Length=13 for equities — that was a misreading of "Dual-ROC", which referred to running two instances of the indicator with different lengths simultaneously, NOT changing the parameter on a single instance. Empirically validated: AMZN/META/NVDA give wildly different (and incorrect-vs-Bernd's commentary) readings with Length=13; Length=10 matches.
 
@@ -498,10 +500,13 @@ def calculate_valuation(asset_class, asset_close_data, reference_data, symbol=No
         dict with valuation score, 4-state bias, and gate_result
     """
     if asset_class == "forex":
+        # Reverted to 3-ref (full-corpus indicator audit, 2026-07) — was DXY-only.
         period = 10
         asset_roc = rate_of_change(asset_close_data, period)
         dxy_roc = rate_of_change(reference_data["DXY"], period)
-        score = valuation_score(asset_roc, [dxy_roc])
+        zb_roc = rate_of_change(reference_data["ZB"], period)
+        gc_roc = rate_of_change(reference_data["GC"], period)
+        score = valuation_score(asset_roc, [dxy_roc, zb_roc, gc_roc])
     
     elif asset_class in ("stocks", "equities", "equity_indices"):
         # AUDIT CORRECTION (CW42-Idx, CW43-Idx, CW51): DXY IS included for stocks

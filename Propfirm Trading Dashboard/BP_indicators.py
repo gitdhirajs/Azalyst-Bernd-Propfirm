@@ -3,6 +3,7 @@
 Implements all corrections from DELIVERABLE_3_INDICATOR_CORRECTION_BLUEPRINT.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -32,27 +33,55 @@ class COTIndex:
     # it captures multi-year regime extremes, not just yearly ones.
     EXTREME_LOOKBACK_WEEKS = 156
 
+    # 2026-08 FTW audit C-57 — INDEX SCALE IS AN INPUT, NOT A CONSTANT.
+    # The real indicator ("COT Index by OTC", legend "COT Pos. Indices") exposes
+    # "Upper Bound Level" in its settings dialog, i.e. it maps the normalised 0..1
+    # position onto [lower_bound, upper_bound]. Our two Pine files were just two
+    # presets of that one script:
+    #     bounds 0/100    == COTIndex_OTC.txt   (the 2025 OTC course pack)
+    #     bounds -20/120  == COT V2 120-20.txt
+    # DEFAULT IS NOW 0/100 because that is what the 2025 TradingView course shows —
+    # see the class docstring note and CODE_FINDINGS C-57 for the proof chain.
+    DEFAULT_LOWER_BOUND = 0.0
+    DEFAULT_UPPER_BOUND = 100.0
+
     def __init__(
         self,
         lookback_weeks: int = 52,
         upper_extreme: float = 80.0,
         lower_extreme: float = 20.0,
         extreme_lookback: int = EXTREME_LOOKBACK_WEEKS,
+        lower_bound: float = DEFAULT_LOWER_BOUND,
+        upper_bound: float = DEFAULT_UPPER_BOUND,
     ):
         self.lookback_weeks = lookback_weeks
         self.upper_extreme = upper_extreme
         self.lower_extreme = lower_extreme
         self.extreme_lookback = extreme_lookback
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+
+    def _scale(self, net, mn, mx):
+        """Normalise to 0..1 over the window, then map onto [lower_bound, upper_bound].
+
+        `mx != mn` guard mirrors the Pine `if maxNetPos != minNetPos ... else na`.
+        """
+        span = self.upper_bound - self.lower_bound
+        return np.where(
+            mx != mn,
+            self.lower_bound + span * (net - mn) / (mx - mn),
+            np.nan,
+        )
 
     def calculate(
         self,
         cot_df: pd.DataFrame
     ) -> pd.DataFrame:
         """
-        Calculate COT V2 Index (-20 to 120) for all three trader categories.
+        Calculate the COT Index for all three trader categories.
 
-        Uses the COT V2 formula: 140 * (net - min_n) / (max_n - min_n) - 20.
-        Range: -20 (extreme bearish) to 120 (extreme bullish).
+        Scale is configurable (C-57): normalised position mapped onto
+        [lower_bound, upper_bound]. DEFAULT 0..100 = the 2025 OTC TradingView course.
 
         Args:
             cot_df: DataFrame with columns: comm_long, comm_short, noncomm_long,
@@ -80,39 +109,41 @@ class COTIndex:
         sspec_min = df['sspec_net'].rolling(window=window, min_periods=1).min()
         sspec_max = df['sspec_net'].rolling(window=window, min_periods=1).max()
 
-        # COT V2 formula: 140 * (value - min) / (max - min) - 20
-        # Range: -20 (extreme bearish) to 120 (extreme bullish).
-        # Matches pinescript/COT V2 120-20.txt (the indicator Bernd uses on
-        # TradeStation).  Upper threshold=80, lower=20 unchanged from defaults.
-        df['commercials_index'] = np.where(
-            comm_max != comm_min,
-            140.0 * (df['comm_net'] - comm_min) / (comm_max - comm_min) - 20.0,
-            np.nan
-        )
-        df['large_specs_index'] = np.where(
-            lspec_max != lspec_min,
-            140.0 * (df['lspec_net'] - lspec_min) / (lspec_max - lspec_min) - 20.0,
-            np.nan
-        )
-        df['small_specs_index'] = np.where(
-            sspec_max != sspec_min,
-            140.0 * (df['sspec_net'] - sspec_min) / (sspec_max - sspec_min) - 20.0,
-            np.nan
-        )
+        # C-57: scale is configurable; DEFAULT 0..100 (the 2025 TradingView course).
+        # Proof chain that 0-100 is what he actually reads:
+        #   1. TradingView's COT feed IS the CFTC legacy futures-only series — 8 of 8
+        #      raw net-position values read off HIS chart match CFTC to 0.01K, at a
+        #      constant -6d bar/report offset (replay/cot_alignment_check.py).
+        #   2. So the data source is not a variable; Python-from-CFTC == Pine-on-his-chart.
+        #   3. On that data his displayed index value 34.43 (gold commercials, bar
+        #      Mon 07 Aug 2023 = report Tue 01 Aug 2023) is reproduced EXACTLY by the
+        #      0-100 form. The old 140x-20 form gives 28.21 there, and reproduces no
+        #      observed lecture value anywhere in 40 years of data.
+        # Why it matters: both forms are the same normalised position, so keeping the
+        # 80/20 thresholds while changing the scale changes WHEN a reading is extreme —
+        #      0-100  : upper at 80.0% of range, lower at 20.0%
+        #      140x-20: upper at 71.4%,          lower at 28.6%
+        # Measured (replay/cot_scale_impact.py, 6 markets x 3 groups, ~1900 weeks each):
+        # the old form made **26.9% MORE extreme calls** and disagreed on the extreme
+        # classification in 13.9% of all weeks. The new default makes the system exactly
+        # as selective as he is (and is the more conservative direction for a funded
+        # account). Pass lower_bound=-20, upper_bound=120 to restore the old behaviour.
+        df['commercials_index']  = self._scale(df['comm_net'],  comm_min,  comm_max)
+        df['large_specs_index']  = self._scale(df['lspec_net'], lspec_min, lspec_max)
+        df['small_specs_index']  = self._scale(df['sspec_net'], sspec_min, sspec_max)
 
         # 156-week extreme overlay: same COT V2 formula over a longer window.
         # Used by the rules engine to gate "strong" signals — a reading that
         # is extreme on the rolling lookback AND on the 156w window is the
         # textbook's highest-conviction COT signal.
+        # C-57: MUST use the same scale as the rolling index — get_bias compares this
+        # against the SAME upper_extreme/lower_extreme thresholds, so a mixed scale
+        # would silently corrupt every 'strong' verdict.
         ext = self.extreme_lookback
         for col in ('comm_net', 'lspec_net', 'sspec_net'):
             mn = df[col].rolling(window=ext, min_periods=1).min()
             mx = df[col].rolling(window=ext, min_periods=1).max()
-            df[col + '_extreme'] = np.where(
-                mx != mn,
-                140.0 * (df[col] - mn) / (mx - mn) - 20.0,
-                np.nan,
-            )
+            df[col + '_extreme'] = self._scale(df[col], mn, mx)
 
         # ALL-TIME expanding extreme: normalize each week against all prior
         # history available up to that point (expanding window).
@@ -128,11 +159,7 @@ class COTIndex:
         for col in ('comm_net', 'lspec_net', 'sspec_net'):
             all_min = df[col].expanding(min_periods=1).min()
             all_max = df[col].expanding(min_periods=1).max()
-            df[col + '_alltime'] = np.where(
-                all_max != all_min,
-                140.0 * (df[col] - all_min) / (all_max - all_min) - 20.0,
-                np.nan,
-            )
+            df[col + '_alltime'] = self._scale(df[col], all_min, all_max)  # C-57: same scale
 
         return df
 
@@ -191,12 +218,16 @@ class COTIndex:
         sspec_pct = float((df['sspec_net'] < curr_sspec).sum()  / n * 100)
         lspec_pct = float((df['lspec_net'] < curr_lspec).sum()  / n * 100)
 
-        # COT V2 score vs ALL available history (global min/max, not rolling)
+        # COT index score vs ALL available history (global min/max, not rolling).
+        # C-57: uses the SAME configurable scale as calculate(); this summary's
+        # thresholds are compared against upper/lower_extreme by its callers, so a
+        # hardcoded 140x-20 here would be inconsistent with the rest of the class.
         def _v2(val, col):
             mn, mx = df[col].min(), df[col].max()
             if mx == mn:
-                return 50.0
-            return float(140.0 * (val - mn) / (mx - mn) - 20.0)
+                return (self.lower_bound + self.upper_bound) / 2.0
+            span = self.upper_bound - self.lower_bound
+            return float(self.lower_bound + span * (val - mn) / (mx - mn))
 
         at_comm  = _v2(curr_comm,  'comm_net')
         at_sspec = _v2(curr_sspec, 'sspec_net')
@@ -324,8 +355,30 @@ class COTIndex:
             primary, ext = lspec_idx, lspec_ext
             contrarian = False
         elif asset_class == 'forex':
-            primary, ext = lspec_idx, lspec_ext
-            contrarian = False
+            # 2026-08 FTW vision audit C-22 -- forex primary group corrected
+            # Non-Commercials -> RETAIL (small specs), CONTRARIAN.
+            # The prior Non-Commercials assignment cited CW05 FX Edition (Jan 2024)
+            # as its evidence; a full frame-by-frame vision re-read of that exact
+            # chapter shows Bernd naming ONE group on every pair he analyzes
+            # (DXY, AUD, NZD, GBP) -- "retail"/"retailers" -- and never saying
+            # "commercial"/"non-commercial"/"fund manager" once in the session:
+            #   DXY: "retailers getting slowly more bullish again... which is great
+            #        because we need the dollar first to come a little bit lower"
+            #        (retail bullish -> his bias bearish = CONTRARIAN)
+            #   NZD: "we look at the retail data... I don't even look at the charts
+            #        I just look... where the retail spikes"
+            # Corroborated by independent live chapters: CW08-2024 Euro -- "retailers
+            # are getting super bearish on the euro" with on-screen retail index 0.95
+            # (extreme short) -> "maybe a scenario for a short term euro move [up]"
+            # (contrarian confirmed on-screen); CW11 retail explicit on AUD/CHF.
+            # NOTE the OTC M3 L2 teaching lesson demos forex COT with Commercials --
+            # teaching-vs-live corpus conflict documented in CODE_FINDINGS C-15/C-22;
+            # the live Weekly Outlook corpus (4+ chapters, unanimous, incl. the very
+            # chapter previously cited as evidence) governs the live system.
+            # Phase 21 USD-base quote-currency inversion in BP_rules_engine still
+            # applies unchanged (it operates on the returned bias, group-agnostic).
+            primary, ext = sspec_idx, sspec_ext
+            contrarian = True
         elif asset_class in ('equity_indices', 'equities'):
             primary, ext = lspec_idx, lspec_ext
             contrarian = False
@@ -339,6 +392,27 @@ class COTIndex:
             # When Commercials extreme LONG (≥80) → BULLISH; extreme SHORT (≤20) → BEARISH.
             primary, ext = comm_idx, comm_ext
             contrarian = False
+        elif asset_class == 'crude_oil':
+            # 2026-08 FTW vision audit C-44 -- CL=F split out of 'energies'
+            # (Commercials) to RETAIL CONTRARIAN. Three independent live Weekly
+            # Outlook chapters name RETAIL on crude, all contrarian, with no
+            # chapter anywhere naming Commercials for crude:
+            #   CW47 (2023-11-18): "the retailers are getting fully bearish"
+            #        -> he turns bullish (contrarian long)
+            #   CW08 (2024-02-19): "look at what happens when the retailers
+            #        usually are they usually are short we see a rise in price"
+            #        -> retail short precedes rallies (contrarian, stated as a rule)
+            #   CW11 (2024-03-09): "retailers are getting super bullish" /
+            #        "we are overvalued retailers are bullish then we can short
+            #        this as well crude oil" -> retail long -> he shorts
+            # The 'energies -> Commercials' grouping came from the Hybrid AI /
+            # OTC teaching material; the LIVE corpus disagrees for crude. Same
+            # teaching-vs-live conflict resolved the same way as forex (C-22),
+            # and deliberately scoped to CRUDE ONLY -- HO/RB/QM/BZ keep the
+            # 'energies' Commercials default because no live evidence covers them.
+            # Nat gas already had its own retail-veto/non-comm branch (Phase 41).
+            primary, ext = sspec_idx, sspec_ext
+            contrarian = True
         elif asset_class == 'nat_gas':
             # Phase 41 S-01 (chunk2 speech): LESSON 2 PART 3 ENERGIES frames + FT Signals Apr23
             # both show "Fund Managers" (non-commercials/lspec) as the DISPLAYED primary COT panel
@@ -382,10 +456,10 @@ class COTIndex:
         # Bernd applies the identical multi-year extreme logic to forex non-commercials as to
         # commodity commercials. Phase 18 restricted this to COT-king classes only; the
         # forex exclusion was a regression-prevention measure for equity indices (ES/YM/NQ),
-        # not a deliberate exclusion of forex. The 'large_specs_index' primary_col already
-        # correctly maps to forex in the momentum trigger below.
+        # not a deliberate exclusion of forex. (C-22 later moved the forex primary_col
+        # to 'small_specs_index' retail-contrarian; the 156w trigger itself still applies.)
         _COT_KING_CLASSES_156W = ('commodities', 'energies', 'precious_metals', 'nat_gas',
-                                   'soft_commodities', 'forex')
+                                   'soft_commodities', 'forex', 'crude_oil')
         if bias == 'neutral' and asset_class in _COT_KING_CLASSES_156W:
             # Phase 45: lowered from 0.75 (60.0) → 0.625 (50.0).
             # GC=F Sep 9 2023 canonical miss: comm_idx=55-58 between reports —
@@ -405,7 +479,10 @@ class COTIndex:
             if bias == 'neutral':
                 primary_col = (
                     'commercials_index' if asset_class in ('commodities', 'energies', 'precious_metals')
-                    else 'large_specs_index' if asset_class in ('soft_commodities', 'forex', 'equity_indices', 'equities', 'nat_gas')
+                    # C-22 / C-44: forex and crude follow their retail-contrarian primary
+                    # (CW05 DXY: retail TRENDING more bullish -> bearish dollar bias)
+                    else 'small_specs_index' if asset_class in ('forex', 'crude_oil')
+                    else 'large_specs_index' if asset_class in ('soft_commodities', 'equity_indices', 'equities', 'nat_gas')
                     else 'small_specs_index'
                 )
                 if primary_col in cot_df.columns and len(cot_df) >= 6:
@@ -426,30 +503,35 @@ class COTIndex:
 
         # Strength: strong when 156-week extreme also registers at the same end.
         #
-        # For NON-contrarian indicators (commercials, large specs):
-        #   Bullish = primary >= upper_extreme (group is max long) → strong if ext also >= upper_extreme
-        #   Bearish = primary <= lower_extreme (group is max short) → strong if ext also <= lower_extreme
+        # 2026-08 FTW audit C-48 — CONTRARIAN STRENGTH WAS INVERTED. Fixed.
         #
-        # For CONTRARIAN indicators (retailers / small specs for PMs and NG):
-        #   Bullish signal = retailers at extreme SHORT (primary >= upper_extreme, i.e. sspec_idx ≥ 80)
-        #     → contrarian interpretation: BUY. The 156w extreme (ext) reflects the SAME group's
-        #       position, so ext >= upper_extreme confirms retailers are at a HISTORIC SHORT extreme
-        #       = strongest contrarian bullish conviction.  (NOT ext <= lower_extreme — that would
-        #       mean the 156w shows retailers at extreme LONG, contradicting the rolling signal.)
-        #   Bearish signal = retailers at extreme LONG (primary <= lower_extreme, sspec_idx ≤ 20)
-        #     → contrarian interpretation: SELL. ext <= lower_extreme confirms 156w historic LONG.
+        # `primary` and `ext` are the SAME group's index over two windows (rolling
+        # vs 156w). "Strong" means both windows agree the group sits at the SAME
+        # extreme. That test is about the GROUP'S POSITION, so it must be written
+        # against primary/ext directly — never against the derived `bias`, which
+        # has already been flipped for contrarian classes a few lines above.
         #
-        # The previous code had lines 3 and 4 inverted (Phase 17 fix — contrarian ext direction bug).
+        # The previous four-clause form tested `bias` and duplicated the
+        # non-contrarian clauses for the contrarian case, making `contrarian` a
+        # no-op and inverting the check for every contrarian class:
+        #   contrarian bullish comes from primary <= lower (retail extreme SHORT),
+        #   but the old code confirmed it with ext >= upper (156w retail LONG) —
+        #   i.e. it awarded 'strong' precisely when the two windows CONTRADICTED
+        #   each other, and withheld it when they agreed.
+        # Live impact before the fix: every forex pair (C-22) and CL=F (C-44).
+        # `cot_strength == 'strong'` gates the forex hard-hold and several
+        # override paths in BP_rules_engine, so genuine multi-year retail extremes
+        # never reached 'strong' while contradictory readings did.
+        #
+        # Note the approach/momentum triggers (Phase 18/45) can set a bias while
+        # `primary` is still inside the thresholds; those correctly stay 'normal'
+        # because neither clause below fires.
         strength = 'none'
         if bias != 'neutral':
             if ext is not None and not pd.isna(ext):
-                if (bias == 'bullish' and not contrarian and ext >= self.upper_extreme) or \
-                   (bias == 'bearish' and not contrarian and ext <= self.lower_extreme) or \
-                   (bias == 'bullish' and contrarian and ext >= self.upper_extreme) or \
-                   (bias == 'bearish' and contrarian and ext <= self.lower_extreme):
-                    strength = 'strong'
-                else:
-                    strength = 'normal'
+                both_extreme_long  = primary >= self.upper_extreme and ext >= self.upper_extreme
+                both_extreme_short = primary <= self.lower_extreme and ext <= self.lower_extreme
+                strength = 'strong' if (both_extreme_long or both_extreme_short) else 'normal'
             else:
                 strength = 'normal'
 
@@ -739,18 +821,33 @@ class Valuation:
             if ref_df_indexed.index.tz is not None:
                 ref_df_indexed.index = ref_df_indexed.index.tz_localize(None)
 
-            # Align indices
-            common_idx = df.index.intersection(ref_df_indexed.index)
-            if len(common_idx) < self.length:
+            # Pine parity (Valuation_OTC.txt): `security()` maps the reference
+            # onto the CHART's bar index, so Comp1[Length] and Symbol[Length]
+            # step back the SAME number of chart bars. Reindex the reference onto
+            # the symbol's index, forward-filling sessions the reference does not
+            # trade (e.g. weekends on a 7d/wk crypto chart), then take BOTH ROCs
+            # on that single index.
+            #
+            # Previously ref_perc was computed on the *intersected* index while
+            # sym_perc used the full symbol index -- so on a crypto chart a
+            # 10-day symbol move was differenced against a 14-calendar-day
+            # reference move. Measured effect: the get_bias() verdict changed in
+            # 27.5% of trials on crypto (7d/wk vs weekday refs) and in 0% of
+            # trials on same-calendar futures, i.e. this only ever mattered where
+            # the two calendars disagree.
+            ref_close = (
+                ref_df_indexed['close']
+                .reindex(df.index.union(ref_df_indexed.index))
+                .ffill()
+                .reindex(df.index)
+            )
+            if ref_close.notna().sum() < self.length + 1:
                 continue
-
-            ref_close = ref_df_indexed.loc[common_idx, 'close']
-            sym_close = df.loc[common_idx, 'close']
 
             ref_perc = (ref_close - ref_close.shift(self.length)) / ref_close.shift(self.length) * 100
 
             # Difference: symbol %change minus reference %change
-            diff = sym_perc.loc[common_idx] - ref_perc
+            diff = sym_perc - ref_perc
 
             # Rescale to -100/+100
             col_name = f'valuation_{ref_name}'
@@ -826,6 +923,38 @@ class Valuation:
         if not line_cols:
             return empty_result
 
+        # C-96 (2026-08-27) EXPERIMENTAL, DEFAULT OFF -- BP_VAL_STRICT_THRESHOLDS=1
+        #
+        # The +/-10 "mild" band below is OURS. It is not in the indicator. The
+        # settings dialog he opens on camera exposes exactly two thresholds,
+        # Upper 75 and Lower -75, and CampusValuationTool_CORRECTED.pine plots
+        # hlines at 75 / -75 and nothing at +/-10.
+        #
+        # The band is not a small refinement. Applied to the 1,399 readings mined
+        # from his own on-screen legends, it reclassifies most of the corpus:
+        #
+        #   equity_indices (n=400)   +/-75 -> bearish   0%, neutral 92%
+        #                            +/-10 -> bearish  18%, neutral 15%
+        #   equities       (n=722)   +/-75 -> bearish   4%, neutral 90%
+        #                            +/-10 -> bearish  20%, neutral  7%
+        #   futures        (n=186)   +/-75 -> bearish   1%, neutral 98%
+        #                            +/-10 -> bearish  41%, neutral 16%
+        #
+        # A band that turns a 90%-neutral indicator into a 7%-neutral one is not
+        # reading the same instrument he is. See C-95: our engine votes bearish on
+        # 59% of equity-index cases where his tool never once crossed +75 in 400
+        # readings (highest value anywhere: +66.08).
+        #
+        # Setting the flag uses ONLY the indicator's own thresholds. Note this
+        # cannot be a pure win by construction -- it makes the indicator far
+        # quieter, and C-93 already showed silence is the dominant failure mode --
+        # so it has to be measured, not assumed. The residual matters too: +/-10
+        # explains 18% of the 59%, not all of it, so our computed VALUES probably
+        # diverge as well and this flag alone will not close the gap.
+        _strict = os.environ.get('BP_VAL_STRICT_THRESHOLDS') == '1'
+        _mild_bear = self.overvalued if _strict else 10.0
+        _mild_bull = self.undervalued if _strict else -10.0
+
         votes = []  # list of (direction, strength_tier) per available line
         for col in line_cols:
             v = latest.get(col)
@@ -834,11 +963,11 @@ class Valuation:
             v = float(v)
             if v >= self.overvalued:
                 votes.append(('bearish', 'extreme'))
-            elif v >= 10.0:
+            elif v >= _mild_bear:
                 votes.append(('bearish', 'mild'))
             elif v <= self.undervalued:
                 votes.append(('bullish', 'extreme'))
-            elif v <= -10.0:
+            elif v <= _mild_bull:
                 votes.append(('bullish', 'mild'))
             else:
                 votes.append(('neutral', 'flat'))
@@ -1035,7 +1164,22 @@ class Seasonality:
         # calls with no safety benefit. Keep the bounded projection so the
         # Bernd-clone match holds. (Reverted the wrap after it regressed the
         # goldtest by 10 Stage-1 cases, all long->neutral.)
-        end_bin = min(current_bin + lookahead_bins, len(seasonal_df) - 1)
+        # EXPERIMENT (2026-08-25): wrap instead of clamp, gated by env var so the
+        # default behaviour is unchanged unless explicitly opted in.
+        #   BP_SEAS_WRAP=1  -> cyclic wrap (end_bin modulo year length)
+        #   unset           -> legacy clamp to year end
+        # Clamping collapses the lookahead window as the date nears year end:
+        # at day 355 the window is 10 bins, at 364 it is 1, at 365 it is 0 and
+        # the function returns 'neutral' regardless of the curve's real slope.
+        # Measured on a synthetic rising Dec->Jan curve, slope decays
+        # 0.443 -> 0.012 purely from hitting the array edge.
+        # Prior note said wrapping cost 10 Stage-1 goldtest cases, but that was
+        # measured in-sample on since-revised CFTC data; re-testing out-of-sample.
+        import os as _os
+        if _os.environ.get("BP_SEAS_WRAP") == "1":
+            end_bin = current_bin + lookahead_bins
+        else:
+            end_bin = min(current_bin + lookahead_bins, len(seasonal_df) - 1)
         start_val = seasonal_df.loc[seasonal_df['bin'] == current_bin % len(seasonal_df), 'seasonal_value']
         end_val = seasonal_df.loc[seasonal_df['bin'] == end_bin % len(seasonal_df), 'seasonal_value']
 

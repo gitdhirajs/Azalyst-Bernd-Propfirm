@@ -240,13 +240,17 @@ def stats_block(account: Dict, positions: List[Dict], history: List[Dict]) -> st
     closed_n = int(account.get("total_trades", 0))
     win = int(account.get("winning_trades", 0))
     loss = int(account.get("losing_trades", 0))
-    win_rate_pct = float(account.get("win_rate", 0)) * 100
+    # E-04: win_rate is None until at least one trade is decided (win or loss).
+    _wr = account.get("win_rate")
+    _scratch = int(account.get("scratch_trades", 0) or 0)
+    win_rate_str = (f"{float(_wr) * 100:.1f}%" if _wr is not None
+                    else f"n/a ({_scratch} scratch{'' if _scratch == 1 else 'es'})")
     avg_r = float(account.get("avg_r", account.get("avg_r_per_trade", 0)))
 
     return "\n".join([
         f"Open Positions       : {open_n:>15}",
         f"Closed Trades        : {closed_n:>15}",
-        f"Win Rate             : {win_rate_pct:>14.1f}%",
+        f"Win Rate             : {win_rate_str:>15}",
         f"Winners / Losers     : {f'{win} / {loss}':>15}",
         f"Avg R per Trade      : {avg_r:+14.2f}R",
     ])
@@ -514,7 +518,11 @@ def closed_block(closed_this_scan: List[Dict]) -> str:
         sym = (p.get("display_name") or p.get("symbol", "?"))[:10]
         dir_ = p.get("direction", "?").upper()
         pnl = float(p.get("realized_pnl", 0))
-        r_mult = float(p.get("trade_r_multiple", 0))
+        # E-01 (2026-08-26): get_trade_history() renames trade_r_multiple ->
+        # r_multiple, so the old read always returned 0 and every close --
+        # including real losses -- printed "+0.00R". Fall back to the raw
+        # dataclass key for callers that pass unserialised Position dicts.
+        r_mult = float(p.get("r_multiple", p.get("trade_r_multiple", 0)) or 0)
         reason = p.get("close_reason", "")
         out.append(
             f"  {sym:10s}  {dir_:5s}  "
@@ -539,7 +547,11 @@ def track_record_block(history: List[Dict]) -> str:
         sl    = p.get("stop_price", 0)
         close = p.get("close_price")
         pnl = float(p.get("realized_pnl", 0))
-        r_mult = float(p.get("trade_r_multiple", 0))
+        # E-01 (2026-08-26): get_trade_history() renames trade_r_multiple ->
+        # r_multiple, so the old read always returned 0 and every close --
+        # including real losses -- printed "+0.00R". Fall back to the raw
+        # dataclass key for callers that pass unserialised Position dicts.
+        r_mult = float(p.get("r_multiple", p.get("trade_r_multiple", 0)) or 0)
         reason = p.get("close_reason", "")
         out.append(
             f"  {sym:10s} {dir_:5s} E:{_px(entry)} SL:{_px(sl)} X:{_px(close)}  "

@@ -194,7 +194,23 @@ STRATEGY_TIMEFRAMES = {
 VALUATION_REFS = {
     "forex":            ["DX-Y.NYB", "ZB=F", "GC=F"],
     "equity_indices":   ["DX-Y.NYB", "ZB=F", "GC=F"],   # Phase 21: ZN removed, GC added per default
-    "equities":         ["ZB=F", "GC=F"],                  # Phase 36 multi-agent consensus: Ch173 (Practical App Valuation) + Phase 32 Valuation rulebook + Phase 32 per-asset all agree stocks use Bonds + Gold, DXY OFF. Earlier frame_001240 Read may have been mid-demonstration state before Bernd flipped Show toggles.
+    # 2026-08 FTW vision audit -- corrected ["ZB=F","GC=F"] -> ["ZB=F"] (BONDS ONLY).
+    # The prior value kept Gold, but Gold is OFF in every stock sighting we have.
+    # Two independent corpora agree:
+    #   * OTC Mod 3 / Lesson 3 (Valuation): full settings dialog (frame_000808)
+    #     shows ref1=CBOT_DL:ZB1! ref2=COMEX_DL:GC1! ref3=TVC:DXY; on the AAPL
+    #     chart he unchecks Dollar and the plot is left showing ONLY the
+    #     bonds-coloured line -- Gold and Dollar both off for individual stocks.
+    #   * Weekly Outlook CW05 (2023-01): MSFT Format Study dialog, ref2 "@GC"=False
+    #     AND ShowReferenceSymbol3=False -> bonds only. Same chapter shows the
+    #     ref flags consistent across 9 stock symbols.
+    #   * CW04 (2024-01), CW41 (2023-10), CW43 (2023-10, Equity Indices & Stocks
+    #     Edition): ref2 @GC=False on every stock chart read; futures/index in the
+    #     same chapters show all three True.
+    # NOTE this leaves equities with a SINGLE valuation line, so get_bias() decides
+    # stock bias from that one line rather than by majority vote. That is faithful
+    # to how he reads it -- for stocks he only consults the bonds line.
+    "equities":         ["ZB=F"],
     "commodities":      ["DX-Y.NYB", "GC=F", "ZB=F"],
     "soft_commodities": ["DX-Y.NYB", "GC=F", "ZB=F"],
     "precious_metals":  ["DX-Y.NYB", "GC=F", "ZB=F"],
@@ -573,6 +589,8 @@ def build_indicator_series(
     cot_df,
     val_refs: Dict,
     seasonal_df,
+    symbol: Optional[str] = None,
+    htf: str = '1wk',
 ) -> Dict:
     """Compute the COT / Valuation / Seasonality timeseries that the dashboard
     plots. Each entry mirrors the data the rules engine already calculates --
@@ -594,7 +612,19 @@ def build_indicator_series(
 
     # Use the same asset-class-tuned engines that _analyze_fundamentals uses
     # so the dashboard charts reflect what actually drove the bias decision.
-    cot_engine, val_engine = engine._indicators_for_class(asset_class)
+    #
+    # 2026-08 FTW audit C-50: `symbol` and `htf` MUST be passed. Without them this
+    # was the third, out-of-sync consumer of the effective-class routing (the
+    # other two are documented at BP_rules_engine.py:119-122). Symbol-level
+    # routing — crude_oil (C-44), nat_gas, soft_commodities, the JPY 52w override,
+    # and the per-symbol Valuation cycle — was all skipped here, so the dashboard
+    # plotted a DIFFERENT trader group at a DIFFERENT lookback than the one the
+    # signal was actually made from. For CL=F that is literally the opposite line
+    # (retail-contrarian 26w traded vs commercials 52w charted), which would make
+    # a human reviewer "verify" a signal against evidence the engine never used.
+    cot_engine, val_engine = engine._indicators_for_class(
+        asset_class, symbol=symbol, htf=htf,
+    )
     from BP_indicators import COTReport
     cot_report_engine = COTReport()
 
@@ -801,7 +831,8 @@ def scan_symbol(
 
     # 6. Build indicator timeseries for the dashboard (always, even when no signal)
     out["indicators"] = build_indicator_series(
-        engine, ac, ohlcv[htf], cot_df, val_refs, seasonal_df
+        engine, ac, ohlcv[htf], cot_df, val_refs, seasonal_df,
+        symbol=sym, htf=htf,          # C-50: symbol-level routing must reach the charts
     )
 
     return out
@@ -965,13 +996,40 @@ def scan_all_markets(
     # This is what builds the track record -- before this, open positions
     # were discarded each run and nothing ever closed.
     # ----------------------------------------------------------------
+    # C-89 (2026-08-26) -- REJECT NON-FINITE PRICES HERE, AT THE SOURCE.
+    #
+    # The "(nan% away)" rows seen on CL=F and ^GDAXI in the live Discord log are
+    # the visible tip of this. `float(nan)` does NOT raise, so the
+    # `except (TypeError, ValueError)` below never fired and a NaN bar flowed
+    # straight into the trader. Every comparison against a NaN is False, so a NaN
+    # price does not merely display wrong -- it silently DISABLES the trader:
+    #
+    #   check_pending_fills : `low <= entry`      False -> the limit never fills
+    #                         `_pct_away > cap`   False -> E-05 drift never cancels
+    #   update_positions    : `low <= current_stop`  False -> THE STOP NEVER FIRES
+    #                         `high >= target`        False -> targets never fire
+    #   run_scanner :1178/:1188 : `if now:` passes, because bool(nan) is True,
+    #                         so unrealized_pnl / r_multiple_open / distance_pct
+    #                         all become nan and print as "nan".
+    #
+    # Reproduced against the real PaperTrader: a live LONG at 100 with a stop at
+    # 95 closes on a genuine 90.0 bar, and survives FIVE consecutive NaN bars
+    # still ACTIVE. On a funded account that is an open loser whose stop cannot
+    # trigger, which is the failure mode the stop exists to prevent.
+    #
+    # Dropping the symbol is the safe default: every consumer already handles a
+    # missing symbol (`prices = current_prices.get(...)` then `if not prices:
+    # continue`), so the position is simply not priced this scan and is picked up
+    # on the next one with good data. Kill-switch BP_ALLOW_NONFINITE_PRICES=1.
+    import math as _math
+    _allow_nonfinite = os.environ.get('BP_ALLOW_NONFINITE_PRICES') == '1'
     current_prices: Dict[str, Dict[str, float]] = {}
     for _sym, _tfs in ohlcv_cache.items():
         _bars = _tfs.get(ltf) or _tfs.get(htf)
         if _bars:
             _last = _bars[-1]
             try:
-                current_prices[_sym] = {
+                _px = {
                     "high":  float(_last.get("high", _last.get("close", 0))),
                     "low":   float(_last.get("low",  _last.get("close", 0))),
                     "close": float(_last.get("close", 0)),
@@ -980,6 +1038,16 @@ def scan_all_markets(
                 }
             except (TypeError, ValueError):
                 continue
+            if not _allow_nonfinite and not all(_math.isfinite(v) for v in _px.values()):
+                logger.warning(
+                    "%s: latest %s bar carries a non-finite price (%s) -- symbol EXCLUDED "
+                    "from this scan's pricing. Positions and resting orders on it are not "
+                    "updated this scan. A NaN here would disable stops and fills silently.",
+                    _sym, ltf if _tfs.get(ltf) else htf,
+                    {k: v for k, v in _px.items() if not _math.isfinite(v)},
+                )
+                continue
+            current_prices[_sym] = _px
 
     closed_events: List[Dict] = []
     # Fill any resting PENDING limit orders that price has now reached, THEN
@@ -1137,7 +1205,7 @@ def scan_all_markets(
     for op in open_positions:
         px = current_prices.get(op.get("symbol"), {})
         now = px.get("close")
-        if now:
+        if now and _math.isfinite(now):   # bool(nan) is True -- see C-89
             entry = float(op.get("entry_price", 0))
             size  = float(op.get("position_size", 0))   # USD per 1.0 move
             stopd = abs(entry - float(op.get("stop_price", entry)))
@@ -1151,7 +1219,7 @@ def scan_all_markets(
     for po in pending_orders:
         px = current_prices.get(po.get("symbol"), {})
         now = px.get("close")
-        if now:
+        if now and _math.isfinite(now):   # bool(nan) is True -- see C-89
             entry = float(po.get("entry_price", 0))
             po["current_price"] = round(now, 6)
             po["distance_pct"]  = round(abs(now - entry) / now * 100, 3) if now else 0.0
@@ -1205,7 +1273,7 @@ def save_results(results: Dict) -> None:
         "auto_traded":      results["auto_traded"],
         "account_balance":  results["account"].get("balance", 0),
         "closed_pnl":       results["account"].get("closed_pnl", 0),
-        "win_rate":         results["account"].get("win_rate", 0),
+        "win_rate":         results["account"].get("win_rate"),
         "total_trades":     results["account"].get("total_trades", 0),
         "signals_summary": [
             {
@@ -1293,7 +1361,7 @@ def print_summary(results: Dict) -> None:
     acct = results.get("account", {})
     balance = acct.get("balance", 0)
     pnl     = acct.get("closed_pnl", 0)
-    wr      = acct.get("win_rate", 0)
+    wr      = acct.get("win_rate")   # E-04: None until a trade is decided
     trades  = acct.get("total_trades", 0)
     dd      = acct.get("max_drawdown_pct", 0)
     open_p  = acct.get("open_positions", 0)
@@ -1303,7 +1371,10 @@ def print_summary(results: Dict) -> None:
     print(f"  {BOLD}--- ACCOUNT ---{RESET}")
     print(f"  Balance:       ${balance:>12,.2f}")
     print(f"  Closed PnL:    {pnl_color}${pnl:>12,.2f}{RESET}")
-    print(f"  Win Rate:      {wr:>11.1f}%")
+    _wr_str = (f"{wr*100:.1f}%" if wr is not None
+               else (lambda n: f"n/a ({n} scratch{'' if n == 1 else 'es'})")(
+                   int(acct.get('scratch_trades', 0) or 0)))
+    print(f"  Win Rate:      {_wr_str:>12}")
     print(f"  Total Trades:  {trades:>12}")
     print(f"  Max Drawdown:  {dd:>11.2f}%")
     print(f"  Open Positions:{open_p:>12}")

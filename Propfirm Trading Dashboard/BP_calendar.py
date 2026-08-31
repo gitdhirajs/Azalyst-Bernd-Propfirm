@@ -27,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -604,6 +605,147 @@ _US_FEDERAL_HOLIDAYS_2026: List[Tuple[date, str, bool]] = [
 
 
 # ========================================================================
+# C-90 (2026-08-26) — rule-derived extension for years past the curated tables
+# ========================================================================
+#
+# The curated tables above stop at the end of 2026. Once the clock rolls into
+# 2027 every blackout silently becomes a no-op and the system trades straight
+# through NFP. The existing safeguard only LOGS that; it does not prevent it.
+#
+# Two of the six categories are genuinely rule-derived and are generated below.
+# The other four are NOT, and are deliberately NOT invented:
+#
+#   generated      NYSE holidays   exact by statute + NYSE convention
+#                  NFP             BLS scheduling convention
+#   NOT generated  CPI, GDP        BLS picks the day; no rule reproduces it
+#                  FOMC, ECB, BoE  announced by the banks, ~1 year ahead
+#
+# Fabricating a plausible-looking FOMC date would be worse than having none: it
+# would blackout the wrong day AND leave the real one unguarded. When central-bank
+# coverage lapses, `_load_static` escalates to ERROR instead.
+#
+# BOTH GENERATORS WERE VALIDATED AGAINST THE HAND-CURATED TABLES BEFORE USE:
+#
+#   holidays   2025: 10/10 dates   2026: 10/10 dates
+#   NFP        2025: 12/12         2026: 12/12      (24/24 total)
+#
+# Two NFP conventions had to be encoded to reach 24/24, and both were derived from
+# the curated data rather than assumed:
+#   1. JANUARY lands on the SECOND Friday, not the first — the December report
+#      needs the extra week. True in both curated years.
+#   2. If the target Friday is a FEDERAL holiday the release moves one day earlier
+#      (seen at July 4 in both years). Good Friday does NOT move it: the BLS is a
+#      government agency and is open, even though the NYSE is shut — which is why
+#      the curated 2026 table has NFP ON Good Friday, 2026-04-03. A naive
+#      "skip market holidays" rule gets that one wrong.
+#
+# Kill-switch: BP_CALENDAR_NO_AUTOEXTEND=1 restores the old fixed-table behaviour.
+
+
+def _easter(year: int) -> date:
+    """Western Easter Sunday (anonymous Gregorian computus)."""
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    ll = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * ll) // 451
+    month, day = divmod(h + ll - 7 * m + 114, 31)
+    return date(year, month, day + 1)
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    """n-th `weekday` (Mon=0) of a month, e.g. 3rd Monday of January."""
+    d = date(year, month, 1)
+    d += timedelta(days=(weekday - d.weekday()) % 7)
+    return d + timedelta(days=7 * (n - 1))
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> date:
+    d = date(year, month, 28)
+    while (d + timedelta(days=7)).month == month:
+        d += timedelta(days=7)
+    return d - timedelta(days=(d.weekday() - weekday) % 7)
+
+
+def _observed(d: date) -> date:
+    """Saturday -> the Friday before; Sunday -> the Monday after."""
+    if d.weekday() == 5:
+        return d - timedelta(days=1)
+    if d.weekday() == 6:
+        return d + timedelta(days=1)
+    return d
+
+
+def _federal_holidays(year: int) -> set:
+    """Statutory US federal holidays — the days the BLS itself is shut.
+
+    Used only to shift an NFP release. Includes Columbus Day and Veterans Day,
+    which are federal but do NOT close the NYSE, and excludes Good Friday, which
+    closes the NYSE but is not federal.
+    """
+    return {
+        _observed(date(year, 1, 1)),           # New Year's Day
+        _nth_weekday(year, 1, 0, 3),           # MLK Jr Day
+        _nth_weekday(year, 2, 0, 3),           # Presidents' Day
+        _last_weekday(year, 5, 0),             # Memorial Day
+        _observed(date(year, 6, 19)),          # Juneteenth
+        _observed(date(year, 7, 4)),           # Independence Day
+        _nth_weekday(year, 9, 0, 1),           # Labor Day
+        _nth_weekday(year, 10, 0, 2),          # Columbus Day
+        _observed(date(year, 11, 11)),         # Veterans Day
+        _nth_weekday(year, 11, 3, 4),          # Thanksgiving
+        _observed(date(year, 12, 25)),         # Christmas
+    }
+
+
+def _nyse_holidays(year: int) -> List[Tuple[date, str, bool]]:
+    """The ten full NYSE closures, in the same shape as the curated tables."""
+    out = [
+        (_observed(date(year, 1, 1)),          "New Year's Day"),
+        (_nth_weekday(year, 1, 0, 3),          "Martin Luther King Jr Day"),
+        (_nth_weekday(year, 2, 0, 3),          "Presidents' Day"),
+        (_easter(year) - timedelta(days=2),    "Good Friday"),
+        (_last_weekday(year, 5, 0),            "Memorial Day"),
+        (_observed(date(year, 6, 19)),         "Juneteenth"),
+        (_observed(date(year, 7, 4)),          "Independence Day"),
+        (_nth_weekday(year, 9, 0, 1),          "Labor Day"),
+        (_nth_weekday(year, 11, 3, 4),         "Thanksgiving"),
+        (_observed(date(year, 12, 25)),        "Christmas"),
+    ]
+    return [(d, n, True) for d, n in sorted(out)]
+
+
+def _nfp_dates(year: int) -> List[date]:
+    """The twelve NFP release dates. See the conventions in the block above."""
+    fed = _federal_holidays(year)
+    out = []
+    for month in range(1, 13):
+        d = _nth_weekday(year, month, 4, 2 if month == 1 else 1)
+        while d in fed:
+            d -= timedelta(days=1)
+        out.append(d)
+    return out
+
+
+def generate_year(year: int) -> Tuple[List[CalendarEvent], List[Tuple[date, str, bool]]]:
+    """Rule-derived events + holidays for one year. NFP only — never a bank date."""
+    events = [
+        CalendarEvent(
+            "Non-Farm Payrolls (NFP)", EventType.ECONOMIC, EventImpact.HIGH,
+            datetime(d.year, d.month, d.day, _et(8, 30).hour, _et(8, 30).minute),
+            currency="USD", recurring_rule="first_friday",
+            description="RULE-DERIVED, not confirmed against the official BLS schedule",
+        )
+        for d in _nfp_dates(year)
+    ]
+    return events, _nyse_holidays(year)
+
+
+# ========================================================================
 # EconomicCalendar class
 # ========================================================================
 
@@ -649,6 +791,37 @@ class EconomicCalendar:
             if closed:
                 self._holidays[d] = name
 
+        # --- C-90: what the CURATED tables actually cover -------------------
+        # Tracked before the generated years are added, so the generated NFP
+        # entries cannot mask a lapse in the categories that are NOT generated.
+        self._curated_max_year = max((e.timestamp.year for e in self._events),
+                                     default=2026)
+        self._cbank_max_year = max(
+            (e.timestamp.year for e in self._events
+             if e.event_type == EventType.CENTRAL_BANK), default=self._curated_max_year)
+        self._generated_years: List[int] = []
+
+        # --- C-90: extend the two rule-derived categories ------------------
+        if os.environ.get('BP_CALENDAR_NO_AUTOEXTEND') != '1':
+            horizon = max(datetime.utcnow().year + 1, self._curated_max_year)
+            for year in range(self._curated_max_year + 1, horizon + 1):
+                gen_events, gen_holidays = generate_year(year)
+                for e in gen_events:
+                    e.duration_minutes = self.blackout_minutes
+                    self._events.append(e)
+                for d, name, closed in gen_holidays:
+                    if closed:
+                        self._holidays.setdefault(d, name)
+                self._generated_years.append(year)
+            if self._generated_years:
+                logger.info(
+                    "EconomicCalendar: NFP + NYSE holidays rule-derived for %s "
+                    "(validated 24/24 NFP and 20/20 holiday dates against the curated "
+                    "2025-2026 tables). CPI/GDP/FOMC/ECB/BoE are NOT derivable and are "
+                    "NOT generated.",
+                    ", ".join(str(y) for y in self._generated_years),
+                )
+
         self._loaded = True
         logger.info(
             f"EconomicCalendar loaded: {len(self._events)} events, "
@@ -664,19 +837,28 @@ class EconomicCalendar:
             # The previous `e.start.year` always raised AttributeError which was
             # silently swallowed by the surrounding try/except, making the stale
             # event warning completely inert.
-            last_event_year = max((e.timestamp.year for e in self._events), default=2026)
+            #
+            # C-90: report per CATEGORY. NFP and holidays now auto-extend, so a
+            # single "last_event_year" over all events would show 2027+ and hide
+            # the fact that FOMC/ECB/BoE coverage still stops dead at the curated
+            # year. The bank dates are the ones that cannot be derived, so they
+            # are the ones the warning has to be about.
             current_year = datetime.utcnow().year
-            if current_year > last_event_year:
+            if current_year > self._cbank_max_year:
                 logger.error(
-                    f"EconomicCalendar STALE: hardcoded events end in {last_event_year} "
-                    f"but current year is {current_year}. Event-blackout protection is "
-                    f"effectively DISABLED until BP_calendar.py is refreshed with "
-                    f"{current_year} dates. Trades during NFP/FOMC will not be blocked."
+                    f"EconomicCalendar STALE: central-bank dates (FOMC/ECB/BoE) and "
+                    f"CPI/GDP end in {self._cbank_max_year} but the current year is "
+                    f"{current_year}. Those blackouts are DISABLED until BP_calendar.py "
+                    f"is refreshed from the published schedules. NFP and NYSE holidays "
+                    f"ARE covered (rule-derived for "
+                    f"{', '.join(str(y) for y in self._generated_years) or 'no years'})."
                 )
-            elif current_year == last_event_year:
+            elif current_year == self._cbank_max_year:
                 logger.warning(
-                    f"EconomicCalendar: hardcoded events end in {last_event_year} "
-                    f"(current year). Plan to refresh BP_calendar.py before year-end."
+                    f"EconomicCalendar: central-bank + CPI dates end in "
+                    f"{self._cbank_max_year} (current year). Refresh BP_calendar.py from "
+                    f"the published FOMC/ECB/BoE schedules before year-end. NFP and "
+                    f"NYSE holidays extend automatically and need no action."
                 )
         except Exception:
             pass  # never let this safeguard break the loader

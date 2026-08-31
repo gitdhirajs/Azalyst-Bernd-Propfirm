@@ -4,6 +4,7 @@ manages stops, targets, trailing stops, and tracks P&L.
 Implements Section F and G from the Strategy Rulebook.
 """
 
+import os
 import uuid
 import json
 import logging
@@ -52,6 +53,11 @@ class Position:
     close_time: Optional[datetime] = None
     close_price: Optional[float] = None
     trade_r_multiple: float = 0.0
+    # E-01 (2026-08-26): why the position closed. Previously send_discord.py
+    # read a "close_reason" that existed nowhere, so it always rendered blank.
+    # Distinguishes an original-stop loss from a breakeven scratch from a
+    # trailing exit -- the measurement E-03 needs.
+    close_reason: str = ""
     notes: str = ""
     income_strategy: Optional[str] = None
 
@@ -432,6 +438,39 @@ class PaperTrader:
             low = prices.get('low', close)
             high = prices.get('high', close)
             entry = pos.entry_price
+
+            # E-05 (2026-08-26): re-apply the entry-distance cap while the order
+            # RESTS. BP_rules_engine.py:660 enforces both an R cap and a raw-%
+            # cap, but only at signal creation. pending_order_max_age_days lets a
+            # weekly limit sit for 14 days and a monthly one for 30, and nothing
+            # re-checked distance in between -- so an order placed 6% away could
+            # rest for a fortnight while the underlying walked away from it.
+            # Measured over the 72 live pending rows: median 7.8% away, max
+            # 31.5%, 17 beyond the 15% weekly cap; CL=F printed "29.04% away" on
+            # four consecutive scans. Set BP_PENDING_DISTANCE_RECHECK=0 to revert.
+            if os.environ.get('BP_PENDING_DISTANCE_RECHECK') != '0' and close:
+                _ed = self.config.get('entry_distance', {}) or {}
+                _risk_unit = abs(pos.entry_price - pos.stop_price)
+                _r_away = (abs(close - entry) / _risk_unit) if _risk_unit > 0 else 0.0
+                _pct_away = abs(close - entry) / close * 100
+                _max_r = float((_ed.get('max_r_to_entry_pending', {}) or {}).get(
+                    pos.income_strategy, _ed.get('default_max_r', 3.0)))
+                _max_pct = float((_ed.get('max_pct_to_entry', {}) or {}).get(
+                    pos.income_strategy, _ed.get('default_max_pct', 15.0)))
+                if (_risk_unit > 0 and _r_away > _max_r) or (_pct_away > _max_pct):
+                    pos.status = TradeStatus.CANCELLED
+                    pos.close_time = datetime.now()
+                    pos.close_reason = "drifted"
+                    self.trade_history.append(pos)
+                    del self.positions[pos.id]
+                    logger.info(
+                        f"[{pos.symbol}] PENDING limit DRIFTED out of range: "
+                        f"{_pct_away:.1f}% / {_r_away:.1f}R away "
+                        f"(caps {_max_pct}% / {_max_r}R, strategy={pos.income_strategy}) "
+                        f"-> CANCELLED"
+                    )
+                    continue
+
             reached = (
                 (pos.direction == TradeDirection.LONG and low is not None and low <= entry)
                 or (pos.direction == TradeDirection.SHORT and high is not None and high >= entry)
@@ -551,6 +590,7 @@ class PaperTrader:
                     pos.close_time = datetime.now()
                     pos.status = TradeStatus.CLOSED
                     pos.trade_r_multiple = (close_price - pos.entry_price) / abs(pos.entry_price - pos.stop_price) if abs(pos.entry_price - pos.stop_price) > 0 else 0
+                    pos.close_reason = self._stop_close_reason(pos)
 
                     closed_events.append(self._close_position(pos))
                     if pos.zone_id:
@@ -567,6 +607,7 @@ class PaperTrader:
                     pos.close_time = datetime.now()
                     pos.status = TradeStatus.CLOSED
                     pos.trade_r_multiple = (pos.entry_price - close_price) / abs(pos.entry_price - pos.stop_price) if abs(pos.entry_price - pos.stop_price) > 0 else 0
+                    pos.close_reason = self._stop_close_reason(pos)
 
                     closed_events.append(self._close_position(pos))
                     if pos.zone_id:
@@ -608,6 +649,7 @@ class PaperTrader:
                             pos.close_time = datetime.now()
                             pos.status = TradeStatus.CLOSED
                             pos.trade_r_multiple = 3.0
+                            pos.close_reason = "T3"
                             closed_events.append(self._close_position(pos))
                             if pos.zone_id:
                                 self.zone_memory[pos.zone_id] = True
@@ -639,12 +681,22 @@ class PaperTrader:
                             pos.close_time = datetime.now()
                             pos.status = TradeStatus.CLOSED
                             pos.trade_r_multiple = 3.0
+                            pos.close_reason = "T3"
                             closed_events.append(self._close_position(pos))
                             if pos.zone_id:
                                 self.zone_memory[pos.zone_id] = True
                             break
 
         return closed_events
+
+    @staticmethod
+    def _stop_close_reason(pos: 'Position') -> str:
+        """Classify a stop-out: trailing exit, breakeven scratch, or a real stop."""
+        if pos.trail_stop_level is not None and pos.current_stop == pos.trail_stop_level:
+            return "trail"
+        if pos.breakeven_triggered and abs(pos.current_stop - pos.entry_price) <= 1e-9:
+            return "breakeven"
+        return "stop"
 
     def _close_position(self, pos: Position) -> Dict:
         """Record closed position and update stats."""
@@ -683,6 +735,7 @@ class PaperTrader:
             'close_price': pos.close_price,
             'realized_pnl': pos.realized_pnl,
             'r_multiple': pos.trade_r_multiple,
+            'close_reason': pos.close_reason,
             'close_time': pos.close_time.isoformat() if pos.close_time else ''
         }
 
@@ -698,8 +751,11 @@ class PaperTrader:
         # Win-rate over DECIDED trades only (wins + losses); breakeven scratches
         # are excluded from the denominator so an early-BE strategy isn't
         # penalised as if every scratch were a loss.
+        # E-04 (2026-08-26): with 0 decided trades this returned 0.0, which renders
+        # identically to "0 of 7 won". None means "no data yet" and every consumer
+        # now renders it as n/a with the scratch count.
         _decided = self.winning_trades + self.losing_trades
-        win_rate = (self.winning_trades / _decided) if _decided > 0 else 0.0
+        win_rate = (self.winning_trades / _decided) if _decided > 0 else None
         closed = [p for p in self.trade_history if p.status == TradeStatus.CLOSED]
         avg_r = sum(p.trade_r_multiple for p in closed) / max(1, len(closed))
 
@@ -760,7 +816,9 @@ class PaperTrader:
             'total_trades': self.total_trades,
             'winning_trades': self.winning_trades,
             'losing_trades': self.losing_trades,
-            'win_rate': round(win_rate, 4),
+            'win_rate': (round(win_rate, 4) if win_rate is not None else None),
+            'decided_trades': _decided,
+            'scratch_trades': self.scratch_trades,
             'avg_r': round(avg_r, 2),
             'avg_r_per_trade': round(avg_r, 2),
             'max_drawdown_pct': round(self.max_drawdown_pct, 2),
@@ -783,11 +841,24 @@ class PaperTrader:
             out.append(d)
         return out
 
-    def get_trade_history(self, limit: int = 50) -> List[Dict]:
+    def get_trade_history(self, limit: int = 50, include_cancelled: bool = False) -> List[Dict]:
         """Return recent trade history, mapping internal field names to the
-        keys the dashboard expects."""
+        keys the dashboard expects.
+
+        2026-08-26: CANCELLED orders are excluded by default. `trade_history`
+        receives them from four sites -- age expiry, activation-gate rejection
+        at fill time, E-05 distance drift, and (historically) nothing else --
+        but a cancelled order was NEVER FILLED: no risk was taken and its P&L is
+        structurally 0.00. Rendering it in CLOSED THIS SCAN / TRACK RECORD made
+        it read as a scratch trade. That is where the log's "0.00 USD SCRATCH"
+        rows with a NEGATIVE peak R came from (AUDUSD=X, CADCHF=X, GBPCAD=X) --
+        they were never trades. Pass include_cancelled=True to audit them.
+        """
+        src = self.trade_history if include_cancelled else [
+            t for t in self.trade_history if t.status != TradeStatus.CANCELLED
+        ]
         out = []
-        for t in self.trade_history[-limit:]:
+        for t in src[-limit:]:
             d = asdict(t)
             d['r_multiple'] = d.pop('trade_r_multiple', 0.0)
             d['pnl'] = d.get('realized_pnl', 0.0)

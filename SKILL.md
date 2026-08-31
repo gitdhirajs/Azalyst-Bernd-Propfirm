@@ -191,10 +191,11 @@ When Bernd marks HTF zones in live sessions he draws BOTH the preferred (inner) 
 **ZigZag % by timeframe** (Phase 9 — OTC Ch.012 "six second percent"):
 | Timeframe | Default % | Asset-class exceptions |
 |-----------|-----------|------------------------|
-| Weekly (1wk) | 6% | **NG=F: 15%** — extreme volatility; 6% creates excessive noise pivots |
-| Daily (1d) | 3% | — |
+| Weekly (1wk) | 6% | **NG=F: 15%**, **PA=F: 15%**, **ZW=F: 10%**, **SI=F: 10%** (Phase 46 — Bernd tests 5%/2% live then explicitly reverts to 10%) |
+| Daily (1d) | 3% | **CL=F/QM=F/HO=F/RB=F/BZ=F: 5%** |
 | 4-Hour (4H) | 2% | — |
 | 1-Hour (1H) | 1% | — |
+| **ES=F (E-mini S&P)** | **flat 5% on ALL timeframes** (Phase 46) — overrides the whole table above for this symbol only, per an identical status-bar label confirmed on the SAME @ES chart across Weekly/Monthly/Daily | — |
 
 **Natural Gas (NG=F) uses 15% on the weekly timeframe** (Phase 25 correction). NG's intraday swings routinely exceed 6%, making the standard weekly % produce spurious pivots. 15% matches Bernd's visual pivot identification on NG weekly charts.
 
@@ -267,15 +268,18 @@ Implementation: `BP_rules_engine.refine_zone(htf_zone, target, ohlcv_by_tf, inco
 
 | Group | How to Use | Asset Classes |
 |-------|-----------|---------------|
-| **Commercials** | TRADE WITH them. Index ≥80 = BULLISH. ≤20 = BEARISH. 156-week (3yr) extreme = STRONGEST signal | **Commodities** (CL, NG, ZC, ZW, ZS, CT, KC), **Precious Metals** (GC, SI, PL, PA) |
-| **Non-Commercials** | DIVERGENCE focus. Right in trends, WRONG at extremes. Price new low + COT higher low = bullish divergence | **Forex** (6E, 6B, 6J, 6A, 6C, 6S), **Equity Indices** (ES, NQ, YM), **Soft Tropical** (CC, SB, OJ) |
+| **Commercials** | TRADE WITH them. Index ≥80 = BULLISH. ≤20 = BEARISH. 156-week (3yr) extreme = STRONGEST signal | **Commodities** (CL, NG, ZC, ZW, ZS, CT, KC, **CC** — Phase 46), **Precious Metals** (GC, SI, PL, PA) |
+| **Non-Commercials** | DIVERGENCE focus. Right in trends, WRONG at extremes. Price new low + COT higher low = bullish divergence | **Forex** (6E, 6B, 6J, 6A, 6C, 6S), **Equity Indices** (ES, NQ, YM), **Soft Tropical** (SB, OJ — Cocoa moved to Commercials, Phase 46) |
 | **Retailers** | CONTRARIAN. Extreme net long = bearish signal, extreme net short = bullish signal | **Natural Gas** (NG=F) only |
 
 **Per-asset routing (Phase 14 + Phase 17 corrections):**
 - **Precious Metals (GC/SI/PL/PA)**: Commercials ① (non-contrarian). "Retailers bearish + Commercials bullish = perfect PM buy" (Ch.147/122/132). The earlier "Retailers CONTRARIAN for PM" entry was WRONG — retailers are a confirming odds-enhancer (③), not the primary driver. (Phase 17 fix)
 - **Natural Gas (NG=F)**: Retailers ① (CONTRARIAN). Historical retailer extremes signal reversals. Valuation excluded for NG. (Phase 12)
 - **Grains + Cotton (ZC/ZW/ZS/CT)**: Commercials 52w. "Planting/harvesting season" commercial hedging dominates. (Phase 14 — Ch.159/168/113/144)
-- **Tropical soft commodities (CC/KC/SB/OJ)**: Non-Commercials 26w divergence. (Phase 14/16)
+- **Crude Oil (CL=F)**: Commercials, but lookback is **26w** (not the general 52w commodity default) — reverted from 52w. Two independent settings-dialog frames confirm `WeeklyLookBack=26` specifically for @CL. (Phase 46)
+- **Coffee (KC=F)**: Commercials 52w — retailers "not real retailers" for coffee. (Phase 16)
+- **Cocoa (CC=F)**: Commercials 52w, Non-Commercials explicitly disabled — moved OUT of the tropical-softs Non-Commercials grouping. Two independent settings-dialog frames confirm `DisplayNonCommercialTradersIndex=false` + `WeeksLookBack=52`. (Phase 46)
+- **Tropical soft commodities (SB/OJ only)**: Non-Commercials 26w divergence. Corpus remains silent/unclear on these two — not yet re-audited. (Phase 14/16)
 - **Bitcoin**: Seasonality 4yr lookback only (data history too short for 5/10/15yr). (Phase 16)
 
 **For Forex**: ALWAYS cross-check opposing currency COT. EUR bearish + USD bullish = double confirmation.
@@ -289,7 +293,7 @@ The COT Report indicator (separate from COT Index) plots the **actual contract c
 
 | Asset Class | Timeframe | References | ROC Setting |
 |-------------|-----------|------------|-------------|
-| Forex | Weekly | Dollar (DXY) only | 10 (Pine Script default) |
+| Forex | Weekly | **DXY + ZB + GC** (Phase 46 — reverted from DXY-only; a genuine live session shows all 3 refs active on CHF+GBP simultaneously) | 10 (Pine Script default) |
 | **Equity Indices** (ES/NQ/YM) | Daily | **DXY + ZN + ZB** | 10 |
 | **Individual Stocks** (AAPL/MSFT/etc.) | Daily | **ZN + ZB + GC** (no DXY — OTC 2025 L3: "unselect reference symbol three, which is the dollar") | 10 |
 | Commodities | Weekly | All three (DXY, GC, ZB) | 10 (Pine Script default) |
@@ -498,7 +502,7 @@ The course provides 4 indicators. Known issues and fixes:
 - **Fix**: Asset presets per canonical Pine Script source (`Valuation_v4.pine`, Phase 21 audit):
   - **Equity Indices (ES/NQ/YM)**: `ZB1!` (30yr T-Bond) + `DXY` only. **NOT ZN** — Phase 21 removed ZN1! (10yr T-Note), it was double-counting bonds. ROC=10.
   - **Individual Stocks**: `ZB1!` + `GC1!` (Gold). **No DXY** (OTC 2025 L3: "unselect reference symbol three, which is the dollar"). ROC=10.
-  - **Forex**: `DXY` only. ROC=10.
+  - **Forex**: `DXY` + `ZB1!` + `GC1!` (Phase 46 — reverted from DXY-only; live CHF/GBP session shows all 3 refs active). ROC=10.
   - **Commodities / Precious Metals**: All three (`DXY` + `ZB1!` + `GC1!`). ROC=10.
   - **Natural Gas (NG=F)**: **EXCLUDED** — weather/supply shocks make DXY-relative reading uninformative.
 - **Fix**: `Length=10` is the Pine Script default for ALL asset classes (confirmed Phase 7). "Dual-ROC" is an overlay practice (two separate indicator instances), NOT a parameter change on a single instance.
@@ -640,4 +644,6 @@ The methodology files in `methodology/*.md` are the canonical spec. They have be
 - **Phase 26**: **DeepSeek gap fixes + cycle dominance override.** Four methodology gaps identified by external DeepSeek Pro v4 review and applied: (1) **ATH momentum override** — when equity index is in expensive zone (`loc='bearish'`) but trend is confirmed uptrend AND 4-bar ROC > 2%, downgrade `loc` from 'bearish' to 'neutral' inside `_analyze_htf`, preventing hard bearish-location veto from blocking cycle-driven long signals; (2) **SPY relative-strength proxy for stocks** — replaces Phase 23 absolute SMA proxy with relative-strength vs SPY: stock underperformed SPY by >10% over 52w = relatively undervalued, outperformed by >15% = relatively overvalued. Captures "cheap relative to market" reasoning without `CampusValuationTool_V2`; (3) **USD-base forex price inversion moved into `_analyze_htf`** (was post-hoc label swap in `run_seven_step_process`) — raw OHLCV is now inverted (1/price) before Fib computation, giving geometrically correct Location in quote-currency frame; (4) **COT momentum trigger** — when 26w index hasn't crossed 80/20 but shows 25%+ scale movement over 5 weeks AND 156w extreme is already at extreme, fire directional bias. Same COT-king classes only. Plus Phase 26b **cycle dominance override**: for equity indices where `loc != 'bearish'` (already relaxed by Gap 1), when both presidential AND sannial cycles agree bullish AND COT/Valuation/Seasonality are not bearish → return 'bullish'. Goldtest Stage-1: **87/156 = 55.8%** (+5 from Phase 25). Stage-2: 13/156 = 8.3% unchanged. Zero false positives preserved
 - **Phase 27**: **Presidential/sannial cycle path for individual stocks.** Bernd's 2023 roadmap calls on individual stocks (AAPL/GOOG/META/NFLX/TSLA) were uniformly bullish throughout 2023 — driven by pre-election year-3 + sannial year-3 (both strongly bullish cycles), NOT by technical indicators. When both long-term cycles agree bullish (pres_score>0 AND sann_score>0) AND seasonality is not bearish, the equities branch in `_bias_consensus` now returns 'bullish' without requiring Valuation or Location to agree. Two design guards: (a) **Seasonality guard preserved** (`seas_n != 'bearish'`) — prevents firing on mid-October AAPL cases where Bernd himself called neutral, protecting correct Stage-1 passes; (b) **Trend guard removed (Phase 27b)** — the Oct-Dec 2023 ZigZag at 6% weekly threshold showed 'downtrend' for stocks recovering from summer pullback, blocking correct calls. Safe to remove because equities branch never returns 'bearish' — Stage-2 zone+decision-matrix still gates all real trade signals. `today_override` dependency: the live scanner passes `date.today()` (2026, sann_year=6, score=0, doesn't fire); the goldtest bias_only path passes `case_date` (2023, cy=3, pres=1, sann=1, fires correctly for historical backtesting). Goldtest Stage-1: **96/156 = 61.5%** (+9 from Phase 26). Stage-2: 13/156 = 8.3% unchanged. Zero Stage-2 false positives preserved. Cases gained: AAPL Jan 2023, GOOG Jan 2023, AAPL Mar 2023, GOOG Apr 2023, META Jan 2023, GOOG Apr 2023 (2nd), AAPL Dec 2023, AAPL Jan 2023 (2nd test case), AAPL Oct 2023 (pres=1, sann=1, seas=neutral). Cases still blocked: Oct 29 2023 cluster (AAPL/META/TSLA at seasonal low with `seas=bearish` for late October — Bernd's discretionary "buy the low" override that can't be replicated mechanically). **Files changed**: `BP_rules_engine.py` (Phase 27 equities cycle path in `_bias_consensus`), `goldtest/run_goldtest.py` (Stage-1 bias_only summary line added to output)
 
-For full audit details: `_audit/skill_audit/FINAL_REPORT.md` (Phase 4+5) and `_audit/skill_audit/phase6/FINDINGS.md` (Phase 6). Phase 21-27 details in `CLAUDE.md` per-phase sections.
+- **Phase 46**: **Full 179-chapter indicator-CALCULATION audit** (not directional trade-call matching this time — checked whether Valuation refs/ROC/thresholds, COT group/lookback, ZigZag % actually match what Bernd configures on screen). One-agent-per-chapter sequential extraction (rate-limit safe) + category synthesis + final merge; 720 raw findings, 9 CONFIRMED_DRIFT. 7 fixes applied: (1) **CC=F (Cocoa) COT** moved Non-Commercials/26w → **Commercials/52w, Non-Comm disabled** (two settings-dialog frames confirm `DisplayNonCommercialTradersIndex=false`); (2) **CL=F (Crude) COT lookback** 52w → **26w** (two settings-dialog frames confirm `WeeklyLookBack=26`); (3) **Forex + crypto Valuation refs** DXY-only → **3-ref (DXY+ZB+GC)** — a genuine LIVE session (CW05 FX Edition, Jan 2024) shows CHF and GBP both with all 3 refs active simultaneously, overturning the earlier DXY-only reading which turned out to be a teaching-session narrowing; (4) **Forex Valuation threshold** ±69 → **±75** (zero on-screen sightings of 69 found across 5 independent frames; the ±69 figure traced only to an unconfirmed cheatsheet annotation); (5) **GC=F (Gold) Valuation ROC** 13 → **10** (the 13 value came from one Nov 2023 frame; 7 independent chapters spanning the corpus show `Length=10`); (6) **SI=F (Silver) weekly ZigZag** uncoded → **10%** (Bernd tests 5%/2% live then explicitly reverts to 10%); (7) **ES=F (E-mini S&P) ZigZag** tiered 10/6/3 → **flat 5% all timeframes** (same status-bar label confirmed across Weekly/Monthly/Daily on one chart). Goldtest Stage-1: 115/156=73.7% → **116/156=74.4%** (+1). Stage-2: 21/160=13.1% → **26/160=16.2% (+5)**. Zero new false positives, zero new wrong-direction cases (same 4 known ones preserved). Full evidence + methodology-doc updates in `CLAUDE.md` "Phase 46" section.
+
+For full audit details: `_audit/skill_audit/FINAL_REPORT.md` (Phase 4+5) and `_audit/skill_audit/phase6/FINDINGS.md` (Phase 6). Phase 21-27 details in `CLAUDE.md` per-phase sections. **Phases 28-45 are documented only in `CLAUDE.md`, not yet backfilled here** — check there for anything between Phase 27 and Phase 46.

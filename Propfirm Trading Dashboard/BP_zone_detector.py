@@ -5,6 +5,7 @@ Scans price history for DBR, RBR, RBD, DBD formations and scores them.
 """
 
 import pandas as pd
+import os
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
@@ -19,6 +20,7 @@ class ZoneDetector:
     """Detect supply/demand zones and score using 6 qualifiers + LOL."""
 
     def __init__(self, config: dict):
+        self.config = config or {}
         self.leg_in_min = config.get('leg_in_min_candles', 3)
         self.base_max = config.get('base_max_candles', 6)
         self.base_min = config.get('base_min_candles', 1)
@@ -119,7 +121,38 @@ class ZoneDetector:
             return None
 
         i = self.leg_in_min
+        # C-82 EXPERIMENTAL, DEFAULT OFF (`fair_zone_scan`).
+        # The original loop below is a strict priority cascade: DBR, then RBR, then
+        # RBD, then DBD -- and on a match it advances `i` past the ENTIRE formation
+        # (leg_out_end + 1). So wherever a demand and a supply formation overlap in
+        # time, the demand pattern is tested first, wins, and the supply pattern is
+        # never evaluated at all. Measured consequence over 5y weekly bars on 10
+        # symbols: 151 demand zones vs 45 supply, a 3.4:1 skew, reaching 24:1 on SI=F
+        # and 16:1 on BABA -- BABA having FALLEN across that window, where supply
+        # zones should dominate. Every downstream long bias inherits this.
+        # The fair variant evaluates all four patterns at each bar and keeps every
+        # match, advancing past the SHORTEST formation so overlapping zones survive.
+        _fair = bool(self.config.get('fair_zone_scan', False)
+                     or (self.config.get('rules', {}) or {}).get('fair_zone_scan', False)
+                     or os.environ.get('BP_FAIR_ZONE_SCAN') == '1')
         while i < len(df) - 5:
+            if _fair:
+                _cands = [
+                    (self._detect_dbr(df, i), 'demand', 'drop_base_rally'),
+                    (self._detect_rbr(df, i), 'demand', 'rally_base_rally'),
+                    (self._detect_rbd(df, i), 'supply', 'rally_base_drop'),
+                    (self._detect_dbd(df, i), 'supply', 'drop_base_drop'),
+                ]
+                _hits = [(f, zt, nm) for f, zt, nm in _cands if f]
+                if _hits:
+                    for _f, _zt, _nm in _hits:
+                        zones.append(self._score_zone(_f, df, symbol, timeframe, _zt, _nm,
+                                                      with_trend=_aligns(_zt)))
+                    i = min(f['leg_out_end'] for f, _, _ in _hits) + 1
+                    continue
+                i += 1
+                continue
+
             # ---- Demand Zone: Drop-Base-Rally (DBR) ----
             dbr = self._detect_dbr(df, i)
             if dbr:
@@ -421,6 +454,34 @@ class ZoneDetector:
             margin_distance = proximal - min_move
 
         margin_ratio = margin_distance / max(zone_height, 0.0001)
+
+        # C-123, default OFF (BP_Q5_BOUNDED). The margin above runs from the zone to the
+        # end of the LOADED HISTORY, so it grows with zone age and with how many bars
+        # happen to be loaded -- measured 181 to 874 against a threshold of 5, which makes
+        # the branch structure unreachable and scores the YOUNGEST zones worst (C-109).
+        # Those are the zones nearest price, i.e. the tradeable ones.
+        #
+        # C-109 could not fix it because no bounded horizon was defined. The course
+        # material names one: the profit margin runs to the OPPOSING zone, not to the
+        # maximum of all subsequent price action. Measured here as the distance from the
+        # proximal to the nearest opposing-side extreme within a bounded window, in zone
+        # heights -- finite, independent of lookback, and it does not grow with age.
+        #
+        # Kept as a separate field. `margin_ratio` above is untouched so the existing
+        # score and every recorded result stay byte-identical while the flag is off.
+        _q5_window = int(self.config.get('profit_margin_lookahead_bars', 60))
+        _fwd = df.iloc[zone['leg_out_end']:zone['leg_out_end'] + _q5_window]
+        if len(_fwd):
+            if zone_type == 'demand':
+                _bounded_move = float(_fwd['high'].max()) - proximal
+            else:
+                _bounded_move = proximal - float(_fwd['low'].min())
+            margin_ratio_bounded = _bounded_move / max(zone_height, 0.0001)
+        else:
+            margin_ratio_bounded = margin_ratio
+        if os.environ.get('BP_Q5_BOUNDED') == '1':
+            margin_ratio = margin_ratio_bounded
+
         if with_trend is True:
             profit_score = 10.0  # Skip Q5 on trend trades per Hybrid AI Module 1
         elif margin_ratio >= 5:
@@ -457,6 +518,26 @@ class ZoneDetector:
             arrival_score = 5.0
         else:
             arrival_score = 3.0
+
+        # C-108 diagnostics. Q1/Q5/Q6 all collapse to the constant 10.0 for most
+        # zones -- Q1 because its top branch repeats the detection gate verbatim
+        # (`body_pct >= 0.70` at line 352 is also the condition for a leg-out to
+        # exist at all), Q5/Q6 because trend-aligned zones are awarded full marks
+        # so the qualifier cannot gate them. The underlying MEASUREMENTS still
+        # differ between zones; only the scores are flat. Persist them so ranking
+        # experiments can use the measurement instead of the flattened score.
+        #
+        # Read-only: nothing downstream consumes these, so emitting them cannot
+        # change which zones qualify or how they are ordered.
+        try:
+            _avg_body = df['avg_body_20'].iloc[zone['leg_out_end']]
+            if pd.isna(_avg_body) or _avg_body == 0:
+                _avg_body = None
+        except Exception:
+            _avg_body = None
+        departure_strength = (
+            float(leg_out_candle['body'] / _avg_body) if _avg_body else None
+        )
 
         # LOL: Level on Top (deferred to multi-TF analysis)
         lot_score = 0.0
@@ -503,6 +584,17 @@ class ZoneDetector:
             'level_on_top_score': round(lot_score, 2),
             'composite_score': round(composite, 2),
             'margin_ratio': round(margin_ratio, 2),
+            # C-123 diagnostic: the bounded form, always emitted so the two can be
+            # compared without re-running. Nothing consumes it unless BP_Q5_BOUNDED=1.
+            'margin_ratio_bounded': round(margin_ratio_bounded, 2),
+            # C-108 read-only diagnostics -- the measurements behind the flattened
+            # Q1/Q6 scores. `departure_strength` is the leg-out body as a multiple
+            # of avg_body_20 (detection only lower-bounds this at leg_out_multiplier,
+            # so it stays informative above the gate); `bars_to_return` is Q6's raw
+            # input before the with_trend override. Nothing consumes these.
+            'departure_strength': (round(departure_strength, 3)
+                                   if departure_strength is not None else None),
+            'bars_to_return': int(bars_to_return),
             'htf_aligned': False,
             'q5_failed_gate': q5_failed_gate,
             'with_trend':     with_trend,
@@ -629,23 +721,110 @@ class ZoneDetector:
             wider_hits = int((in_wider & ~deep_pref).sum())
         return wider_hits, preferred_hits
 
-    def rank_zones(self, zones: List[Dict], min_score: float = 5.0) -> List[Dict]:
+    def rank_zones(self, zones: List[Dict], min_score: float = 5.0,
+                   current_price: Optional[float] = None) -> List[Dict]:
         """Filter and rank zones by composite score.
+
+        `current_price` is optional and only consulted when BP_ZONE_REACHABLE is
+        set (C-110); without it the ordering is composite-only, as before.
 
         Hard-rejects:
           - Q5 MUST PASS gate failure (counter-trend zone with profit_margin=0)
           - Composite below min_score (default 5.0; methodology recommends 4.0+)
+          - ZERO-HEIGHT zone (proximal == distal) — see C-88 below
 
         NOTE: a >25%-penetrated zone is NOT hard-rejected here — its Q3 freshness
         is already 0 (heavy composite penalty), and hard-rejecting it regressed
         the Bernd-clone match (Phase 37). The composite gate is the intended
         filter for consumed zones.
+
+        C-88 (2026-08-26). A zone whose proximal equals its distal cannot produce
+        a tradeable order. Downstream, `entry = proximal` and (weekly/monthly)
+        `stop = distal`, so risk-per-unit is 0, `_calculate_targets` returns three
+        targets all equal to the entry, and `trade_r_multiple` is forced to 0 by
+        its own `abs(entry - stop) > 0` guard. The order is either rejected by the
+        broker or stopped out the instant it fills.
+
+        Nothing upstream could catch it: not one of the seven qualifiers in
+        `_score_zone` looks at zone height. Measured on PL=F 2024-02-15
+        (reproducible offline: run_goldtest.py --cases-file full_shard4.yaml
+        --case 78 --cot-snapshot read --ohlcv-snapshot read), the degenerate zone
+        scored `composite 8.8` — departure 10, base_duration 10, originality 12,
+        profit_margin 10, arrival 10 — and ranked FIRST of ten, so it was the zone
+        the signal was built on. It is not an edge case in the corpus: 3 of the 8
+        Stage-2 signals in the whole 479-case out-of-sample run are this same
+        PL=F zone, i.e. 37% of everything the system fired.
+
+        Kill-switch: BP_ALLOW_ZERO_HEIGHT_ZONE=1 restores the old behaviour.
         """
+        import os as _os
+        _allow_degenerate = _os.environ.get('BP_ALLOW_ZERO_HEIGHT_ZONE') == '1'
         valid = [
             z for z in zones
             if z['composite_score'] >= min_score
             and not z.get('q5_failed_gate', False)
+            and (_allow_degenerate
+                 or float(z.get('proximal', 0)) != float(z.get('distal', 0)))
         ]
+        # C-110: reachability as an ORDERING, not an exclusion.
+        #
+        # `valid` holds every same-type zone in the loaded history, and the sort
+        # below is on composite alone, which contains no term for where price is
+        # now. Measured over 65 drawn setups (goldtest/zone_choice_separation.py),
+        # rank-1 was a zone a median 904 bars old while the zone they actually
+        # traded was 467 bars old, and rank-1 sat a median 6.29R from their entry
+        # -- worse than a pseudo-random pick of the same pool.
+        #
+        # Ranking reachable zones ahead of unreachable ones cut the median entry
+        # error from 4.74R to 2.02R. The effect held at every band tried (2/5/10/20%)
+        # and on both halves of the sample, so it comes from the filter, not the
+        # width; 0.10 is the midpoint of that sweep and the most stable across halves.
+        #
+        # Deliberately an ordering and not a rejection: an unreachable zone still
+        # ranks, just below every reachable one, so this cannot empty the candidate
+        # list on a symbol where nothing is close. Default OFF pending the A/B.
+        # C-124, default OFF (BP_NEAREST_FRESH). "Find nearest Supply Zone (First fresh)"
+        # is how the course states step 1, and freshness is its single most-repeated
+        # criterion -- 81 of 273 extracted rules (30%), ahead of HTF coverage (17%).
+        #
+        # Our implementation cannot express it. `freshness_score` is 0 on 91.6% of zones
+        # on the trading path (C-108) because we score EVERY zone in the loaded history
+        # and almost all of them have been retested, while he reads the current chart and
+        # takes the first untested one. So the most important qualifier in the method is
+        # a near-constant in the engine, and the composite that consumes it loses to a
+        # pseudo-random ordering of its own pool (C-110).
+        #
+        # This expresses it as a FILTER-THEN-SORT rather than a score: among zones price
+        # has not already consumed, take the closest. C-110 measured "nearest to price"
+        # alone at 2.64R median entry error against 4.74R for the composite, so the
+        # empirical result and the stated method agree; the engine does neither.
+        #
+        # Fresh zones are ordered ahead of stale ones and never exclude them, so this
+        # cannot empty the candidate list.
+        if _os.environ.get('BP_NEAREST_FRESH') == '1' and current_price:
+            px = abs(float(current_price))
+            valid.sort(key=lambda z: (
+                0 if float(z.get('freshness_score', 0)) > 0 else 1,
+                abs(float(z['proximal']) - current_price) / px,
+            ))
+            return valid
+
+        _band = _os.environ.get('BP_ZONE_REACHABLE')
+        if _band and current_price:
+            try:
+                band = float(_band) if _band != '1' else 0.10
+            except ValueError:
+                band = 0.10
+            px = abs(float(current_price))
+            valid.sort(
+                key=lambda z: (
+                    1 if abs(float(z['proximal']) - current_price) / px <= band else 0,
+                    z['composite_score'],
+                ),
+                reverse=True,
+            )
+            return valid
+
         valid.sort(key=lambda z: z['composite_score'], reverse=True)
         return valid
 

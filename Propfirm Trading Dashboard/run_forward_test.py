@@ -251,6 +251,8 @@ def run_forward_test(
     strategy: str = "weekly",
     start_date: date = date(2026, 3, 1),
     end_date: date = date(2026, 5, 6),
+    ohlcv_snapshot: str = "off",
+    cot_snapshot: str = "off",
 ) -> List[Dict]:
     """
     For each symbol in the watchlist, for each weekly date from start→end:
@@ -273,7 +275,13 @@ def run_forward_test(
     else:
         _ref_period = "729d"
 
-    fetcher = DataFetcher()
+    # Snapshot pinning (2026-08-26). Yahoo re-splices history and CFTC revises
+    # it, so two runs of identical code scored differently -- measured at ~2.5pp
+    # on the goldtest, larger than most effects tested. "fill" fetches what is
+    # missing and pins it; "read" is offline and byte-reproducible thereafter.
+    # Default "off" keeps the previous live-fetch behaviour unchanged.
+    fetcher = DataFetcher(ohlcv_snapshot_mode=ohlcv_snapshot,
+                          cot_snapshot_mode=cot_snapshot)
     engine  = RulesEngine(config)
 
     scan_dates = _mondays_between(start_date, end_date)
@@ -418,6 +426,16 @@ def run_forward_test(
                 "trade_context": signal.get("trade_context", "standard"),
                 "composite": round(signal.get("qualifier_scores", {}).get("composite", 0), 1),
                 "zone_id":   zone_id,
+                # --- fields consumed by goldtest/replay_trades.py -------------
+                # `outcome`/`r` above come from _outcome(), which only asks
+                # whether T1 or the stop came first -- no breakeven, no partial,
+                # no trailing. These carry the full signal so the same trade can
+                # be re-run through the real PaperTrader instead.
+                "call_date":       cutoff_str,
+                "entry_price":     entry,
+                "stop_price":      stop,
+                "targets":         signal.get("targets"),
+                "income_strategy": strategy,
             }
             all_trades.append(trade_rec)
 
@@ -591,6 +609,21 @@ def main() -> None:
         "--verbose", action="store_true",
         help="Show INFO-level engine logs"
     )
+    parser.add_argument(
+        "--emit-signals", metavar="FILE",
+        help="Write every fired signal to FILE as JSON, in the shape "
+             "goldtest/replay_trades.py consumes. The built-in outcome column "
+             "only checks T1-vs-stop; the replay runs the real PaperTrader."
+    )
+    parser.add_argument(
+        "--ohlcv-snapshot", choices=["off", "write", "read", "fill"], default="off",
+        help="Pin price data. 'fill' fetches what is missing and pins it; "
+             "'read' is offline and byte-reproducible. Default 'off' = live fetch."
+    )
+    parser.add_argument(
+        "--cot-snapshot", choices=["off", "write", "read", "fill"], default="off",
+        help="Pin CFTC data. Same contract as --ohlcv-snapshot."
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -642,10 +675,20 @@ def main() -> None:
         strategy=strategy,
         start_date=start_date,
         end_date=end_date,
+        ohlcv_snapshot=args.ohlcv_snapshot,
+        cot_snapshot=args.cot_snapshot,
     )
 
     # Print results
     print_results(trades, start_date, end_date)
+
+    if args.emit_signals:
+        import json as _json
+        with open(args.emit_signals, "w", encoding="utf-8") as fh:
+            _json.dump(trades, fh, indent=1, default=str)
+        print(f"\nwrote {len(trades)} signals to {args.emit_signals}")
+        print("replay them through the real PaperTrader with:")
+        print(f'  python goldtest/replay_trades.py --signals-file "{args.emit_signals}" --ab')
 
 
 if __name__ == "__main__":

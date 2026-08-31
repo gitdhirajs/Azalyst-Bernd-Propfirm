@@ -1,11 +1,13 @@
 """Data fetching module - Yahoo Finance for price data, CFTC for COT data."""
 
 import time
+import os
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
@@ -54,11 +56,51 @@ class DataFetcher:
     `DataFetcher(allow_cot_simulation=True)`.
     """
 
+    # Default on-disk location for pinned CFTC snapshots (see cot_snapshot_dir).
+    DEFAULT_COT_SNAPSHOT_DIR = Path(__file__).parent / "cot_snapshot"
+    DEFAULT_OHLCV_SNAPSHOT_DIR = Path(__file__).parent / "ohlcv_snapshot"
+
     def __init__(
         self,
         allow_cot_simulation: bool = False,
         full_history_cot: bool = False,
+        cot_snapshot_dir: Optional[str] = None,
+        cot_snapshot_mode: str = "off",
+        ohlcv_snapshot_dir: Optional[str] = None,
+        ohlcv_snapshot_mode: str = "off",
     ):
+        # OHLCV pinning: same off/write/read contract as the COT snapshot.
+        # Yahoo revises history (roll splicing, split/dividend adjustment) and
+        # fails intermittently, so unpinned price data makes regression scores
+        # drift on rerun exactly the way CFTC revisions did.
+        if ohlcv_snapshot_mode not in ("off", "write", "read", "fill"):
+            raise ValueError(
+                f"ohlcv_snapshot_mode must be off/write/read/fill, got {ohlcv_snapshot_mode!r}")
+        self.ohlcv_snapshot_mode = ohlcv_snapshot_mode
+        self.ohlcv_snapshot_dir = Path(ohlcv_snapshot_dir) if ohlcv_snapshot_dir \
+            else self.DEFAULT_OHLCV_SNAPSHOT_DIR
+        # --- CFTC snapshot pinning ------------------------------------------
+        # The CFTC REVISES historical positioning data, so the same (code, date)
+        # can return a different net position months later. That makes any
+        # COT-dependent regression test non-reproducible: goldtest scores drift
+        # even with zero code changes. Verified concretely -- GC=F 2023-08-26
+        # was recorded during Phase 18 as comm_idx_26w=68.59 / 156w=86.32, but
+        # today the same date/window returns 97.96 / 77.24 from the live API.
+        #
+        # cot_snapshot_mode:
+        #   "off"   -- always hit the live CFTC API (default; live scanning)
+        #   "write" -- hit the API, then persist each result to disk
+        #   "read"  -- read ONLY from disk; never touch the network. Use this
+        #              for regression tests so results are byte-reproducible.
+        #              A missing snapshot returns empty (treated as neutral)
+        #              rather than silently falling back to live data.
+        if cot_snapshot_mode not in ("off", "write", "read", "fill"):
+            raise ValueError(
+                f"cot_snapshot_mode must be off/write/read/fill, got {cot_snapshot_mode!r}")
+        self.cot_snapshot_mode = cot_snapshot_mode
+        self.cot_snapshot_dir = Path(cot_snapshot_dir) if cot_snapshot_dir \
+            else self.DEFAULT_COT_SNAPSHOT_DIR
+
         self.allow_cot_simulation = allow_cot_simulation
         # When True, fetch_cot_data() transparently calls fetch_cot_full_history()
         # so the COT normalization (rolling 52w / 156w extremes / all-time bands)
@@ -103,11 +145,56 @@ class DataFetcher:
             DataFrame with columns: timestamp, open, high, low, close, volume.
             Empty DataFrame when no data is available after all retries.
         """
-        cache_key = (symbol, interval, period or f"{start}:{end}")
+        # 2026-08 FTW audit C-51 (CRITICAL) — the cache key used to omit
+        # `allow_proxy`, which silently defeated the fail-safe documented above.
+        # A reference fetch (allow_proxy=True) that fell back to an ETF proxy
+        # stored GLD bars under the key ('GC=F', ...); the later TRADABLE fetch
+        # for GC=F (allow_proxy=False) hit that same key and was served proxy
+        # data from cache WITHOUT any network call or warning. Entry/stop/target
+        # were then computed on ~$310 GLD bars instead of ~$3,400 gold, and
+        # because lot size is risk-budget / stop-distance, the position came out
+        # roughly an order of magnitude too large — on a real FundingPips ticket.
+        #
+        # Two changes below:
+        #  1. `allow_proxy` is part of the key, so a proxy-allowed entry can
+        #     never satisfy a proxy-forbidden request.
+        #  2. PRIMARY data (no proxy fallback taken) is valid for both modes, so
+        #     it is written under both keys; PROXY data is written ONLY under the
+        #     allow_proxy=True key. This keeps the cache-hit rate for references
+        #     while making proxy leakage into the tradable path impossible.
+        # Also fixed: start/end now take precedence in the key, matching
+        # _fetch_one's own precedence (period defaults to "2y" and is never
+        # falsy, so a bounded slice used to be cached under the unbounded key).
+        _scope = (start, end) if (start and end) else period
+        cache_key = (symbol, interval, _scope, allow_proxy)
         if cache_key in self._ohlcv_cache:
             return self._ohlcv_cache[cache_key].copy()
 
+        # --- OHLCV snapshot pinning (mirrors the COT mechanism) -------------
+        # Yahoo revises/re-splices history (continuous-futures rolls, split and
+        # dividend adjustments) and intermittently fails outright, so a rerun of
+        # the same test can score differently with zero code changes. In "read"
+        # mode we serve only pinned bars and never touch the network; a missing
+        # pin returns empty (-> no signal, fail-safe) rather than silently
+        # falling back to live data.
+        _snap_key = self._ohlcv_snap_key(symbol, interval, _scope, allow_proxy)
+        if self.ohlcv_snapshot_mode == "fill":
+            _cached = self._read_ohlcv_snapshot(_snap_key)
+            if _cached is not None:
+                self._ohlcv_cache[cache_key] = _cached
+                return _cached.copy()
+        if self.ohlcv_snapshot_mode == "read":
+            snap = self._read_ohlcv_snapshot(_snap_key)
+            if snap is None:
+                logger.warning(
+                    "OHLCV snapshot missing for %s (mode=read) — returning empty. "
+                    "Run build_ohlcv_snapshot.py to create it.", _snap_key)
+                return pd.DataFrame()
+            self._ohlcv_cache[cache_key] = snap
+            return snap.copy()
+
         df = self._fetch_one(symbol, interval, period, start, end, retries)
+        used_proxy = False
         if df.empty and allow_proxy and symbol in FUTURES_PROXY:
             proxy = FUTURES_PROXY[symbol]
             logger.warning(
@@ -115,9 +202,19 @@ class DataFetcher:
                 f"(allow_proxy=True — valid for ROC/valuation refs only, never a tradable)"
             )
             df = self._fetch_one(proxy, interval, period, start, end, retries)
+            used_proxy = not df.empty
 
         if not df.empty:
-            self._ohlcv_cache[cache_key] = df.copy()
+            self._ohlcv_cache[(symbol, interval, _scope, True)] = df.copy()
+            if not used_proxy:
+                # genuine primary data — safe for the tradable path too
+                self._ohlcv_cache[(symbol, interval, _scope, False)] = df.copy()
+            # Pin under the key actually requested. Proxy-derived bars are only
+            # ever written under the allow_proxy=True key, preserving the C-51
+            # guarantee that proxy data can never satisfy a tradable request.
+            self._write_ohlcv_snapshot(
+                self._ohlcv_snap_key(symbol, interval, _scope,
+                                     True if used_proxy else allow_proxy), df)
         return df
 
     def _fetch_one(
@@ -211,6 +308,25 @@ class DataFetcher:
         if not cftc_code:
             return pd.DataFrame()
 
+        # --- snapshot pinning (see __init__ for rationale) -------------------
+        # Keyed by code AND history depth: the 260-week and full-history pulls
+        # are different datasets and must never share a snapshot file.
+        _snap_key = f"{cftc_code}_{'full' if self.full_history_cot else '260w'}"
+        if self.cot_snapshot_mode == "fill":
+            # Resumable pin build: reuse an existing pin, else fetch it below.
+            _cached = self._read_cot_snapshot(_snap_key)
+            if _cached is not None:
+                return _cached
+        if self.cot_snapshot_mode == "read":
+            df = self._read_cot_snapshot(_snap_key)
+            if df is None:
+                logger.warning(
+                    "COT snapshot missing for %s (mode=read) — returning empty; "
+                    "COT bias will be neutral. Run build_cot_snapshot.py to create it.",
+                    _snap_key)
+                return pd.DataFrame()
+            return df
+
         # full_history_cot mode: transparently delegate to the paginated
         # full-history fetch so the scanner uses 30+ years of CFTC data for
         # all COT normalization and extreme detection (Bernd: "pull as much
@@ -253,6 +369,7 @@ class DataFetcher:
                         df.set_index('date', inplace=True)
                         df.sort_index(inplace=True)
                         self._cot_cache[cftc_code] = df
+                        self._write_cot_snapshot(f"{cftc_code}_260w", df)
                         logger.info(f"COT live data loaded for {cftc_code}: {len(df)} weeks")
                         return df
                     # HTTP 200 with no rows: a definitive "no data", not transient.
@@ -283,6 +400,102 @@ class DataFetcher:
             f"(rules engine treats as neutral). Not cached — will retry next scan."
         )
         return pd.DataFrame()
+
+    # ------------------------------------------------------------------
+    # CFTC snapshot pinning helpers
+    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # OHLCV snapshot pinning helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _ohlcv_snap_key(symbol, interval, scope, allow_proxy) -> str:
+        """Filesystem-safe key. `scope` is either (start,end) or a period str."""
+        import re as _re
+        scope_s = f"{scope[0]}_{scope[1]}" if isinstance(scope, tuple) else str(scope)
+        raw = f"{symbol}__{interval}__{scope_s}__{'proxy' if allow_proxy else 'primary'}"
+        return _re.sub(r"[^A-Za-z0-9_.=-]", "-", raw)
+
+    def _ohlcv_snapshot_path(self, snap_key: str) -> Path:
+        return self.ohlcv_snapshot_dir / f"{snap_key}.csv"
+
+    def _read_ohlcv_snapshot(self, snap_key: str) -> Optional[pd.DataFrame]:
+        path = self._ohlcv_snapshot_path(snap_key)
+        if not path.exists():
+            return None
+        try:
+            df = pd.read_csv(path)
+            if "timestamp" in df.columns:
+                # Pins are stored as naive local wall-clock (see _write_ohlcv_snapshot).
+                # utc=True guards against any legacy tz-aware file with mixed
+                # DST offsets, which pandas otherwise refuses to parse.
+                try:
+                    df["timestamp"] = pd.to_datetime(df["timestamp"])
+                except Exception:
+                    df["timestamp"] = pd.to_datetime(
+                        df["timestamp"], utc=True, format="ISO8601").dt.tz_localize(None)
+            return df
+        except Exception as exc:  # pragma: no cover
+            logger.error("OHLCV snapshot %s unreadable: %s", path.name, exc)
+            return None
+
+    def _write_ohlcv_snapshot(self, snap_key: str, df: pd.DataFrame) -> None:
+        if self.ohlcv_snapshot_mode not in ("write", "fill") or df is None or df.empty:
+            return
+        try:
+            self.ohlcv_snapshot_dir.mkdir(parents=True, exist_ok=True)
+            out = df.copy()
+            # Store NAIVE local wall-clock. yfinance returns tz-aware stamps whose
+            # UTC offset flips with DST, and a CSV round-trip of mixed offsets is
+            # unparseable. Every consumer calls tz_localize(None) before comparing
+            # dates anyway, so stripping tz here makes a pinned read byte-identical
+            # to a live fetch instead of shifting bars by the UTC offset.
+            if "timestamp" in out.columns:
+                _ts = pd.to_datetime(out["timestamp"])
+                if getattr(_ts.dt, "tz", None) is not None:
+                    out["timestamp"] = _ts.dt.tz_localize(None)
+            # Atomic write: 6 parallel pin builders share reference series
+            # (ZB=F / GC=F / DXY), so a plain to_csv lets one process read a file
+            # another is mid-write -- observed as "No columns to parse from file".
+            # Write to a unique temp file then rename (atomic on the same volume).
+            _final = self._ohlcv_snapshot_path(snap_key)
+            _tmp = _final.with_suffix(f".tmp{os.getpid()}")
+            out.to_csv(_tmp, index=False)
+            os.replace(_tmp, _final)
+        except Exception as exc:  # pragma: no cover
+            logger.error("Failed writing OHLCV snapshot %s: %s", snap_key, exc)
+
+    def _cot_snapshot_path(self, snap_key: str) -> Path:
+        return self.cot_snapshot_dir / f"cot_{snap_key}.csv"
+
+    def _read_cot_snapshot(self, snap_key: str) -> Optional[pd.DataFrame]:
+        """Load a pinned snapshot. Returns None when absent/unreadable so the
+        caller can decide (we return empty -> neutral, never silent live data)."""
+        path = self._cot_snapshot_path(snap_key)
+        if not path.exists():
+            return None
+        try:
+            df = pd.read_csv(path, parse_dates=["date"], index_col="date")
+            df.sort_index(inplace=True)
+            return df
+        except Exception as exc:  # pragma: no cover - corrupt file is rare
+            logger.error("COT snapshot %s unreadable: %s", path.name, exc)
+            return None
+
+    def _write_cot_snapshot(self, snap_key: str, df: pd.DataFrame) -> None:
+        """Persist a freshly fetched COT frame when snapshot_mode == 'write'."""
+        if self.cot_snapshot_mode not in ("write", "fill") or df is None or df.empty:
+            return
+        try:
+            self.cot_snapshot_dir.mkdir(parents=True, exist_ok=True)
+            path = self._cot_snapshot_path(snap_key)
+            out = df.copy()
+            out.index.name = "date"
+            _tmp = path.with_suffix(f".tmp{os.getpid()}")
+            out.to_csv(_tmp)
+            os.replace(_tmp, path)
+            logger.info("COT snapshot written: %s (%d rows)", path.name, len(out))
+        except Exception as exc:  # pragma: no cover
+            logger.error("Failed writing COT snapshot %s: %s", snap_key, exc)
 
     def fetch_cot_full_history(self, cftc_code: str = "") -> pd.DataFrame:
         """
@@ -357,6 +570,7 @@ class DataFetcher:
                 # CFTC dataset can have duplicate rows for the same report week
                 df = df[~df.index.duplicated(keep='last')]
                 self._cot_cache[cache_key] = df
+                self._write_cot_snapshot(f"{cftc_code}_full", df)
                 years = (df.index[-1] - df.index[0]).days / 365.25
                 logger.info(
                     f"COT full history loaded for {cftc_code}: {len(df)} weeks "

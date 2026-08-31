@@ -20,7 +20,8 @@ This file provides the **EXACT settings** to use for each asset class. Different
 | COT Method | DIVERGENCE — price vs COT index |
 | COT Lookback | **26 weeks** (audit correction — Hybrid AI default is 26w; 52w was equities-specific, not forex-specific) |
 | Valuation ROC | 10 |
-| Valuation References | DXY (Dollar Index) only |
+| Valuation References | **DXY + Bonds (ZB) + Gold (GC)** — full-corpus indicator audit (2026-07) reverted this from DXY-only. A genuine LIVE session (CW05 FX Edition, Jan 2024) shows CHF and GBP both with all 3 refs simultaneously active; the earlier DXY-only/Gold-only sightings were teaching-session narrowings from this same 3-ref default, not the live config. |
+| Valuation Threshold | **±75** (general default) — reverted from the earlier ±69 special case. Full-corpus audit found zero on-screen sightings of ±69 across 5 independent chart frames (AUD, EUR, CHF, GBP, equity-index variant); the ±69 figure traced only to a `Blueprint - Cheatsheet.xlsx` annotation with no corresponding live indicator configuration ever found. |
 | Seasonality Lookbacks | 5yr, 10yr, 15yr |
 | Cross-Check | ALWAYS check opposing currency COT |
 | Inverted Pairs | 6J → USD/JPY, 6C → USD/CAD, 6S → USD/CHF (futures inverted vs spot) |
@@ -49,7 +50,7 @@ This file provides the **EXACT settings** to use for each asset class. Different
 | COT Group | **Commercials ① PRIMARY** (non-contrarian). Retailers are confirming odds-enhancer ③ only — NOT primary. Phase 17 correction. |
 | COT Method | Trade WITH Commercials (≥80 = bullish, ≤20 = bearish). |
 | COT Lookback | **26 weeks** (+ 156-week historic extreme line). Phase 14 correction from 52w. |
-| Valuation ROC | **13** (Phase 41 chunk 5: CW45 frame_000644 + CW38 frames confirm ROC=13 for Gold) |
+| Valuation ROC | **10** — reverted from 13 (full-corpus indicator audit, 2026-07). The 13 value came from a single Nov 2023 CW45 frame; a dedicated re-check found 7 independent chapters spanning nearly the whole corpus timeline all showing `Length=10`. |
 | Valuation References | DXY + Bonds (ZB) + Gold (GC) |
 | Seasonality Lookbacks | 5yr, 10yr, 15yr |
 | 156-week extreme | YES — strongest COT signal for commodities |
@@ -68,6 +69,7 @@ This file provides the **EXACT settings** to use for each asset class. Different
 | COT Lookback | **26 weeks** (+ 156-week extreme). Phase 14 correction from 52w. |
 | Valuation ROC | **30** (Phase 41 chunk 5: CW11 frame_000841 shows ROC=30 for Silver) |
 | Valuation References | DXY + **@VD** (Bonds — use @VD ticker, NOT @US) + GC (Gold) |
+| **ZigZag % (Weekly)** | **10%** (override from default 6%) — full-corpus indicator audit (2026-07): Ch.015 frame_002463 shows Bernd's original setting = 10; he interactively tests 5% and 2% live in the customize dialog then explicitly reverts: "I would rather stick with what I had originally here... 10" (frame_002491, 0:41:30). No override was previously coded for Silver. |
 | Seasonality Lookbacks | 5yr, 10yr, 15yr |
 
 ### Platinum (PL)
@@ -107,7 +109,7 @@ This file provides the **EXACT settings** to use for each asset class. Different
 | LTF | Daily |
 | COT Group | Commercials |
 | COT Method | Trade WITH Commercials |
-| COT Lookback | **52 weeks** (+ 156-week extreme line) |
+| COT Lookback | **26 weeks** (+ 156-week extreme line) — reverted from 52w (full-corpus indicator audit, 2026-07). Two independent settings-dialog frames (Ch.136 frame_001504, Ch.164 frame_000241) both read `WeeklyLookBack=26` with verbal confirmation ("26 weeks look back... short term look back"). The 52w value was calibrated for the general planting/harvest commodity cycle and does not apply to crude specifically. |
 | 156-week Extreme | **YES** — strongest signal for energies |
 | Valuation ROC | 10 |
 | Valuation References | DXY + Bonds (ZB) + Gold (GC). Phase 41 chunks 1+2+3 all confirmed standard 3-ref config for CL. Phase 33's earlier "Gold only" was wrong and was reverted. |
@@ -154,13 +156,25 @@ This file provides the **EXACT settings** to use for each asset class. Different
 | Valuation References | DXY + Bonds (ZB) + Gold (GC) |
 | Seasonality Lookbacks | 5yr, 10yr, 15yr |
 
-### Tropical Soft Commodities (CC / SB / OJ) — Non-Commercials 26w
+### Tropical Soft Commodities (SB / OJ) — Non-Commercials 26w
 
 | Setting | Value |
 |---------|-------|
 | **COT Group** | Non-Commercials (Large Speculators) |
 | **COT Method** | **DIVERGENCE** |
 | **COT Lookback** | **26 weeks** |
+
+### Cocoa (CC=F) — Commercials 52w
+
+⚠️ **Full-corpus indicator audit correction (2026-07)**: Cocoa moved OUT of the tropical-softs Non-Commercials grouping.
+
+| Setting | Value |
+|---------|-------|
+| **COT Group** | **Commercials, Non-Commercials explicitly DISABLED** |
+| **COT Method** | Trade WITH Commercials |
+| **COT Lookback** | **52 weeks** |
+
+Evidence: two independent settings-dialog frames (Ch.082 frame_002405, Ch.089 frame_003397) both show `DisplayNonCommercialTradersIndex=false` + `WeeksLookBack=52` for @CC — Commercials primary, Non-Commercials off. Falls through to the same routing as Grains + Cotton above.
 
 ### Coffee (KC=F) — Commercials 52w
 
@@ -172,7 +186,8 @@ This file provides the **EXACT settings** to use for each asset class. Different
 ### Soft Commodities Notes
 - **Grains + Cotton use Commercials (Phase 14)** — planting/harvest seasons drive commercial hedging so strongly that commercial positioning is the dominant signal.
 - **Coffee uses Commercials (Phase 16)** — coffee retailer COT data is unreliable; trade with commercials.
-- **Tropical soft commodities (Cocoa/Sugar/OJ) use Non-Commercials divergence** — same method as Forex.
+- **Cocoa uses Commercials, 52w (full-corpus audit, 2026-07)** — moved out of the Non-Commercials tropical-softs grouping; settings-dialog confirmed twice.
+- **Sugar + OJ use Non-Commercials divergence** — same method as Forex. (Corpus remains silent/unclear on these two; not yet re-audited.)
 - Corn + Cotton: can form correlated pairs when USD is the dominant driver.
 
 ---
@@ -207,6 +222,7 @@ This file provides the **EXACT settings** to use for each asset class. Different
 - COT lookback is shorter for equities: **26 weeks** instead of 52 weeks.
 - Valuation indicator parameter `Length=10` (Pine Script default per CampusValuationTool source). "Dual-ROC" is a chart-overlay practice — run two separate indicator instances at different lengths and require both to agree direction (daily: 10+13; weekly: 13+30). It is NOT a single-instance parameter override. (Phase 7 audit correction — earlier docs claimed Length=13 for equities; that was a misreading. Empirically validated: AMZN/META/NVDA give wrong-vs-Bernd readings at Length=13; Length=10 matches.)
 - **DOW COT reliability**: Dow Jones COT data is more reliable and less noisy than S&P 500 or Nasdaq COT data. When indices disagree on COT signal, Dow COT carries more weight.
+- **@ES ZigZag % override (full-corpus indicator audit, 2026-07)**: E-mini S&P 500 specifically uses a **flat 5% ZigZag on ALL timeframes** (Monthly/Weekly/Daily), not the general tiered 10/6/3 table. Chapter 012 shows the identical status-bar label `ZigZag % (High,Low,5,white,3)` on the SAME @ES chart across all three timeframes. NQ/YM/RTY are unaffected and remain on the standard tiered defaults.
 - Shorter timeframe combinations (Daily HTF / 4H LTF) can be used for more frequent setups, but the weekly/daily combination remains the standard.
 - Equity indices have a natural long-term upward bias — counter-trend (short) trades require MUCH stronger fundamental confirmation. Only short when "really overvalued" (CW18).
 - **Treasury Bond Gate**: Before entering equity index SHORT setups, check that Treasury Bond (ZB/ZN) is at or approaching a supply zone. Bond demand zone active = risk-off signal = higher conviction equity short.
@@ -327,11 +343,12 @@ For inverted pairs (6J, 6C, 6S), you must **flip the bias** when translating fro
 | LTF | Daily | Daily | Daily | Daily | Daily | Daily (or 4H) |
 | COT Group | Non-Commercials | **Commercials ① (non-contrarian)** | Commercials | **Retailers ① CONTRARIAN** | **Commercials** | Non-Commercials |
 | COT Method | Divergence | With Commercials | With Commercials | **Fade retailers** | With Commercials | Divergence |
-| COT Lookback | 26 weeks | **26 weeks** (Ph14) | 52 weeks | **260 weeks / 5yr** (Ph33) | 52 weeks | 26 weeks |
+| COT Lookback | 26 weeks | **26 weeks** (Ph14) | **26 weeks** (reverted from 52w, full-corpus audit '26) | **260 weeks / 5yr** (Ph33) | 52 weeks (Cocoa also 52w, moved out of tropical-softs — full-corpus audit '26) | 26 weeks |
 | 156-wk Extreme | No | **YES** | **YES** | No | No | No |
-| Valuation ROC | 10 | **GC=13, SI=30, PL=10, PA=10** (Ph41) | 10 | **EXCLUDED** (Ph16) | **30** (Ph41 ags) | DXY+ZB+GC standard ROC=10 |
-| Valuation Refs | DXY | DXY + **ZB** + GC | **DXY + ZB + GC** (Ph33 GC-only revert in Ph41) | **N/A** | DXY + ZB + GC | DXY + ZB + GC |
-| ZigZag % | 3% (daily) | 3% (daily) | **5% (daily, Ph41)** | **15% (weekly)** | 3% (daily) | 3% (daily) |
+| Valuation ROC | 10 | **GC=10 (reverted from 13, full-corpus audit '26), SI=30, PL=10, PA=10** | 10 | **EXCLUDED** (Ph16) | **30** (Ph41 ags) | DXY+ZB+GC standard ROC=10 |
+| Valuation Refs | **DXY + ZB + GC** (reverted from DXY-only, full-corpus audit '26) | DXY + **ZB** + GC | **DXY + ZB + GC** (Ph33 GC-only revert in Ph41) | **N/A** | DXY + ZB + GC | DXY + ZB + GC |
+| Valuation Threshold | **±75** (reverted from ±69, full-corpus audit '26 — zero on-screen 69 sightings found) | ±75 | ±75 | N/A | ±75 | ±75 |
+| ZigZag % | 3% (daily) | Silver weekly **10%** (full-corpus audit '26); Gold/Platinum 3% (daily) | 3% (daily, but @CL specifically 5% daily, Ph41) | **15% (weekly)** | 3% (daily) | 3% (daily), but **@ES specifically flat 5% ALL timeframes** (full-corpus audit '26) |
 | Seasonality | 5/10/15yr | 5/10/15yr | 5/10/15yr | **10yr+5yr only** | 5/10/15yr | 5/10/15yr |
 | Platinum/Palladium | — | **DXY+GC+ZB (Ph41 correction)** | — | — | — | — |
 | Consensus | Bernd hierarchy + forex zone-arrival (Ph39) | Bernd hierarchy + COT-is-king | Bernd hierarchy + zone-arrival (Ph39) | COT contrarian primary + zone-arrival (Ph39) | COT dominant + zone-arrival (Ph39) | Phase 26/27 cycle overrides + cycle-dominance + zone-arrival via cycle paths (Ph38) |

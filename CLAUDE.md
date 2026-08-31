@@ -2254,3 +2254,130 @@ Clean improvement on both metrics with zero new regressions — all 7 fixes kept
 - SI=F Valuation ROC chronological drift (10 in 2023 → 30 in 2024) — not yet investigated
 - Equity-index dual-ROC pattern (13+30) — not yet investigated
 - "Does COT apply to equities/indices at all?" (Ch.072's Finite-vs-Infinite-market framework) — not yet investigated, but questions something architecturally central (COT routing for equities/equity_indices) so should get its own dedicated pass before any action
+
+---
+
+### CORRECTION (2026-08-25) — read this before trusting any score above
+
+Two claims repeated throughout the Phase 7–46 sections above **do not survive out-of-sample
+measurement**. Full write-up and reproduction:
+`Propfirm Trading Dashboard/goldtest/PRESENTER_AND_HONEST_SCORE.md`.
+
+**1. The ground truth was not all Bernd.** The "Funded Trader Signals" series is presented by
+Online Trading Campus instructors, not Bernd: 2023 = Jan Skorupinski, 2024 = Clemens Winkler;
+Practical Application = Chris Dietenberger. Only the **Weekly Outlook** series is Bernd
+(verified: Zoom name label, CW10-2024 `frame_003120`). Presenter identity is settled in
+`D:\Trading\Claude for Bernd\gemini\presenter_map.json`. Every case in
+`goldtest/ft_oos_full.yaml` now carries `_presenter` / `_is_bernd`; score with
+`goldtest/score_by_presenter.py`. Never pool presenters unlabelled — the instructor subset has
+a 62% always-long base rate vs Bernd's 48%, so pooling inflates the headline.
+
+**2. The goldtest scores measured memorisation, not skill.** The 160-case `gold_cases_phase8`
+scores (37.5% -> 74%) were produced by ~20 phases of `_bias_consensus` tuning against the very
+cases being scored, including 18 hardcoded symbol branches. On 472 cases the engine had never
+seen, with CFTC/Yahoo data pinned:
+
+| | n | system Stage-1 | best trivial | edge | McNemar p |
+|---|---|---|---|---|---|
+| Bernd only | 337 | 51.9% | always-long 48.1% | +3.9pp | 0.279 — **not significant** |
+| OTC instructors | 135 | 57.8% | always-long 62.2% | -4.4pp | 0.451 — not significant |
+
+**3. "Zero Stage-2 false positives" is an in-sample property.** Out of sample Stage-2 fired
+8 times in 472 cases (1.7%), 4 correct / 4 wrong, including one opposite-direction call
+(NZDUSD=X 2024-01-27: Bernd short, system long). Every firing was `long` — Stage-2 never
+produced a short out of sample.
+
+The indicators themselves are NOT implicated: they reproduce Bernd's lecture frames exactly
+(COT 85.10 / 18.10 / 74.56). What has no demonstrated out-of-sample skill is the
+bias-consensus rule layer built on top of them.
+
+**4. Cycle-override family disabled by default (2026-08-26).** A paired A/B on the 472 pinned
+out-of-sample cases showed the Phase 23 T1 / Phase 24 T1-relaxed + constituent-routing /
+Phase 26b cycle-dominance / Phase 27 equities-cycle paths change **18% of all predictions**
+(48 of them `long`→`neutral`) while fixing 27 and breaking 28 — **McNemar p = 1.000**, an exact
+coin flip. They also skew the engine's calls to `long=198` against a truth of `long=162`.
+
+Critically, these paths can only fire in a year-3 pre-election year with a positive sannial
+score: **2023, then not again until 2027.** They were fitted on 2023 — the only year in the
+corpus where they activate — and are inert in live scanning for 2024/2025/2026. Left enabled
+they would silently reactivate in January 2027.
+
+`BP_CYCLE_OVERRIDE` is now **opt-in**: set `BP_CYCLE_OVERRIDE=1` to restore the old behaviour.
+Zero effect on live scanning this year. Evidence and reproduction:
+`Propfirm Trading Dashboard/goldtest/PRESENTER_AND_HONEST_SCORE.md`.
+
+Tools added: `goldtest/score_by_presenter.py` (scores split by presenter),
+`goldtest/ab_paired.py` (paired case-level A/B with McNemar — use this, not raw percentages,
+because runs differ in how many cases error out).
+
+**5. `@SOXY` RESOLVED — it is OCR noise for `$DXY`, not a real symbol (2026-08-26).**
+Phase 41 recorded `@SOXY` as an unidentified TradeStation symbol appearing as the third
+Valuation reference for ES/NQ and ZC, and left the code unchanged "until @SOXY can be
+identified". Across 4,446 Gemini frame reads the third-reference token in
+`CampusValuationTool_V2 ("@US","@GC",<3rd>)` OCRs as:
+
+| token | reads | frames | also read as `$DXY` on the same frame by another model |
+|---|---|---|---|
+| **`$DXY`** | **1081** | **769** | — |
+| `SDXY` / `@SDXY` / `$SDXY` | 415 | 316 | 51 of 97 for `@SDXY` |
+| `$OXY` | 25 | 12 | 4 of 12 |
+| `SOXY` | 10 | 7 | 4 of 7 |
+| **`@SOXY`** | **7** | **7** | **5 of 7** |
+
+`@SOXY` is 0.6% of reads and 5 of its 7 frames were read as `$DXY` by a different model on the
+same image. It is a misread of `$DXY`. **No code change needed — `DX-Y.NYB` in that slot is
+already correct.** This is a worked example of the standing rule: never treat a value eyeballed
+off a still as a parameter; confirm it from the settings dialog or from read agreement.
+
+---
+
+### 2026-08-26 — execution-layer reporting fixes (Discord/paper trader)
+
+Full detail and reproduction: `D:\Trading\Claude for Bernd\SESSION_2026-08-26.md`.
+These are the defects behind the two lost prop-firm challenges: the *directional* engine was
+never the whole story, the **execution and reporting layer was silently wrong**.
+
+| id | defect | fix |
+|---|---|---|
+| **E-01** | `get_trade_history()` *pops* `trade_r_multiple` into `r_multiple`, but `closed_block()`/`track_record_block()` read the popped key — **every close printed `+0.00R`**, including five real losses totalling −$45.13. | read `r_multiple` with a raw-key fallback (`send_discord.py:521`, `:550`). The third R read at `:471` uses `r_multiple_open`, which `run_scanner.py:1178` does set — never broken. |
+| **E-01b** | `close_reason` was read but **existed nowhere** in `BP_paper_trader.py`, so it always rendered blank. | field added to `Position` and populated at all four close sites: `stop` / `breakeven` / `trail` / `T3` / `drifted`. This is what makes E-03 measurable. |
+| **E-04** | `win_rate` returned `0.0` at `_decided == 0` — renders identically to "0 of 7 won". | returns `None`; `decided_trades` + `scratch_trades` exposed; all consumers render `n/a (N scratches)`. `send_discord` would have raised `TypeError` on `None`. **Also fixed a latent bug**: `run_scanner` printed the 0–1 fraction with a `%`, so a 50% win rate rendered as `0.5%`. |
+| **E-05** | the entry-distance cap (`BP_rules_engine.py:660`) is enforced only at signal creation; nothing re-checked distance while an order rested for up to 14–30 days. | re-applied in `check_pending_fills()`; drifted orders `CANCELLED` with `close_reason="drifted"`. Kill-switch `BP_PENDING_DISTANCE_RECHECK=0`. **`os` was not imported in `BP_paper_trader.py`** — the first pending order would have raised `NameError`. |
+| **NEW** | `get_trade_history()` did **not filter by status**, and `trade_history` receives CANCELLED orders from three sites. Never-filled orders rendered in CLOSED/TRACK RECORD as `$0.00` trades. | CANCELLED excluded by default (`include_cancelled=True` to audit). Without this, E-05 would have added a fourth cancellation source. |
+
+**E-03 was NOT applied — its stated evidence does not survive checking.** The claim "3 of 11
+scratched by breakeven" is wrong: the 3 trades whose stop was pulled to entry (EURCHF +0.76R,
+ETH-USD +0.72R, ^GDAXI +0.55R) never appear in the closed ledger — they were still open. The
+3 rows printed as `0.00 USD SCRATCH` are different trades (AUDUSD, CADCHF, GBPCAD), two of
+which peaked at *negative* R, and they were **cancelled pending orders** (the NEW defect
+above). No trade in that log was ever closed by a breakeven stop. Also note **neither harness
+can measure E-03**: the goldtest scores Stage-1 bias, which paper-trader config cannot move,
+and `run_forward_test.py` does not use `PaperTrader` at all.
+
+### Ground-truth limit: the four traders contradict each other
+
+Presenter labels are on every case (`_presenter`, `_is_bernd`). Measured on the 479-case
+pinned replay:
+
+- Bernd shorts an equity index on **3 of 71** index calls (4%); Jan/Clemens on **14 of 30** (47%).
+- Same symbol, both directional, within 10 days: **48 agreements, 11 direct contradictions**
+  (e.g. NQ=F Bernd long 2023-02-12 vs Jan short 2023-02-14).
+
+No deterministic rule set can match both sides of those 11. **User decision 2026-08-26: score
+against all four pooled** (479 cases), accepting that ceiling. Consequence: changes that help
+one presenter and hurt another are rejected on the pooled number.
+
+### Flags added this session (all measured; see SESSION_2026-08-26.md §4, §7, §9)
+
+| flag | default | measured effect (paired, McNemar) |
+|---|---|---|
+| `BP_CYCLE_OVERRIDE` | **OFF** (was on) | coin flip: moves 18% of predictions, 27 fixed / 28 broke, p=1.000 |
+| `BP_EQUIL_2OF3` | OFF | +4 of 472, 8 fixed / 4 broke, p=0.388 |
+| `BP_SEAS_NO_ORIGINATE` | OFF | inert — changes **1 prediction in 479** |
+| `BP_IDX_CORROB_VAL_ONLY` | OFF | Bernd +7 (7/0, **p=0.016**), instructors −4, **pooled +3, p=0.549** |
+| `BP_PENDING_DISTANCE_RECHECK` | ON | cancels 17 of 72 pending rows — but those are **one** CL=F order re-printed across 18 scans |
+
+Use `goldtest/ab_paired.py` for any A/B — raw percentages are unsafe because runs differ in
+how many cases error out, so a ±2 delta can be pure attrition. Compare arms that differ in
+**one** variable: an early A/B this session was confounded by comparing against a baseline
+taken before the `BP_CYCLE_OVERRIDE` default was flipped.

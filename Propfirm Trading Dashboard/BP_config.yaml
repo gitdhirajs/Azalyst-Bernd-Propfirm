@@ -185,6 +185,99 @@ instrument_specs:
 #   Crypto entries are pinned to ['daily'] only -- weekly bars on crypto
 #   are too few/volatile to be meaningful per the methodology audit.
 # ------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# rules — decision-layer switches (added 2026-08-21, FTW audit C-58/C-61/C-67)
+# ---------------------------------------------------------------------------
+rules:
+  # C-58: the Phase-39 ZONE-ARRIVAL rule is asymmetric — the bullish branch has no
+  # COT guard at all, while the bearish branch is guarded for forex only. Result:
+  # Location alone could fire a long while our own COT read bearish.
+  #
+  # ENABLED 2026-08-21 on four independent measurements:
+  #   Bernd lecture set, REVIEWED labels (n=75): OPPOSITE 6 (8%) -> 4 (5%),
+  #                                              MATCH unchanged at 37 (49%)
+  #   Bernd lecture set, original labels (n=85): OPPOSITE 12 -> 10, MATCH unchanged
+  #   goldtest OOS suite (n=71):                 0 cases changed — NO regression
+  #                                              (this is the check the Phase 37/40
+  #                                              comment warned COT-widening had failed)
+  #   non-Bernd signal rows (n=23):              0 cases changed
+  # It converts exactly the two NG=F rows (2024-02-11, 2024-02-19) from
+  # wrong-direction to 'hold'. On both, our own trend read 'downtrend' AND our own
+  # COT read 'bearish' — agreeing with him — and zone-arrival fired bullish anyway.
+  # Revert: set to false, or `git checkout -- BP_config.yaml`. Backup:
+  # BP_config.yaml.bak-2026-08-21
+  cot_blocks_zone_arrival: true
+
+  # C-61 -> C-76: DROPPED on 2026-08-21, then ENABLED the same day when the TARGET
+  # changed. Both decisions were correct against the goal they were measured on.
+  #
+  # Dropped when the goal was "match BERND": its only benefit came from 2024 Funded
+  # Trader Signals rows, which C-60 proved are Clemens Winkler's trades, and on
+  # Bernd's own index calls it costs one correct call (RTY=F 2023-06-03), fixing none.
+  #
+  # ENABLED when the goal became "match ALL THREE OTC traders" (Bernd + Jan
+  # Skorupinski + Clemens Winkler) -- they run the same method and the same indicator
+  # pack, so a correct implementation should agree with all three. Measured on the
+  # 118-row combined ground truth:
+  #    shipped   MATCH 58 (49%)  OPPOSITE 12 | Bernd 44/95  Jan 12/16  Clemens 2/7
+  #    this flag MATCH 60 (51%)  OPPOSITE  9 | Bernd 43/95  Jan 12/16  Clemens 5/7
+  # Converts three wrong-direction equity-index calls (NQ=F 2024-02-14,
+  # YM=F 2024-01-03, YM=F 2024-02-14) into matches, costing one Bernd MATCH which
+  # becomes a hold. Opposites lose money; holds do not.
+  # Revert: set false, or restore BP_config.yaml.bak2-2026-08-21
+  xcat_skip_equity_indices: true
+
+  # C-72: the Phase 42 Fix-2 block prevented ANY bearish equity-index verdict during
+  # pre-election years (all of 2023). Its stated premise -- "Bernd NEVER takes
+  # equity-index short positions, 0 such calls in 160 goldtest" -- was absence of
+  # evidence from a corpus with 14 chapters never read. Mining four of them produced
+  # three 2023 index shorts in his own words, the clearest being YM=F 2023-09-16:
+  # "we are moving from that supply area where price was at least overvalued ... head
+  # and shoulders ... this is really falling apart. And I think it will fall apart."
+  #
+  # Natural experiment (same class, same detector, six months apart):
+  #     blocked 2023 index shorts  -> 0/3 correct
+  #     unblocked 2024 index shorts-> 2/2 correct
+  #
+  # ENABLED 2026-08-21 on explicit user approval. Measured:
+  #   combined 118-row set : MATCH 60 -> 62 (53%), OPPOSITE 9, shorts 5/32 -> 7/32
+  #   Bernd 95-row set     : +2 MATCH, 0 new opposites
+  #   goldtest OOS back-to-back (noise floor 0, see C-74):
+  #        bias_match 40 -> 40  (ZERO trade-level changes)
+  #        bias_only  41 -> 40  (one Stage-1 view, ES=F 2023-04-24, on a date Bernd
+  #                              was neutral; no trade fired under either setting)
+  # Revert: set false, or restore BP_config.yaml.bak3-2026-08-21
+  allow_prelection_index_shorts: true
+
+  # C-83: let a MODERATE bearish COT propose the short, instead of deriving every
+  # direction from location. Grounded in what the traders themselves cite -- their
+  # SHORTS name COT 42% of the time while their LONGS name valuation (39%) and zone
+  # (37%). Measured as predictors of their direction on the 133-row all-trader set:
+  #     our_cot      bullish 26/27 (96%)   bearish 16/27 (59%)
+  #     our_location bullish 43/51 (84%)   bearish 16/50 (32%)
+  # The reliable signature is the MODERATE reading, not the extreme -- a 156-week COT
+  # extreme predicts their direction only 5/14 (36%), because commercials are hedgers
+  # and are early at extremes:
+  #     cot=bearish + strength=normal + val!=bullish  ->  10/11 (91%)
+  # This signature also BYPASSES the per-class short suppressions (PM, equity index),
+  # which is the point: gold was being held by Phase 42 Fix-1. Note this does NOT
+  # reopen C-79 -- unblocking PM shorts wholesale cost +6 wrong-direction calls, while
+  # gating the bypass behind a 91%-accurate signature costs zero.
+  #
+  # MEASURED:
+  #   133-row all-trader set : MATCH 73 -> 77 (58%), shorts 7/33 -> 11/33 (21% -> 33%)
+  #                            4 rows changed, ALL gains, 0 losses, 0 new opposites,
+  #                            longs untouched at 66/100
+  #   goldtest OOS back-to-back (noise floor 0, C-74):
+  #                            bias_match 40 -> 40  (ZERO trade-level changes)
+  #                            bias_only  40 -> 38  (4 rows; 1 is a GAIN where the
+  #                            goldtest itself labels USDCHF short, and 3 are
+  #                            GROUND-TRUTH CONFLICTS where the goldtest says neutral
+  #                            and the transcript-sourced label says bearish -- see
+  #                            C-85. Not a code regression.)
+  # Revert: set false, or restore BP_config.yaml.bak4-2026-08-21
+  cot_proposes_short: true
+
 active_strategy: "weekly"
 default_strategies: ["weekly", "daily"]
 
@@ -462,3 +555,16 @@ seasonality:
 api:
   host: "0.0.0.0"
   port: 8000
+
+# C-104 (2026-08-27) -- where inside the zone the entry is placed.
+#   false = zone PROXIMAL edge (shipped behaviour since the beginning)
+#   true  = zone MIDPOINT, which is the E2 entry type
+# Measured against 38 position tools drawn by the traders themselves, on the
+# same symbol and date, error expressed in units of THEIR risk:
+#     proximal edge (shipped)   median 0.89R    more than 1R off: 18/38
+#     zone midpoint             median 0.31R    more than 1R off: 11/38
+# The E2 branch existed in BP_rules_engine but no caller ever passed the flag
+# and there was no key here, so it was unreachable. Default stays false until
+# the paired A/B on the 510-case corpus is in. Env override: BP_MIDPOINT_ENTRY=1
+entry:
+  prefer_midpoint_entry: false
