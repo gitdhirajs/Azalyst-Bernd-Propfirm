@@ -25,35 +25,6 @@
   "challenge_started_at": "2026-07-28T20:36:16.952131",
   "open_positions": [
     {
-      "id": "12933e42-de5",
-      "symbol": "AUDNZD=X",
-      "direction": "long",
-      "entry_price": 1.10413,
-      "stop_price": 1.06751,
-      "current_stop": 1.06751,
-      "targets": [
-        1.14075,
-        1.17737,
-        1.21399
-      ],
-      "position_size": 589.275181,
-      "risk_amount": 21.58,
-      "entry_time": "2026-08-16T23:40:51.925848",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "aef9d302a7",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": "",
-      "income_strategy": "weekly"
-    },
-    {
       "id": "8e777617-c00",
       "symbol": "USDJPY=X",
       "direction": "short",
@@ -373,7 +344,36 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "12933e42-de5",
+      "symbol": "AUDNZD=X",
+      "direction": "long",
+      "entry_price": 1.10413,
+      "stop_price": 1.06751,
+      "current_stop": 1.06751,
+      "targets": [
+        1.14075,
+        1.17737,
+        1.21399
+      ],
+      "position_size": 589.275181,
+      "risk_amount": 21.58,
+      "entry_time": "2026-08-16T23:40:51.925848",
+      "status": "cancelled",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "aef9d302a7",
+      "close_time": "2026-08-31T05:47:53.673883",
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-08-30T23:38:26.724908"
+  "saved_at": "2026-08-31T05:47:53.675765"
 }
