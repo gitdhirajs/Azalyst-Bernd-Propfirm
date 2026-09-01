@@ -715,8 +715,19 @@ def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[str]:
             body = candidate
             placed += 1
             idx += 1
-        messages.append(_wrap(body.strip()))
+        # Single-block overflow. The loop above only rolls to a new page once at
+        # least one block is placed (`placed > 0`), so a SINGLE signal whose own
+        # rendered block exceeds the limit would be appended untruncated and
+        # rejected by Discord -- the scan would post nothing at all for it.
+        # The builder this replaced carried this guard; it is kept here because
+        # HEAD's paginator, which never truncates on multi-block pages, has no
+        # other defence against one pathological block.
+        out = body.strip()
+        if len(out) > DISCORD_MSG_LIMIT:
+            out = out[: DISCORD_MSG_LIMIT - 30] + "\n... (truncated)"
+        messages.append(_wrap(out))
     return messages
+
 
 
 def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]) -> str:
