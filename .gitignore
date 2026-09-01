@@ -79,3 +79,8 @@ Propfirm Trading Dashboard/full_history_cot_*.csv
 # --- Claude / agent caches ---
 .claude/
 .claude-cache/
+
+# research/ — API keys must never be committed (they live on disk / in env only)
+research/gemini/keys.local.json
+research/gemini/**/keys.local.json
+research/gemini/out/
