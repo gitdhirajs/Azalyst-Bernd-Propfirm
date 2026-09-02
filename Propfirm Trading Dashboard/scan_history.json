@@ -16646,5 +16646,24 @@
     "win_rate": 1.0,
     "total_trades": 8,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-02T19:50:30.991279",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5067.75,
+    "closed_pnl": 67.75,
+    "win_rate": 1.0,
+    "total_trades": 8,
+    "signals_summary": [
+      {
+        "symbol": "GBPJPY=X",
+        "direction": "short",
+        "entry": 216.740044,
+        "composite": 7.9
+      }
+    ]
   }
 ]
