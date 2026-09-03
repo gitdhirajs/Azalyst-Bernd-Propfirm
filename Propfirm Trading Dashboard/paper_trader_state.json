@@ -82,6 +82,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "d24ba932-710",
+      "symbol": "AUDJPY=X",
+      "direction": "short",
+      "entry_price": 114.477411,
+      "stop_price": 115.07745,
+      "current_stop": 115.07745,
+      "targets": [
+        113.877372,
+        113.277333,
+        112.677293
+      ],
+      "position_size": 6.348199,
+      "risk_amount": 3.81,
+      "entry_time": "2026-09-03T05:57:12.726311",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "0f37421167",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -405,5 +434,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-09-03T01:12:41.295695"
+  "saved_at": "2026-09-03T05:57:12.728308"
 }
