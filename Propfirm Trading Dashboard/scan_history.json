@@ -16744,5 +16744,17 @@
     "win_rate": 1.0,
     "total_trades": 9,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-03T22:38:10.014148",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 0,
+    "auto_traded": 0,
+    "account_balance": 5067.75,
+    "closed_pnl": 67.75,
+    "win_rate": 1.0,
+    "total_trades": 9,
+    "signals_summary": []
   }
 ]
