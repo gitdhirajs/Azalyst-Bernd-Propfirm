@@ -83,6 +83,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "288f23bc-6c7",
+      "symbol": "GBPCHF=X",
+      "direction": "long",
+      "entry_price": 1.092395,
+      "stop_price": 1.081842,
+      "current_stop": 1.081842,
+      "targets": [
+        1.102948,
+        1.113501,
+        1.124054
+      ],
+      "position_size": 1235.742574,
+      "risk_amount": 13.04,
+      "entry_time": "2026-09-04T11:29:18.558796",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "8d60abadf0",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -435,5 +464,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-09-04T06:01:52.352769"
+  "saved_at": "2026-09-04T11:29:18.560937"
 }

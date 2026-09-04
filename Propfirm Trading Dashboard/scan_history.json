@@ -16780,5 +16780,30 @@
     "win_rate": 1.0,
     "total_trades": 9,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-04T11:25:40.670629",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 2,
+    "auto_traded": 1,
+    "account_balance": 5067.75,
+    "closed_pnl": 67.75,
+    "win_rate": 1.0,
+    "total_trades": 9,
+    "signals_summary": [
+      {
+        "symbol": "AUDUSD=X",
+        "direction": "short",
+        "entry": 0.719171,
+        "composite": 7.3
+      },
+      {
+        "symbol": "GBPCHF=X",
+        "direction": "long",
+        "entry": 1.092395,
+        "composite": 7.65
+      }
+    ]
   }
 ]
