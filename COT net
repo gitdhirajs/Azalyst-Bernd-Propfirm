@@ -1,0 +1,67 @@
+//@version=5
+indicator("COT Net", shorttitle="COT Net", precision=0, format=format.volume)
+
+import TradingView/LibraryCOT/2 as cot
+
+// Rebuilt from COTReport_OTC.txt to match what Bernd loads in
+// OTC 2025 Course > Module 3 > Lesson 2, frame_002993 (6E1! weekly).
+//
+// On his chart this appears as TWO panes, each a single group:
+//     "COT Comm Net Futures Only"     (commercials, blue)
+//     "COT Fund Net Futures Only"     (fund managers / non-commercials, orange)
+// This one script covers both: add it twice and toggle the group you want in each copy.
+// Transcript @49:38: "I look for the COT commercial net positions and I load ...
+// I also go to load this one. So like before, we have the commercials in blue and the
+// fund managers in orange."
+//
+// Changes vs COTReport_OTC.txt:
+//   1. Added the "Report Type" dropdown (Futures Only / Futures + Options). The .txt
+//      hardcoded includeOptions = false. Bernd's title reads "Futures Only".
+//   2. Added per-group show toggles so one script can serve both of his panes.
+//   3. Colours matched to his chart: commercials blue, non-commercials orange.
+//   4. Added the HG / LBR CFTC code fixes (present in the COT Index script, missing here).
+//
+// Title renders as:  COT Net  Futures Only
+
+string reportType = input.string("Futures Only", "Report Type", options=["Futures Only", "Futures + Options"], group="Data Settings")
+
+bool showComm    = input.bool(true,  "Show Commercial Net",    group="Display Settings")
+bool showNonComm = input.bool(false, "Show NonCommercial Net", group="Display Settings")
+bool showNonRept = input.bool(false, "Show Nonreportable Net", group="Display Settings")
+bool showLegs    = input.bool(false, "Show long / short legs", group="Display Settings")
+bool shortNeg    = input.bool(true,  "Show shorts as negative numbers", group="Display Settings")
+
+bool useOptions = reportType == "Futures + Options"
+int  snn        = shortNeg ? -1 : 1
+
+var string Root_Symbol     = syminfo.root
+var string CFTC_Code_fixed = cot.convertRootToCOTCode("Auto")
+if Root_Symbol == "HG"
+    CFTC_Code_fixed := "085692"
+else if Root_Symbol == "LBR"
+    CFTC_Code_fixed := "058644"
+
+leg(metricName, isLong) =>
+    tickerId = cot.COTTickerid("Legacy", CFTC_Code_fixed, useOptions, metricName, isLong ? "Long" : "Short", "All")
+    request.security(tickerId, "1D", close, ignore_invalid_symbol = true)
+
+commLong    = leg("Commercial Positions", true)
+commShort   = leg("Commercial Positions", false)
+nonCommLong = leg("Noncommercial Positions", true)
+nonCommShort= leg("Noncommercial Positions", false)
+nonReptLong = leg("Nonreportable Positions", true)
+nonReptShort= leg("Nonreportable Positions", false)
+
+plot(showComm    and showLegs ? commLong      : na, "Commercials long",     color=color.new(#2196f3, 70), linewidth=1)
+plot(showComm    and showLegs ? commShort*snn : na, "Commercials short",    color=color.new(#2196f3, 70), linewidth=1)
+plot(showComm    ? commLong    - commShort    : na, "Commercial Net",       color=color.blue,   linewidth=3)
+
+plot(showNonComm and showLegs ? nonCommLong      : na, "Non-Commercials long",  color=color.new(#ff9800, 70), linewidth=1)
+plot(showNonComm and showLegs ? nonCommShort*snn : na, "Non-Commercials short", color=color.new(#ff9800, 70), linewidth=1)
+plot(showNonComm ? nonCommLong - nonCommShort    : na, "NonCommercial Net",     color=color.orange, linewidth=2)
+
+plot(showNonRept and showLegs ? nonReptLong      : na, "Retail long",  color=color.new(#4caf50, 70), linewidth=1)
+plot(showNonRept and showLegs ? nonReptShort*snn : na, "Retail short", color=color.new(#4caf50, 70), linewidth=1)
+plot(showNonRept ? nonReptLong - nonReptShort    : na, "Nonreportable Net", color=color.green, linewidth=2)
+
+hline(0, "Zero", color=color.new(color.gray, 30), linestyle=hline.style_dotted, linewidth=1)
