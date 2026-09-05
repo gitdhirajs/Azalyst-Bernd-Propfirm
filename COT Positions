@@ -1,0 +1,75 @@
+//@version=5
+indicator("COT Pos. Indices", shorttitle="COT Pos. Indices", format=format.percent, precision=2)
+
+import TradingView/LibraryCOT/2 as cot
+
+// Rebuilt to match the settings dialog Bernd opens in
+// OTC 2025 Course > Module 3 > Lesson 2 (Commitment of Traders), frame_001829.
+// Input ORDER below is deliberate: it makes TradingView render the title as
+//     COT Pos. Indices  26  156  Futures Only  120  80  50  20  -20  1
+// exactly as it reads on his chart. Do not reorder.
+
+// ---------------- DATA SETTINGS ----------------
+int    weeks      = input.int(26,  "Weeks Look Back", minval=1, group="Data Settings")
+int    weeksHiLo  = input.int(156, "Weeks Look Back for Historical Hi/Los", minval=1, group="Data Settings")
+string reportType = input.string("Futures Only", "Report Type", options=["Futures Only", "Futures + Options"], group="Data Settings")
+
+// ---------------- DISPLAY SETTINGS ----------------
+bool showComm    = input.bool(true, "Show Commercial Index",    group="Display Settings")
+bool showNonComm = input.bool(true, "Show NonCommercial Index", group="Display Settings")
+bool showNonRept = input.bool(true, "Show Nonreportable Index", group="Display Settings")
+
+// ---------------- REFERENCE LINES ----------------
+// The bounds ARE the scale. Measured off frame_002099: reference lines sit at
+// 120 / 100 / 80 / 50 / 20 / 0 / -20 and the plotted curve tops out at 120.9
+// (i.e. on the 120 line) -- never at 125. So the index is 140*p - 20.
+bool  showRefLines = input.bool(true, "Show Reference Lines", group="Reference Lines")
+bool  show0100     = input.bool(true, "Show 0 and 100 Lines", group="Reference Lines")
+color c0100        = input.color(color.new(color.gray, 45), "0/100 Lines Color", group="Reference Lines")
+int   upperBound   = input.int(120, "Upper Bound Level", group="Reference Lines")
+int   upperExtreme = input.int(80,  "Upper Threshold",   group="Reference Lines")
+int   midLevel     = input.int(50,  "Middle Level",      group="Reference Lines")
+int   lowerExtreme = input.int(20,  "Lower Threshold",   group="Reference Lines")
+int   lowerBound   = input.int(-20, "Lower Bound Level", group="Reference Lines")
+int   smoothing    = input.int(1,   "Smoothing: Moving Average Length (1 = no)", minval=1, group="Reference Lines")
+
+bool markExtremes = input.bool(false, "Mark historical Hi/Lo extremes", group="Reference Lines")
+
+// ---------------- COT data ----------------
+bool useOptions = reportType == "Futures + Options"
+
+var string Root_Symbol     = syminfo.root
+var string CFTC_Code_fixed = cot.convertRootToCOTCode("Auto")
+if Root_Symbol == "HG"
+    CFTC_Code_fixed := "085692"
+else if Root_Symbol == "LBR"
+    CFTC_Code_fixed := "058644"
+
+dataRequest(metricName, isLong) =>
+    tickerId = cot.COTTickerid('Legacy', CFTC_Code_fixed, useOptions, metricName, isLong ? "Long" : "Short", "All")
+    value = request.security(tickerId, "1D", close, ignore_invalid_symbol = true)
+    if barstate.islastconfirmedhistory and na(value)
+        runtime.error("Could not find relevant COT data based on the current symbol.")
+    value
+
+commNet    = dataRequest("Commercial Positions", true)    - dataRequest("Commercial Positions", false)
+nonCommNet = dataRequest("Noncommercial Positions", true) - dataRequest("Noncommercial Positions", false)
+nonReptNet = dataRequest("Nonreportable Positions", true) - dataRequest("Nonreportable Positions", false)
+
+// Position inside the `len`-week high/low range, mapped onto [lowerBound .. upperBound].
+// With 120 / -20 this is exactly  140 * p - 20.
+calcIndex(netPos, len) =>
+    minNetPos = ta.lowest(netPos,  len)
+    maxNetPos = ta.highest(netPos, len)
+    raw = maxNetPos != minNetPos ? lowerBound + (upperBound - lowerBound) * (netPos - minNetPos) / (maxNetPos - minNetPos) : na
+    ta.sma(raw, smoothing)
+
+commIndex    = calcIndex(commNet,    weeks)
+nonCommIndex = calcIndex(nonCommNet, weeks)
+nonReptIndex = calcIndex(nonReptNet, weeks)
+
+// `weeksHiLo` (156) = the multi-year historical hi/lo window, used for extreme marking.
+commHist    = calcIndex(commNet,    weeksHiLo)
+nonCommHist = calcIndex(nonCommNet, weeksHiLo)
+nonReptHist = calcIndex(nonReptNet, weeksHiLo)
+
