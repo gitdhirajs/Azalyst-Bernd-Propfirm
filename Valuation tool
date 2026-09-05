@@ -1,0 +1,75 @@
+//@version=5
+indicator("CampusValuationTool", shorttitle="CampusValuationTool", overlay=false, precision=2)
+
+// Rebuilt from Valuation_OTC.txt (Pine v4) to match the settings dialog Bernd opens in
+// OTC 2025 Course > Module 3 > Lesson 3 (Valuation), frame_000808 (AUDUSD daily).
+//
+// Changes vs Valuation_OTC.txt:
+//   1. Ported v4 -> v5.
+//   2. Reference symbols REORDERED to ZB1! / GC1! / DXY  (the .txt had DXY / GC1! / ZB1!).
+//      Order matters: Bernd says "unselect reference symbol three, which is the dollar".
+//   3. Added "Show Reference Symbol 1/2/3" toggles (present in his dialog, absent in the .txt).
+//   4. Rescale bounds exposed as inputs. The .txt hardcoded "* 200 - 100", which IS
+//      Rescale Maximum = 100 / Rescale Minimum = -100.
+//   5. Thresholds exposed as inputs (the .txt hardcoded 75 / -75).
+//   6. Guarded division by zero in the percentage-change and rescale steps.
+//
+// Input ORDER is deliberate: it makes the title render as
+//     CampusValuationTool  ZB1!  GC1!  DXY  10  100  100  -100  75  -75
+// exactly as it reads on his chart. Do not reorder.
+
+// ---------------- REFERENCES ----------------
+string CompId1 = input.symbol("CBOT_DL:ZB1!",  "Reference Symbol 1", group="References")
+string CompId2 = input.symbol("COMEX_DL:GC1!", "Reference Symbol 2", group="References")
+string CompId3 = input.symbol("TVC:DXY",       "Reference Symbol 3", group="References")
+
+bool show1 = input.bool(true, "Show Reference Symbol 1", group="References")
+bool show2 = input.bool(true, "Show Reference Symbol 2", group="References")
+bool show3 = input.bool(true, "Show Reference Symbol 3", group="References")
+
+// ---------------- CALCULATION ----------------
+// ROC Length: 10 is the default. Bernd sets 13 for individual stocks (AAPL, Lesson 3 @20:52).
+int   rocLength     = input.int(10,     "ROC Length",       minval=1, group="Calculation")
+int   rescaleLength = input.int(100,    "Rescale Length",   minval=2, group="Calculation")
+float rescaleMax    = input.float(100,  "Rescale Maximum",            group="Calculation")
+float rescaleMin    = input.float(-100, "Rescale Minimum",            group="Calculation")
+
+// ---------------- THRESHOLDS ----------------
+float upperThreshold = input.float(75,  "Upper Threshold", group="Thresholds")
+float lowerThreshold = input.float(-75, "Lower Threshold", group="Thresholds")
+
+// ---------------- Data ----------------
+Comp1 = request.security(CompId1, timeframe.period, close, ignore_invalid_symbol=true)
+Comp2 = request.security(CompId2, timeframe.period, close, ignore_invalid_symbol=true)
+Comp3 = request.security(CompId3, timeframe.period, close, ignore_invalid_symbol=true)
+
+// Percentage change over `rocLength` bars.
+pctChange(src, len) =>
+    prev = nz(src[len])
+    prev != 0 ? (src - prev) / prev * 100 : na
+
+symPerc = pctChange(close, rocLength)
+
+// The symbol's relative strength against each reference.
+diff1 = symPerc - pctChange(Comp1, rocLength)
+diff2 = symPerc - pctChange(Comp2, rocLength)
+diff3 = symPerc - pctChange(Comp3, rocLength)
+
+// Rescale onto [rescaleMin .. rescaleMax] over the trailing `rescaleLength` window.
+rescale(value, length, lo, hi) =>
+    mx = ta.highest(value, length)
+    mn = ta.lowest(value,  length)
+    mx != mn ? (value - mn) / (mx - mn) * (hi - lo) + lo : na
+
+v1 = rescale(diff1, rescaleLength, rescaleMin, rescaleMax)
+v2 = rescale(diff2, rescaleLength, rescaleMin, rescaleMax)
+v3 = rescale(diff3, rescaleLength, rescaleMin, rescaleMax)
+
+// ---------------- Plots ----------------
+plot(show1 ? v1 : na, "Reference Symbol 1", color=color.new(#2962ff, 0), linewidth=2)
+plot(show2 ? v2 : na, "Reference Symbol 2", color=color.new(#ffd400, 0), linewidth=2)
+plot(show3 ? v3 : na, "Reference Symbol 3", color=color.new(#e040fb, 0), linewidth=2)
+
+hline(0,              "Zero",       color=color.new(color.gray, 40), linestyle=hline.style_solid,  linewidth=1)
+hline(upperThreshold, "Overvalued", color=color.new(color.red, 30),  linestyle=hline.style_dashed, linewidth=1)
+hline(lowerThreshold, "Undervalued",color=color.new(color.green, 30),linestyle=hline.style_dashed, linewidth=1)
