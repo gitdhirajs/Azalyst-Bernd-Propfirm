@@ -112,6 +112,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "fb67b2a2-999",
+      "symbol": "EURAUD=X",
+      "direction": "long",
+      "entry_price": 1.616915,
+      "stop_price": 1.610193,
+      "current_stop": 1.610193,
+      "targets": [
+        1.623638,
+        1.630361,
+        1.637083
+      ],
+      "position_size": 722.230196,
+      "risk_amount": 4.85,
+      "entry_time": "2026-09-09T11:35:31.822229",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "7b80426495",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -464,5 +493,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-09-09T06:06:18.507941"
+  "saved_at": "2026-09-09T11:35:31.824732"
 }
