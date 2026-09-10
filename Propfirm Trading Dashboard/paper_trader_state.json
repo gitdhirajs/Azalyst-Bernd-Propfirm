@@ -85,6 +85,35 @@
       "trade_r_multiple": 0.0,
       "notes": "",
       "income_strategy": "weekly"
+    },
+    {
+      "id": "ca656378-a4b",
+      "symbol": "USDCAD=X",
+      "direction": "long",
+      "entry_price": 1.382781,
+      "stop_price": 1.374284,
+      "current_stop": 1.374284,
+      "targets": [
+        1.391278,
+        1.399775,
+        1.408272
+      ],
+      "position_size": 722.929884,
+      "risk_amount": 6.14,
+      "entry_time": "2026-09-10T19:50:39.364598",
+      "status": "pending",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "779c131b3a",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly"
     }
   ],
   "trade_history": [
@@ -495,5 +524,5 @@
       "income_strategy": "weekly"
     }
   ],
-  "saved_at": "2026-09-10T16:34:01.951534"
+  "saved_at": "2026-09-10T19:50:39.367146"
 }
