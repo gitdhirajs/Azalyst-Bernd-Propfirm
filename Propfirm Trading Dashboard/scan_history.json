@@ -17263,5 +17263,24 @@
     "win_rate": 0.6667,
     "total_trades": 11,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-10T16:29:26.918352",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5111.33,
+    "closed_pnl": 111.33,
+    "win_rate": 0.6667,
+    "total_trades": 11,
+    "signals_summary": [
+      {
+        "symbol": "EURAUD=X",
+        "direction": "long",
+        "entry": 1.616915,
+        "composite": 9.7
+      }
+    ]
   }
 ]
