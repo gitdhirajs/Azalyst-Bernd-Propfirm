@@ -17416,5 +17416,24 @@
     "win_rate": 0.6667,
     "total_trades": 12,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-12T05:53:29.139205",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 5111.33,
+    "closed_pnl": 111.33,
+    "win_rate": 0.6667,
+    "total_trades": 12,
+    "signals_summary": [
+      {
+        "symbol": "AUDCHF=X",
+        "direction": "short",
+        "entry": 0.578921,
+        "composite": 8.4
+      }
+    ]
   }
 ]
