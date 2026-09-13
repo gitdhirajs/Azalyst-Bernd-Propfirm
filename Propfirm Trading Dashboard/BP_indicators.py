@@ -3,6 +3,7 @@
 Implements all corrections from DELIVERABLE_3_INDICATOR_CORRECTION_BLUEPRINT.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -10,6 +11,19 @@ from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Reconciliation flag: switch COT formula from 140x-20 (-20..120) to 0-100 (0..100).
+# Default OFF: preserves existing 140x-20 behavior.
+# When ON, COT index = 100 * (net - min) / (max - min), range 0..100.
+# Thresholds 80/20 are unchanged but become tighter (top/bottom 20% vs 28.6%).
+# The 0-100 form reproduces Bernd's on-screen reading of 34.43 exactly.
+_COT_0_100 = os.environ.get('BP_COT_0_100', '').lower() in ('1', 'true', 'on')
+
+def _cot_scale(val, mn, mx):
+    """Apply the selected COT scaling formula."""
+    if _COT_0_100:
+        return 100.0 * (val - mn) / (mx - mn)
+    return 140.0 * (val - mn) / (mx - mn) - 20.0
 
 
 class COTIndex:
@@ -86,17 +100,17 @@ class COTIndex:
         # TradeStation).  Upper threshold=80, lower=20 unchanged from defaults.
         df['commercials_index'] = np.where(
             comm_max != comm_min,
-            140.0 * (df['comm_net'] - comm_min) / (comm_max - comm_min) - 20.0,
+            _cot_scale(df['comm_net'], comm_min, comm_max),
             np.nan
         )
         df['large_specs_index'] = np.where(
             lspec_max != lspec_min,
-            140.0 * (df['lspec_net'] - lspec_min) / (lspec_max - lspec_min) - 20.0,
+            _cot_scale(df['lspec_net'], lspec_min, lspec_max),
             np.nan
         )
         df['small_specs_index'] = np.where(
             sspec_max != sspec_min,
-            140.0 * (df['sspec_net'] - sspec_min) / (sspec_max - sspec_min) - 20.0,
+            _cot_scale(df['sspec_net'], sspec_min, sspec_max),
             np.nan
         )
 
@@ -110,7 +124,7 @@ class COTIndex:
             mx = df[col].rolling(window=ext, min_periods=1).max()
             df[col + '_extreme'] = np.where(
                 mx != mn,
-                140.0 * (df[col] - mn) / (mx - mn) - 20.0,
+                _cot_scale(df[col], mn, mx),
                 np.nan,
             )
 
@@ -130,7 +144,7 @@ class COTIndex:
             all_max = df[col].expanding(min_periods=1).max()
             df[col + '_alltime'] = np.where(
                 all_max != all_min,
-                140.0 * (df[col] - all_min) / (all_max - all_min) - 20.0,
+                _cot_scale(df[col], all_min, all_max),
                 np.nan,
             )
 
@@ -196,7 +210,7 @@ class COTIndex:
             mn, mx = df[col].min(), df[col].max()
             if mx == mn:
                 return 50.0
-            return float(140.0 * (val - mn) / (mx - mn) - 20.0)
+            return float(_cot_scale(val, mn, mx))
 
         at_comm  = _v2(curr_comm,  'comm_net')
         at_sspec = _v2(curr_sspec, 'sspec_net')
@@ -324,8 +338,12 @@ class COTIndex:
             primary, ext = lspec_idx, lspec_ext
             contrarian = False
         elif asset_class == 'forex':
-            primary, ext = lspec_idx, lspec_ext
-            contrarian = False
+            if _RETAIL_CONTRARIAN:
+                primary, ext = sspec_idx, sspec_ext
+                contrarian = True
+            else:
+                primary, ext = lspec_idx, lspec_ext
+                contrarian = False
         elif asset_class in ('equity_indices', 'equities'):
             primary, ext = lspec_idx, lspec_ext
             contrarian = False
@@ -339,6 +357,14 @@ class COTIndex:
             # When Commercials extreme LONG (≥80) → BULLISH; extreme SHORT (≤20) → BEARISH.
             primary, ext = comm_idx, comm_ext
             contrarian = False
+        elif asset_class == 'crude_oil':
+            if _RETAIL_CONTRARIAN:
+                primary, ext = sspec_idx, sspec_ext
+                contrarian = True
+            else:
+                # Fallback to standard energies behavior
+                primary, ext = comm_idx, comm_ext
+                contrarian = False
         elif asset_class == 'nat_gas':
             # Phase 41 S-01 (chunk2 speech): LESSON 2 PART 3 ENERGIES frames + FT Signals Apr23
             # both show "Fund Managers" (non-commercials/lspec) as the DISPLAYED primary COT panel

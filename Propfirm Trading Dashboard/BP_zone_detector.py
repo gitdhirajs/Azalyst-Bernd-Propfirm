@@ -4,6 +4,7 @@ Implements zone detection with all 6 qualifiers + LOL per Blueprint methodology.
 Scans price history for DBR, RBR, RBD, DBD formations and scores them.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -13,6 +14,11 @@ import logging
 import uuid
 
 logger = logging.getLogger(__name__)
+
+# Reconciliation flag: strict explosive threshold (> 0.70) per OTC lecture spec.
+# Default OFF to preserve existing behavior (>= 0.70).
+# Master reference Node 01: "Exactly 0.70 is NOT explosive."
+_EXPLOSIVE_STRICT = os.environ.get('BP_EXPLOSIVE_STRICT', '').lower() in ('1', 'true', 'on')
 
 
 class ZoneDetector:
@@ -316,7 +322,10 @@ class ZoneDetector:
 
             # Standard explosive-body check
             body_pct = candle['body'] / candle['range'] if candle['range'] > 0 else 0
-            if body_pct >= 0.70 and candle['body'] >= self.leg_out_mult * max(avg_body, 0.0001):
+            # Reconciliation: OTC lectures say > 0.70 (strict); code had >= 0.70.
+            # BP_EXPLOSIVE_STRICT flag switches to strict per lecture spec.
+            _explosive_ok = (body_pct > 0.70) if _EXPLOSIVE_STRICT else (body_pct >= 0.70)
+            if _explosive_ok and candle['body'] >= self.leg_out_mult * max(avg_body, 0.0001):
                 return i
 
             # Phase 6: gap-as-leg-out (Ch 171)

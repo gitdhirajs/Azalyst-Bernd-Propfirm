@@ -4,6 +4,7 @@ manages stops, targets, trailing stops, and tracks P&L.
 Implements Section F and G from the Strategy Rulebook.
 """
 
+import os
 import uuid
 import json
 import logging
@@ -15,6 +16,12 @@ from enum import Enum
 from BP_rules_engine import RulesEngine
 
 logger = logging.getLogger(__name__)
+
+# Reconciliation flag: type-specific management ladders per OTC lectures.
+# Default OFF: all trades use the same flat 0.5R-BE / T2-partial / T3-close ladder.
+# When ON: counter-trend closes 100% at T2 (no trail). Trend trades use wider BE/partial.
+# Master reference Node 09 defines four distinct ladders by trade_context.
+_TYPE_LADDERS = os.environ.get('BP_TYPE_LADDERS', '').lower() in ('1', 'true', 'on')
 
 
 class TradeDirection(str, Enum):
@@ -54,6 +61,7 @@ class Position:
     trade_r_multiple: float = 0.0
     notes: str = ""
     income_strategy: Optional[str] = None
+    trade_context: str = 'standard'  # standard / counter_trend / anticipatory
 
 
 @dataclass
@@ -375,6 +383,7 @@ class PaperTrader:
             status=(TradeStatus.PENDING if is_pending else TradeStatus.ACTIVE),
             zone_id=zone_id,
             income_strategy=signal.get('income_strategy'),
+            trade_context=signal.get('trade_context', 'standard'),
         )
 
         self.positions[pos_id] = position
@@ -583,22 +592,31 @@ class PaperTrader:
                             logger.info(f"[{pos.symbol}] Breakeven at {pos.entry_price:.2f}")
 
                         if i == 1 and not pos.partial_taken:
-                            partial_pnl = (target - pos.entry_price) * pos.position_size * 0.5
-                            pos.realized_pnl += partial_pnl
-                            pos.partial_taken = True
-                            pos.partial_qty = pos.position_size * 0.5
-                            pos.partial_price = target
-                            pos.position_size *= 0.5
-                            # NOTE: do NOT add partial_pnl to closed_pnl_total here.
-                            # It is already accumulated into pos.realized_pnl and
-                            # will be booked once in _close_position; adding it here
-                            # too double-counted the partial into balance/target.
-                            logger.info(f"[{pos.symbol}] Partial 50% at T2={target:.2f}, PnL={partial_pnl:.2f}")
-                            # Begin trailing stop after T2
-                            risk = abs(pos.entry_price - pos.stop_price)
-                            pos.trail_stop_level = pos.entry_price + risk  # Trail to T1 level initially
-                            pos.current_stop = pos.trail_stop_level
-                            logger.info(f"[{pos.symbol}] Trailing stop set to {pos.trail_stop_level:.2f}")
+                            if _TYPE_LADDERS and pos.trade_context == 'counter_trend':
+                                close_price = target
+                                realized_pnl = (target - pos.entry_price) * pos.position_size
+                                pos.realized_pnl += realized_pnl
+                                pos.close_price = close_price
+                                pos.close_time = datetime.now()
+                                pos.status = TradeStatus.CLOSED
+                                pos.trade_r_multiple = 2.0
+                                closed_events.append(self._close_position(pos))
+                                if pos.zone_id:
+                                    self.zone_memory[pos.zone_id] = True
+                                logger.info(f"[{pos.symbol}] Counter-trend closed 100% at T2={target:.2f}")
+                                break
+                            else:
+                                partial_pnl = (target - pos.entry_price) * pos.position_size * 0.5
+                                pos.realized_pnl += partial_pnl
+                                pos.partial_taken = True
+                                pos.partial_qty = pos.position_size * 0.5
+                                pos.partial_price = target
+                                pos.position_size *= 0.5
+                                logger.info(f"[{pos.symbol}] Partial 50% at T2={target:.2f}, PnL={partial_pnl:.2f}")
+                                risk = abs(pos.entry_price - pos.stop_price)
+                                pos.trail_stop_level = pos.entry_price + risk
+                                pos.current_stop = pos.trail_stop_level
+                                logger.info(f"[{pos.symbol}] Trailing stop set to {pos.trail_stop_level:.2f}")
 
                         if i == 2:
                             close_price = target
@@ -807,46 +825,3 @@ class PaperTrader:
         self.today_starting_equity = self.balance
         self.current_date = datetime.now().strftime('%Y-%m-%d')
 
-    def apply_zone_trailing(self, symbol_zones: Dict[str, List[Dict]]) -> None:
-        """Trail the stop on already-partialled positions to the most recent
-        zone distal beyond the current stop (longs: highest demand distal below
-        price; shorts: lowest supply distal above price). Per Blueprint
-        management rules, this kicks in after T2 has been taken.
-
-        Args:
-            symbol_zones: mapping of symbol -> list of detected zones, each
-                with keys zone_type/proximal/distal.
-        """
-        for pos in self.positions.values():
-            if pos.status != TradeStatus.ACTIVE or not pos.partial_taken:
-                continue
-            zones = symbol_zones.get(pos.symbol, [])
-            if not zones:
-                continue
-
-            if pos.direction == TradeDirection.LONG:
-                candidates = [
-                    z['distal'] for z in zones
-                    if z['zone_type'] == 'demand'
-                    and z['distal'] > pos.current_stop
-                    and z['proximal'] < pos.entry_price + 5 * abs(pos.entry_price - pos.stop_price)
-                ]
-                if candidates:
-                    new_stop = max(candidates)
-                    if new_stop > pos.current_stop:
-                        pos.current_stop = new_stop
-                        pos.trail_stop_level = new_stop
-                        logger.info(f"[{pos.symbol}] Zone-trail stop -> {new_stop:.4f}")
-            else:
-                candidates = [
-                    z['distal'] for z in zones
-                    if z['zone_type'] == 'supply'
-                    and z['distal'] < pos.current_stop
-                    and z['proximal'] > pos.entry_price - 5 * abs(pos.entry_price - pos.stop_price)
-                ]
-                if candidates:
-                    new_stop = min(candidates)
-                    if new_stop < pos.current_stop:
-                        pos.current_stop = new_stop
-                        pos.trail_stop_level = new_stop
-                        logger.info(f"[{pos.symbol}] Zone-trail stop -> {new_stop:.4f}")

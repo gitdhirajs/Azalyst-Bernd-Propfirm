@@ -2254,3 +2254,15 @@ Clean improvement on both metrics with zero new regressions — all 7 fixes kept
 - SI=F Valuation ROC chronological drift (10 in 2023 → 30 in 2024) — not yet investigated
 - Equity-index dual-ROC pattern (13+30) — not yet investigated
 - "Does COT apply to equities/indices at all?" (Ch.072's Finite-vs-Infinite-market framework) — not yet investigated, but questions something architecturally central (COT routing for equities/equity_indices) so should get its own dedicated pass before any action
+
+
+## Phase 46 Reconciliation (2026-09-14)
+
+Reconciliation against the Master Reference PDF identified 20 discrepancies. The following were implemented as experimental feature flags (default OFF):
+1. **BP_EXPLOSIVE_STRICT**: Changes explosive threshold from >= 0.70 to strictly > 0.70.
+2. **BP_COT_0_100**: Changes COT formula from 140x-20 (-20..120) to 100 * (val-min)/(max-min) (0..100) to match on-screen readings.
+3. **BP_TYPE_LADDERS**: Enables trade_context specific management ladders. Counter-trend trades now close 100% at T2 (2R).
+4. **BP_RETAIL_CONTRARIAN**: Routes forex and CL=F to use Retailers (small specs) as a contrarian indicator, matching the live corpus rather than the 28-lesson teaching scope.
+
+Additionally, dead code (\pply_zone_trailing\) was removed, and comments were updated to clarify known deviations (e.g., \--all-strategies\ is a no-op).
+

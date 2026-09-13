@@ -304,3 +304,8 @@ If Stage-2 full-signal drops below 13 or any false positives appear, something h
 **CFTC API confirmed working.** `fetch_cot_data(get_cftc_code('GC=F'))` = `fetch_cot_data('088691')` returns real CFTC data. Direct symbol call `fetch_cot_data('GC=F')` returns no-match → empty DataFrame (Phase 25 changed: was simulation, now neutral). Goldtest uses correct `get_cftc_code()` flow.
 
 **Goldtest display format note**: The goldtest terminal output "OK/DIVERGE" shows Stage 2 (`bias_match` — full signal including zone arrival). Stage 1 (`bias_only_match`) is computed from `gold_results.json` post-run by `parse_results.py`. The progression table above uses Stage 1.
+
+
+## Phase 46 Reconciliation Update (2026-09-14)
+We have performed a full reconciliation against the Master Reference PDF. Several discrepancies between the code (Phase 25) and the 28-lesson scope were identified and resolved via feature flags for A/B testing. See \CLAUDE.md\ for full details.
+

@@ -1487,6 +1487,8 @@ class RulesEngine:
             cot_effective_class = 'soft_commodities'
         elif symbol in NAT_GAS_SYMBOLS:
             cot_effective_class = 'nat_gas'
+        elif symbol == 'CL=F':
+            cot_effective_class = 'crude_oil'
 
         cot_bias = 'neutral'
         cot_strength = 'none'
