@@ -1,6 +1,6 @@
-name: Scan markets (hourly)
+name: Scan markets (daily)
 
-# Runs the Azalyst Propfirm scanner EVERY HOUR from a GitHub Actions runner so a
+# Runs the Azalyst Propfirm scanner DAILY from a GitHub Actions runner so a
 # fresh signal is caught close to its actual price (a zone can form and fill
 # within a 4h gap). This repo is PUBLIC, so Actions minutes are free/unlimited.
 # The scanner produces paper signals for the live Fundingpips $5k challenge
@@ -15,11 +15,11 @@ name: Scan markets (hourly)
 # Cron runs at :17 past every hour. The :17 minute (not :00) avoids the
 # top-of-hour GitHub Actions congestion where scheduled events get dropped.
 # The 00:17 UTC slot is historically the most likely to be skipped, but with 24
-# hourly slots losing the odd one is harmless (the next hour catches up). Runs
+# daily slots losing the odd one is harmless (the next day catches up). Runs
 # take ~7-12 min and hours are 60 min apart, so they never overlap.
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '17 0 * * *'
   workflow_dispatch:               # manual trigger from the Actions tab
 
 # Only one scan at a time -- avoids two runs racing on the commit-back step.
@@ -89,7 +89,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No state file changes to commit."
           else
-            git commit -m "scan: hourly state update [skip ci]"
+            git commit -m "scan: daily state update [skip ci]"
             # Pull --rebase --autostash protects against the rare case where
             # someone pushed between this run's checkout and this commit.
             git pull --rebase --autostash origin main
