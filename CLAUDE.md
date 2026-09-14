@@ -2264,5 +2264,20 @@ Reconciliation against the Master Reference PDF identified 20 discrepancies. The
 3. **BP_TYPE_LADDERS**: Enables trade_context specific management ladders. Counter-trend trades now close 100% at T2 (2R).
 4. **BP_RETAIL_CONTRARIAN**: Routes forex and CL=F to use Retailers (small specs) as a contrarian indicator, matching the live corpus rather than the 28-lesson teaching scope.
 
-Additionally, dead code (\pply_zone_trailing\) was removed, and comments were updated to clarify known deviations (e.g., \--all-strategies\ is a no-op).
+Additionally, dead code (`apply_zone_trailing`) was removed, and comments were updated to clarify known deviations (e.g., `--all-strategies` is a no-op).
+
+### Correction (2026-09-14, PR #3)
+
+- **`BP_RETAIL_CONTRARIAN` was never defined** in `BP_indicators.py`, only referenced. Every forex and
+  CL=F COT read raised NameError inside the rules engine's try/except and fell back to COT = neutral.
+  Production run 34808243626 (2026-09-14 05:04 UTC) logged it 8 times: EURUSD, GBPUSD, AUDUSD, NZDUSD,
+  USDJPY, USDCHF, USDCAD, CL=F. Fixed in eee0c9d. With the flag OFF, output now matches the
+  pre-reconciliation code (2ac0790) on 1,600/1,600 synthetic COT series.
+- The new `crude_oil` COT class had also dropped CL=F out of the 156w approaching-extreme trigger.
+  Restored in the same commit.
+- `BP_TYPE_LADDERS` closed counter-trend **longs** at T2 but left shorts on partial + trail.
+  Fixed in 30435e4. It changes only that one exit; the lecture's four ladders are not implemented.
+- The "20 discrepancies" were not all resolved: four behaviours were flagged, none were measured, and
+  all defaults are unchanged. See `RECONCILE_REPORT_2026-09-14.md` and `docs/LECTURE_SCOPE.md`.
+
 

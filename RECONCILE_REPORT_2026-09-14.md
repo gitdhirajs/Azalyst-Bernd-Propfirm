@@ -9,7 +9,7 @@ This document serves as the final report for the Phase 46 reconciliation project
 - AGENTS.md, CLAUDE.md, and SKILL.md: Appended reconciliation findings and feature flags.
 
 ### Tier 2: Verification-only Cleanups (No Behavior Change)
-- pply_zone_trailing: Confirmed as dead code (never called). Removed from BP_paper_trader.py.
+- `apply_zone_trailing`: Confirmed as dead code (never called). Removed from BP_paper_trader.py.
 - **Trend Rule**: Code uses 2x HL only for uptrends, 2x LH only for downtrends (asymmetric). This matches the Master Reference.
 - **Stop Placement**: Code correctly implements two modes: distal-only for weekly/monthly, and distal - 33% for LTF/pattern. This resolves the contradiction in the Master Reference.
 

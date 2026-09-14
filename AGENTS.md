@@ -307,5 +307,5 @@ If Stage-2 full-signal drops below 13 or any false positives appear, something h
 
 
 ## Phase 46 Reconciliation Update (2026-09-14)
-We have performed a full reconciliation against the Master Reference PDF. Several discrepancies between the code (Phase 25) and the 28-lesson scope were identified and resolved via feature flags for A/B testing. See \CLAUDE.md\ for full details.
+We have performed a full reconciliation against the Master Reference PDF. Several discrepancies between the code (Phase 25) and the 28-lesson scope were identified and resolved via feature flags for A/B testing. See `CLAUDE.md` for full details.
 
