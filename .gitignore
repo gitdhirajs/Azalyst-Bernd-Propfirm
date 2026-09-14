@@ -84,3 +84,7 @@ Propfirm Trading Dashboard/full_history_cot_*.csv
 research/gemini/keys.local.json
 research/gemini/**/keys.local.json
 research/gemini/out/
+
+# Local archive of untracked clutter (zipped, see _archive_2026-09-15.zip MANIFEST.json)
+_archive_*/
+_archive_*.zip
