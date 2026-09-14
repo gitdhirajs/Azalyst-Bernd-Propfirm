@@ -636,6 +636,22 @@ class PaperTrader:
                             pos.current_stop = pos.entry_price
                             pos.breakeven_triggered = True
 
+                        if i == 1 and not pos.partial_taken and _TYPE_LADDERS and pos.trade_context == 'counter_trend':
+                            # Mirror of the LONG counter-trend close: 50eeb05 added it
+                            # for longs only, so counter-trend shorts still partialled
+                            # and trailed under BP_TYPE_LADDERS=1.
+                            realized_pnl = (pos.entry_price - target) * pos.position_size
+                            pos.realized_pnl += realized_pnl
+                            pos.close_price = target
+                            pos.close_time = datetime.now()
+                            pos.status = TradeStatus.CLOSED
+                            pos.trade_r_multiple = 2.0
+                            closed_events.append(self._close_position(pos))
+                            if pos.zone_id:
+                                self.zone_memory[pos.zone_id] = True
+                            logger.info(f"[{pos.symbol}] Counter-trend closed 100% at T2={target:.2f}")
+                            break
+
                         if i == 1 and not pos.partial_taken:
                             partial_pnl = (pos.entry_price - target) * pos.position_size * 0.5
                             pos.realized_pnl += partial_pnl

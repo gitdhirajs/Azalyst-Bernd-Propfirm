@@ -1369,8 +1369,8 @@ def main():
         logger.info(f"CLI override: active_strategy = {strat_arg}")
 
     # ---- --all-strategies is NOT a multi-strategy loop ---------------------
-# RECONCILIATION NOTE: Confirmed this is a no-op that just logs a warning.
-# The master reference claims 'runs all 4'. It does not.
+    # Verified 2026-09-14: this flag only logs a warning. The lecture reference
+    # (node 18) and the scan.yml comments said it scans weekly AND daily; it does not.
     # The live workflow passes --all-strategies, but this scanner scans a SINGLE
     # timeframe per run (config active_strategy). Warn loudly so the operator is
     # never misled into believing weekly AND daily both ran when only one did.
