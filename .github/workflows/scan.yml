@@ -5,18 +5,17 @@ name: Scan markets (daily)
 # within a 4h gap). This repo is PUBLIC, so Actions minutes are free/unlimited.
 # The scanner produces paper signals for the live Fundingpips $5k challenge
 # ($150 daily / $300 total loss caps enforced in BP_paper_trader.py). After
-# scanning it posts a Discord summary (@ping on TAKE signals; CAUTION signals
-# shown but not pinged/traded) and commits the small state files back to main.
+# scanning it posts a Discord summary (the TAKE/CAUTION/SKIP composite tiers were
+# removed in send_discord.py -- every signal posts as TAKE) and commits the small
+# state files back to main.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   DISCORD_WEBHOOK_URL   -- Discord webhook for the channel to post to
 #   DISCORD_USER_ID       -- your Discord snowflake ID for @-pings on TAKE signals
 
-# Cron runs at :17 past every hour. The :17 minute (not :00) avoids the
-# top-of-hour GitHub Actions congestion where scheduled events get dropped.
-# The 00:17 UTC slot is historically the most likely to be skipped, but with 24
-# daily slots losing the odd one is harmless (the next day catches up). Runs
-# take ~7-12 min and hours are 60 min apart, so they never overlap.
+# Cron runs once a day at 00:17 UTC (changed from hourly in b23ca62). The :17
+# minute (not :00) avoids top-of-hour GitHub Actions congestion where scheduled
+# events get dropped; a skipped day is caught up by the next run.
 on:
   schedule:
     - cron: '17 0 * * *'
@@ -55,8 +54,8 @@ jobs:
       - name: Run scanner (headless)
         working-directory: Propfirm Trading Dashboard
         run: python run_scanner.py --no-open --all-strategies
-        # --all-strategies: runs both weekly (HTF=1wk) and daily (HTF=1d) in one pass,
-        # merges signals from both timeframes into a single scan_results.json.
+        # --all-strategies does NOT loop over timeframes: run_scanner.py logs a
+        # warning and scans only config active_strategy (single strategy per run).
         # --no-open skips the browser launch + dashboard HTTP server.
         # The scanner writes scan_results.json, scan_history.json, and
         # paper_trader_state.json on disk; the next step picks them up.
