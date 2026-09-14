@@ -28,6 +28,25 @@ class ZoneDetector:
         self.base_wick_pct = config.get('base_wick_max_pct', 0.50)
         self.profit_margin_min = config.get('profit_margin_min_ratio', 3.0)
 
+        # 2026-09-14 lecture reconciliation, EXPERIMENTAL, all DEFAULT OFF.
+        # Each switches one rule to the 28-lesson spec so it can be measured alone
+        # (RECONCILE_REPORT_2026-09-14.md). Read once here, not per candle.
+        #   BP_EXPLOSIVE_STRICT=1  explosive = body_pct > 0.70 (M2 L4); code uses >= 0.70
+        #   BP_BASE_MAX6=1         base may be 6 candles (M2 L6: 1-6, 4-6 acceptable);
+        #                          config base_max_candles is 5
+        #   BP_LEGIN_DECISIVE=1    leg-in = run of decisive same-direction candles ending
+        #                          at the last candle before the base, length >= 1 (M2 L4);
+        #                          code uses >= 70% same-direction over leg_in_min+1 candles
+        #   BP_DBR_LEGOUT_FIX=1    DBR accepts an explosive candle as the FIRST leg-out
+        #                          candle, like RBR/RBD/DBD already do
+        _on = lambda k: os.environ.get(k) == '1'
+        self._explosive_strict = _on('BP_EXPLOSIVE_STRICT')
+        self._legin_decisive = _on('BP_LEGIN_DECISIVE')
+        self._dbr_legout_fix = _on('BP_DBR_LEGOUT_FIX')
+        self._base_max6 = _on('BP_BASE_MAX6')
+        if self._base_max6:
+            self.base_max = max(self.base_max, 6)
+
         self.weights = config.get('qualifier_weights', {
             'departure': 0.30, 'base_duration': 0.10, 'freshness': 0.15,
             'originality': 0.15, 'profit_margin': 0.10, 'arrival': 0.10,
@@ -187,19 +206,35 @@ class ZoneDetector:
         self._flag_flip_zones(zones)
         return zones
 
+    def _decisive_run_start(self, df: pd.DataFrame, end: int, dir_: int) -> Optional[int]:
+        """BP_LEGIN_DECISIVE: first index of the run of decisive (body > 50% of
+        range) candles in `dir_` that ends at `end`; None if `end` itself isn't one."""
+        j = end
+        while j >= 0:
+            c = df.iloc[j]
+            if c['direction'] != dir_ or c['range'] <= 0 or c['body'] / c['range'] <= 0.50:
+                break
+            j -= 1
+        return None if j == end else j + 1
+
     def _detect_dbr(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
         """Detect Drop-Base-Rally (demand) formation."""
         leg_in_end = start
-        leg_in_start = start - self.leg_in_min
+        if self._legin_decisive:
+            leg_in_start = self._decisive_run_start(df, start, -1)
+            if leg_in_start is None:
+                return None
+        else:
+            leg_in_start = start - self.leg_in_min
 
-        if leg_in_start < 0:
-            return None
+            if leg_in_start < 0:
+                return None
 
-        # Majority of leg-in candles must be bearish
-        leg_in_slice = df.iloc[leg_in_start:leg_in_end + 1]
-        bearish_pct = (leg_in_slice['direction'] == -1).mean()
-        if bearish_pct < 0.70:
-            return None
+            # Majority of leg-in candles must be bearish
+            leg_in_slice = df.iloc[leg_in_start:leg_in_end + 1]
+            bearish_pct = (leg_in_slice['direction'] == -1).mean()
+            if bearish_pct < 0.70:
+                return None
 
         base_start = leg_in_end + 1
         if base_start >= len(df) - 3:
@@ -214,7 +249,9 @@ class ZoneDetector:
             return None
 
         leg_out_end = self._find_leg_out(df, leg_out_start, 'bullish')
-        if leg_out_end is None or leg_out_end <= leg_out_start:
+        # `<= leg_out_start` rejects an explosive FIRST leg-out candle -- the other
+        # three detectors compare against base_end, which never rejects it.
+        if leg_out_end is None or leg_out_end < leg_out_start + (0 if self._dbr_legout_fix else 1):
             return None
 
         return {
@@ -225,11 +262,16 @@ class ZoneDetector:
 
     def _detect_rbr(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
         """Detect Rally-Base-Rally (demand continuation) formation."""
-        leg_in_start = max(0, start - self.leg_in_min)
-        leg_in_slice = df.iloc[leg_in_start:start + 1]
-        bullish_pct = (leg_in_slice['direction'] == 1).mean()
-        if bullish_pct < 0.70:
-            return None
+        if self._legin_decisive:
+            leg_in_start = self._decisive_run_start(df, start, 1)
+            if leg_in_start is None:
+                return None
+        else:
+            leg_in_start = max(0, start - self.leg_in_min)
+            leg_in_slice = df.iloc[leg_in_start:start + 1]
+            bullish_pct = (leg_in_slice['direction'] == 1).mean()
+            if bullish_pct < 0.70:
+                return None
 
         base_end = self._find_base(df, start + 1, 'demand')
         if base_end is None:
@@ -247,11 +289,16 @@ class ZoneDetector:
 
     def _detect_rbd(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
         """Detect Rally-Base-Drop (supply) formation."""
-        leg_in_start = max(0, start - self.leg_in_min)
-        leg_in_slice = df.iloc[leg_in_start:start + 1]
-        bullish_pct = (leg_in_slice['direction'] == 1).mean()
-        if bullish_pct < 0.70:
-            return None
+        if self._legin_decisive:
+            leg_in_start = self._decisive_run_start(df, start, 1)
+            if leg_in_start is None:
+                return None
+        else:
+            leg_in_start = max(0, start - self.leg_in_min)
+            leg_in_slice = df.iloc[leg_in_start:start + 1]
+            bullish_pct = (leg_in_slice['direction'] == 1).mean()
+            if bullish_pct < 0.70:
+                return None
 
         base_end = self._find_base(df, start + 1, 'supply')
         if base_end is None:
@@ -269,11 +316,16 @@ class ZoneDetector:
 
     def _detect_dbd(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
         """Detect Drop-Base-Drop (supply continuation) formation."""
-        leg_in_start = max(0, start - self.leg_in_min)
-        leg_in_slice = df.iloc[leg_in_start:start + 1]
-        bearish_pct = (leg_in_slice['direction'] == -1).mean()
-        if bearish_pct < 0.70:
-            return None
+        if self._legin_decisive:
+            leg_in_start = self._decisive_run_start(df, start, -1)
+            if leg_in_start is None:
+                return None
+        else:
+            leg_in_start = max(0, start - self.leg_in_min)
+            leg_in_slice = df.iloc[leg_in_start:start + 1]
+            bearish_pct = (leg_in_slice['direction'] == -1).mean()
+            if bearish_pct < 0.70:
+                return None
 
         base_end = self._find_base(df, start + 1, 'supply')
         if base_end is None:
@@ -349,7 +401,8 @@ class ZoneDetector:
 
             # Standard explosive-body check
             body_pct = candle['body'] / candle['range'] if candle['range'] > 0 else 0
-            if body_pct >= 0.70 and candle['body'] >= self.leg_out_mult * max(avg_body, 0.0001):
+            _explosive = body_pct > 0.70 if self._explosive_strict else body_pct >= 0.70
+            if _explosive and candle['body'] >= self.leg_out_mult * max(avg_body, 0.0001):
                 return i
 
             # Phase 6: gap-as-leg-out (Ch 171)
@@ -384,7 +437,7 @@ class ZoneDetector:
 
         # Q1: Departure (CRITICAL)
         leg_out_body_pct = leg_out_candle['body'] / leg_out_candle['range'] if leg_out_candle['range'] > 0 else 0
-        if leg_out_body_pct >= 0.70:
+        if (leg_out_body_pct > 0.70 if self._explosive_strict else leg_out_body_pct >= 0.70):
             departure_score = 10.0
         elif leg_out_body_pct >= 0.60:
             departure_score = 7.0
@@ -402,8 +455,8 @@ class ZoneDetector:
             base_dur_score = 10.0
         elif base_candles <= 4:
             base_dur_score = 7.0
-        elif base_candles <= 5:
-            base_dur_score = 4.0  # 5 candles = marginal but acceptable
+        elif base_candles <= (6 if self._base_max6 else 5):
+            base_dur_score = 4.0  # 5 candles (6 under BP_BASE_MAX6) = marginal but acceptable
         else:
             base_dur_score = 0.0  # 6+ candles = fails Q2
 

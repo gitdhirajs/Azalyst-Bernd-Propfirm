@@ -435,6 +435,10 @@ def _position_from_dict(d: Dict):
         "close_price": d.get("close_price"),
         "trade_r_multiple": d.get("trade_r_multiple", 0.0), "notes": d.get("notes", ""),
         "income_strategy": d.get("income_strategy"),
+        # Without these two, a reload blanked close_reason on every closed trade
+        # (E-01b) and reset trade_context to 'standard' on open positions.
+        "close_reason": d.get("close_reason", "") or "",
+        "trade_context": d.get("trade_context") or "standard",
     }
     return Position(**fields)
 

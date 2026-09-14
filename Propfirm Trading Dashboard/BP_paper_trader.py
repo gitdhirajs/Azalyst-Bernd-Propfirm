@@ -60,6 +60,9 @@ class Position:
     close_reason: str = ""
     notes: str = ""
     income_strategy: Optional[str] = None
+    # Signal's trade_context (standard / counter_trend / anticipatory). Read by the
+    # BP_TYPE_LADDERS exit branch; before 2026-09-14 the paper trader dropped it.
+    trade_context: str = "standard"
 
 
 @dataclass
@@ -145,6 +148,7 @@ class PaperTrader:
         # T1 itself. This locks in protection earlier without giving up the
         # T1+ R-multiple. Set False to revert to T1 breakeven.
         self.breakeven_at_half = bool(self.stop_cfg.get('breakeven_at_half_target', True))
+        self.type_ladders = os.environ.get('BP_TYPE_LADDERS') == '1'
 
         self.positions: Dict[str, Position] = {}
         self.trade_history: List[Position] = []
@@ -381,6 +385,7 @@ class PaperTrader:
             status=(TradeStatus.PENDING if is_pending else TradeStatus.ACTIVE),
             zone_id=zone_id,
             income_strategy=signal.get('income_strategy'),
+            trade_context=signal.get('trade_context') or 'standard',
         )
 
         self.positions[pos_id] = position
@@ -612,6 +617,30 @@ class PaperTrader:
                     closed_events.append(self._close_position(pos))
                     if pos.zone_id:
                         self.zone_memory[pos.zone_id] = True
+                    continue
+
+            # BP_TYPE_LADDERS=1 -- EXPERIMENTAL, DEFAULT OFF (2026-09-14).
+            # Counter-trend trades close 100% at T2 instead of the 50% partial + trail
+            # every trade gets today (CLAUDE.md: "Counter-trend: FULL CLOSE at T2 --
+            # hard ceiling"). Only this one exit changes; the lecture's full four
+            # ladders (trend BE 2R / first profit 4R, etc.) are not implemented.
+            if (self.type_ladders and pos.trade_context == 'counter_trend'
+                    and len(pos.targets) > 1 and not pos.partial_taken):
+                t2 = pos.targets[1]
+                is_long = pos.direction == TradeDirection.LONG
+                if (current_high >= t2) if is_long else (current_low <= t2):
+                    sign = 1.0 if is_long else -1.0
+                    risk = abs(pos.entry_price - pos.stop_price)
+                    pos.realized_pnl += (t2 - pos.entry_price) * sign * pos.position_size
+                    pos.close_price = t2
+                    pos.close_time = datetime.now()
+                    pos.status = TradeStatus.CLOSED
+                    pos.trade_r_multiple = (t2 - pos.entry_price) * sign / risk if risk > 0 else 0
+                    pos.close_reason = "T2_counter"
+                    closed_events.append(self._close_position(pos))
+                    if pos.zone_id:
+                        self.zone_memory[pos.zone_id] = True
+                    logger.info(f"[{pos.symbol}] Counter-trend closed 100% at T2={t2:.4f}")
                     continue
 
             # Check take-profit targets

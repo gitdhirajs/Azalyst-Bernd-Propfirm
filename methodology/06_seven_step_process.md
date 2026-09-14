@@ -75,9 +75,14 @@ Count **6 pivots** (3 swing highs + 3 swing lows), reading **RIGHT to LEFT** on 
 
 | Pattern | Trend | Action |
 |---------|-------|--------|
-| All higher highs + higher lows | Uptrend | Trade WITH trend (buy dips) |
-| All lower highs + lower lows | Downtrend | Trade WITH trend (sell rallies) |
-| Mixed pivots | Sideways | Can still trade, but adjust targets to max 1:2 |
+| Higher lows (higher highs NOT required) | Uptrend | Trade WITH trend (buy dips) |
+| Lower highs (lower lows NOT required) | Downtrend | Trade WITH trend (sell rallies) |
+| Neither | Sideways | Can still trade, but adjust targets to max 1:2 |
+
+The rule is **asymmetric** (OTC M2 L3/L4 "Required: 2× HL … HH not necessarily required"; code
+`BP_rules_engine._determine_trend`, verified 2026-09-14). Higher lows are checked first, so
+rising lows under falling highs (a contracting triangle) read as **uptrend**. Earlier versions of
+this table said "all HH + HL", which the code has not done since the OTC Lesson 4 fix.
 
 #### Pivot-Break = Explicit Trend-Reversal Trigger (Phase 6, Ch 174)
 
@@ -179,7 +184,7 @@ Check **ALL THREE** fundamental indicators to build the consensus.
   - **Forex**: Non-Commercials (Large Speculators)
   - **Commodities**: Commercials (primary) + Retailers (contrarian)
   - **Equities**: Non-Commercials
-- Check the COT index level (**-20 to +120 scale**, V2 formula: `140*(net-min)/(max-min)-20`. Thresholds: ≥80 bullish, ≤20 bearish. Phase 13 correction from old 0-100 scale.)
+- Check the COT index level (**0 to 100 scale**, `100*(net-min)/(max-min)`. Thresholds: ≥80 bullish, ≤20 bearish. C-57 reverted Phase 13's −20..+120 V2 scale — see `03_fundamentals.md`.)
 - Check for divergences between price and COT positioning
 - 156-week extreme levels are the strongest signals (especially for commodities)
 
@@ -516,5 +521,5 @@ REPEAT → Return to Step 1
 | 3c | Consensus | Location gate + Valuation veto + minimum met? | Loc gate → Val veto → loc+val aligned OR loc+val-neutral+1 other |
 | 4 | LTF Zone | Is there a quality zone in the right direction? | Composite score >= 4.0; speed bumps checked |
 | 5 | Entry Trigger | Is there a confirmation pattern with good R:R? | R:R >= 1:2; stop mode selected (LTF vs HTF) |
-| 6 | Execution | Am I managing by the rules? | BE at half-T1 (preferred); partial at T2; counter-trend FULL close at T2 |
+| 6 | Execution | Am I managing by the rules? | BE at half-T1 (preferred); partial at T2; counter-trend FULL close at T2 (paper trader: only with `BP_TYPE_LADDERS=1` — see `05_trade_management.md`) |
 | 7 | Review | Did I follow the system? | Honest self-assessment; expectancy updated |

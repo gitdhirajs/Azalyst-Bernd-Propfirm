@@ -15,15 +15,21 @@ logger = logging.getLogger(__name__)
 
 class COTIndex:
     """
-    Commitment of Traders Index — COT V2 formula, range -20 to 120.
+    Commitment of Traders Index — 0 to 100 by default (C-57).
 
-    Formula (matches COT V2 120-20.txt Pine Script):
-        index = 140 * (netPos - lowest(n)) / (highest(n) - lowest(n)) - 20
+    Formula:
+        index = lower_bound + (upper_bound - lower_bound)
+                * (netPos - lowest(n)) / (highest(n) - lowest(n))
+    with bounds 0/100 by default. Bounds -20/120 give the older V2 form
+    (140 * ... - 20), which fires 80/20 "extremes" at 71.4% / 28.6% of the range.
 
-    Scale: -20 (most bearish possible) → 120 (most bullish possible).
-    Thresholds: upper=80, lower=20 (same as V1 — but with the stretched
-    scale a reading above 80 now corresponds to the top ~28.6% of range
-    rather than the top 20%, so extreme signals fire more frequently).
+    Evidence for 0-100: the OTC 2025 COT lesson's own Gold legend
+    (M3 L2 frame_001728, "COT Pos. Indices 26 156") reads 20.66 / 80.28, and
+    the CFTC report of 2025-01-28 gives exactly 20.66 (commercials) and 80.28
+    (non-commercials) on 0-100; V2 gives 8.92 / 92.39. The dialog's
+    "Upper Bound Level 120" is where the multi-year-extreme line is drawn, not
+    a stretch of the scale (frame_001829, frame_002329).
+    Thresholds: upper=80, lower=20.
 
     156-week "extreme" overlay uses the same formula over a longer window.
     A reading extreme on BOTH rolling and 156w windows = 'strong' signal.

@@ -16,45 +16,39 @@ Fundamental analysis in the Blueprint system provides **directional bias** — i
 - **Chart timeframe**: WEEKLY only
 - **Report type**: Legacy report (sufficient for this system)
 
-### COT Index Formula — V2 (Phase 13 correction)
+### COT Index Formula — 0-100 (C-57 correction, supersedes Phase 13)
 
-⚠️ **Phase 13 correction**: the old 0-100 formula was wrong. The production system uses the V2 formula with scale **-20 to +120**.
+⚠️ **2026-08 C-57 correction** (`research/audit/CODE_FINDINGS.md`): the Phase 13 switch to the
+V2 form (`140 × … − 20`, scale −20..+120) was wrong for the current course. On CFTC data,
+Bernd's on-screen gold commercials reading of **34.43** (chart bar Mon 07 Aug 2023) is reproduced
+by the 0-100 form to 0.002; the V2 form gives 28.21 and matches no lecture value in 40 years of
+data. `BP_indicators.COTIndex` defaults to **0/100** since C-57. The real indicator exposes the
+bounds as inputs, so V2 is one argument away: `COTIndex(lower_bound=-20, upper_bound=120)`.
+
+Why it matters: with 80/20 thresholds, V2 flags "extreme" at 71.4% / 28.6% of the range instead of
+80% / 20%, which produced 26.9% more extreme calls than Bernd makes.
 
 ```python
-def cot_index_v2(net_position, net_position_history, lookback):
-    """
-    Calculate the COT Index V2 — confirmed from Pine Script source COT V2 120-20.txt
-    
-    Scale: -20 (extreme bearish) to +120 (extreme bullish)
-    Thresholds: >= 80 = extreme bullish, <= 20 = extreme bearish
-    Bernd's verbal "above 100" is a casual reference to the +120 upper bound, NOT a separate threshold.
-    
-    Args:
-        net_position: current net position (long - short contracts)
-        net_position_history: list of historical net positions
-        lookback: number of weeks to look back
-    
-    Returns:
-        float: -20 to +120 index value
-    """
+def cot_index(net_position, net_position_history, lookback, lower=0.0, upper=100.0):
+    """0-100 by default (COTIndex_OTC.txt, 2025 course). lower=-20, upper=120 gives V2."""
     history_window = net_position_history[-lookback:]
     lowest = min(history_window)
     highest = max(history_window)
-    
+
     if highest == lowest:
-        return 50.0  # No range, neutral
-    
-    return 140.0 * (net_position - lowest) / (highest - lowest) - 20.0
+        return None  # Pine: na
+
+    return lower + (upper - lower) * (net_position - lowest) / (highest - lowest)
 ```
 
-### Raw Formula (V2 — canonical)
+### Raw Formula (0-100 — canonical)
 
 ```
-cot_index = 140 * (net_position - lowest(net_position, lookback)) /
-            (highest(net_position, lookback) - lowest(net_position, lookback)) - 20
+cot_index = 100 * (net_position - lowest(net_position, lookback)) /
+            (highest(net_position, lookback) - lowest(net_position, lookback))
 ```
 
-**Thresholds on V2 scale**: ≥80 = extreme bullish | ≤20 = extreme bearish | −20 to +120 full range
+**Thresholds**: ≥80 = extreme bullish | ≤20 = extreme bearish | 0 to 100 full range
 
 ### Three Trader Groups
 
@@ -143,7 +137,7 @@ The textbook ships **two COT indicators**: the normalized 0-100 **COT Index** (r
 
 | Indicator | What it shows | When to consult |
 |-----------|---------------|-----------------|
-| **COT Index** | Normalized **-20 to +120** ranking vs configured lookback (26w / 52w + 156w extreme). Formula V2: `140*(net-min)/(max-min)-20`. Thresholds: ≥80 bullish extreme, ≤20 bearish extreme. Phase 13 correction from old 0-100 scale. | Bias decision: at/near extreme = trade signal |
+| **COT Index** | Normalized **0 to 100** ranking vs configured lookback (26w / 52w + 156w extreme). Formula: `100*(net-min)/(max-min)` (C-57; the Phase 13 V2 form `140*(net-min)/(max-min)-20` is superseded). Thresholds: ≥80 bullish extreme, ≤20 bearish extreme. | Bias decision: at/near extreme = trade signal |
 | **COT Report** | Raw contract counts. Longs as positive numbers, shorts as negative, with the per-trader-category net plotted as a thicker line | Confirm the *direction* and *momentum* of positioning over time. The Index can hit 80 even when actual positions are still climbing — the Report reveals that |
 
 In the dashboard the two appear as side-by-side panels under "INDICATORS". Implementation: `COTIndex.calculate()` and `COTReport.calculate()` in `BP_indicators.py`. The Report is purely diagnostic — bias decisions still come from the Index.

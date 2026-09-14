@@ -173,6 +173,25 @@ T4 = 1.1000 + 0.0160 = 1.1160  → Extended with-trend target
 
 ## Trailing Stop Rules (After T2)
 
+> **What the paper trader actually does (verified against `BP_paper_trader.update_positions`, 2026-09-14).**
+> This section is the method. The code implements less of it:
+>
+> | Rule below | Code |
+> |---|---|
+> | Breakeven | At **0.5R** (half-way to T1) on every trade (`stop_loss.breakeven_at_half_target: true`); the T1 move is the fallback |
+> | 50% partial at T2 | Yes, on **every** trade, regardless of `trade_context` |
+> | Zone-based trailing (§1) | **Not wired.** `apply_zone_trailing()` is defined but nothing calls it |
+> | R-based trailing (§2) | After T2 the stop trails `current_price ∓ 1R`, ratcheting; not the T-level steps in §2 |
+> | Remainder | Closed at T3 |
+> | Counter-trend full close at T2 (§3) | Only with `BP_TYPE_LADDERS=1` (experimental, default OFF). Sideways and anticipatory ceilings are not implemented |
+>
+> The OTC 2025 course teaches four ladders by trade type (M2 L4 slide `frame_001472`): trend BE 2:1 / T1 4:1 /
+> T2 trail on HTF; counter-trend and sideways BE 1:1 / T1 2:1 / T2 trail on LTF or opposing LTF zone; anticipatory
+> BE 1:1 / T1 4:1 / T2 trail on HTF; "If only one target, take profits at first target". The slide gives no partial
+> percentages, and the 0.5R breakeven appears nowhere in the 28 lessons (it comes from live sessions).
+> None of the four ladders is implemented. Exit changes cannot be scored by the goldtest (it scores Stage-1 bias), so
+> they need a trade-replay measurement before any default changes.
+
 Once T2 is hit and 50% of the position is closed, the trailing stop protocol begins for the remaining 50%.
 
 ### 1. Zone-Based Trailing (Preferred)

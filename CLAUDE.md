@@ -2418,3 +2418,47 @@ COT Net "mismatch" vs OTC 2025 M3 L2: **both correct** — lecture legend was th
 bar (Mon 20 Sep 2021), ours the last bar. 7/7 lecture legends reproduce CFTC exactly at
 chart-bar = report + 6 days; TradingView script and Python `COTReport` plot the same series.
 Evidence: `COT net indicator issue/_comparison/`; helper `_audit_ftw_vision/replay/cot_bar_value.py`.
+
+
+### 2026-09-14 — lecture-code reconciliation (OTC 2025 frames) + repo live bug
+
+Full detail: `RECONCILE_REPORT_2026-09-14.md`; lecture citations: `docs/LECTURE_SCOPE.md`.
+
+**Live bug on `gitdhirajs/main`** (the only repo whose scan runs): commit 50eeb05 referenced an
+undefined `_RETAIL_CONTRARIAN`; the try/except turned it into COT = neutral for EURUSD, GBPUSD,
+AUDUSD, NZDUSD, USDJPY, USDCHF, USDCAD and CL=F (run 34808243626 log). Fixed on branch
+`reconcile/fix-2026-09-14`, PR #3 (not merged). That repo is a different, older engine than this
+folder (split at 8806da6); it still defaults COT to 140×−20.
+
+**All 28 OTC 2025 lessons checked against slides / settings dialogs** (the Book 2 PDFs only carry
+one transcript fragment per keyframe). Settled by frames:
+- COT is **0–100**: the COT lesson's Gold legend 20.66 / 80.28 (M3 L2 `frame_001728`) equals the
+  CFTC 2025-01-28 commercials / non-commercials index on 0–100 (V2: 8.92 / 92.39). The dialog's
+  "Upper Bound Level 120" draws the multi-year-extreme line; it does not stretch the scale.
+- Valuation ROC 10, thresholds ±75 (dialog `frame_000808`); 13 and 30 are daily ROC lengths on the
+  slide table (`frame_000645`), so "no 30 setting" in the master reference is wrong.
+- Trend 2×HL / 2×LH, location thirds distal-to-distal, action matrix — code matches.
+- Taught but not coded: ladders by trade type (trend BE 2R / T1 4R; counter & sideways 1R / 2R;
+  anticipatory 1R / 4R, M2 L4 `frame_001472`); departure alternatives (LTF decisive+decisive, HTF
+  one abnormally bigger decisive); Q5 "minimum 3:1 regardless of trend".
+- Coded but not taught: 0.5R breakeven, gap leg-out, weekly distal-only stop, hanging man / H&S.
+- The lessons contradict themselves on explosive (">70%" slide vs "at least 70%" narration),
+  base max (table 1–6 vs cheat sheet ~1–5) and stop ("just below distal" vs 33% rule).
+
+**Flags added, all DEFAULT OFF, paired on the pinned 510-case set** (`base0914_?.json` baseline =
+2026-09-05 baseline, 0 of 479 changed):
+
+| flag | pooled 479 | decision |
+|---|---|---|
+| `BP_EXPLOSIVE_STRICT` (> 0.70) | 0 changed | OFF |
+| `BP_BASE_MAX6` | 0 changed | OFF |
+| `BP_LEGIN_DECISIVE` (one decisive candle) | 15 fixed / 15 broke, Bernd p=0.824 | OFF — no edge |
+| `BP_DBR_LEGOUT_FIX` (DBR accepts explosive first leg-out candle) | 0 fixed / 3 broke, p=0.250 | OFF — no edge |
+| `BP_TYPE_LADDERS` (counter-trend closes 100% at T2) | not measurable: 5 OOS Stage-2 trades, `replay_trades.py` has no `trade_context` | OFF |
+
+Zone-level check on 80 pinned files (12,683 zones): EXPLOSIVE_STRICT changes 0 files (exact 70%
+bodies don't occur); BASE_MAX6 changes 40 files but no Stage-1 prediction; LEGIN_DECISIVE 80;
+DBR_LEGOUT_FIX 48 — the flags do switch on.
+
+Also fixed: `run_scanner._position_from_dict` dropped `close_reason` and `trade_context` on every
+state reload (E-01b silently blank after reload).

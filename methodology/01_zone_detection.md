@@ -28,6 +28,24 @@ direction = "bullish" if close > open else "bearish"
 
 For doji candles (`close == open`), direction is neutral and the candle is always classified as indecisive/base.
 
+### Where `BP_zone_detector.py` differs from this section (verified 2026-09-14)
+
+Lecture column cites the OTC 2025 course frames (`D:\Trading\Output\Bernd_Skorupinski Campus Blueprint OTC\…\4. Module 2 Supply and Demand\`), checked 2026-09-14.
+
+| Rule | OTC 2025 lectures (frame) | Code today | Experimental flag (default OFF) |
+|---|---|---|---|
+| Explosive | L2 slide `frame_000090`: "body **> 70%** of range, abnormally bigger than previous candles". Narration at 0:04:47 says "at least 70%" — the lesson is inconsistent; only a body of exactly 70% differs | `>= 0.70` (detection and Q1 score) | `BP_EXPLOSIVE_STRICT=1` |
+| Leg-in | L2 rule card `frame_000403`: "Made of **a** decisive / explosive candle" — no minimum count | ≥ 70% of the `leg_in_min_candles + 1` (= 4) candles in the leg's direction; decisiveness not checked | `BP_LEGIN_DECISIVE=1` (run of ≥ 1 decisive candles) |
+| Base maximum | Inconsistent: L6 table `frame_000575` Great 1–3 / Acceptable 4–6 / Not acceptable >6; L6 cheat sheet `frame_002069` "Approx. 1 - 5 candles" | `base_max_candles: 5`; a 6-candle base is never detected | `BP_BASE_MAX6=1` |
+| Leg-out / departure | LTF: "explosive candle" **or** "decisive candle (abnormally bigger) followed by another decisive candle"; HTF (location zones): "Decisive candle (abnormally bigger)" (L6 `frame_000251`, L2 `frame_000403`) | Explosive candle or gap required on every timeframe; neither alternative is implemented | — (not yet built) |
+| Explosive first leg-out candle | Valid for every formation | DBR rejects it (`leg_out_end <= leg_out_start`); RBR/RBD/DBD accept it | `BP_DBR_LEGOUT_FIX=1` |
+| Freshness | L6 `frame_001125`: LTF beginners no test of wider, advanced no test of preferred; **HTF** may be tested ~25% of preferred | 25% penetration rule applied on every timeframe | — |
+| Doji direction | Neutral | `np.where(close > open, 1, -1)` counts a doji as bearish | — |
+| Gap as leg-out | Not in the OTC 2025 lessons (Ch.171 is a Practical Application session) | Implemented | — |
+
+Flag results are in `RECONCILE_REPORT_2026-09-14.md`. Keep the code as-is unless a paired A/B on the
+pinned out-of-sample set shows a gain.
+
 ---
 
 ## 2. Zone Anatomy

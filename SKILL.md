@@ -52,6 +52,7 @@ Every candle is classified by body-to-range ratio:
 - **Leg-In**: 3+ consecutive directional candles (decisive). Less important than leg-out.
 - **Base**: 1-6 INDECISIVE candles (body <= 50%). Tighter = stronger. **7+ candles = ZONE INVALID**
 - **Leg-Out (MOST CRITICAL)**: Explosive candles (body >= 70%), abnormally larger than surrounding. **If leg-out is indecisive = ZONE FAILS regardless of all other qualities.**
+- **Code differs (verified 2026-09-14):** leg-in = ≥70% of 4 candles in direction, decisiveness not checked; base max is **5** (`base_max_candles: 5`); explosive is `>= 0.70` while the OTC lectures say `> 0.70`; DBR alone rejects an explosive first leg-out candle. Default-OFF flags for each: see `methodology/01_zone_detection.md`.
 
 ### Four Formation Types
 
@@ -183,8 +184,9 @@ When Bernd marks HTF zones in live sessions he draws BOTH the preferred (inner) 
 
 ### Direction — ZigZag % + 6-Pivot Trend Identification
 - **ZigZag tool** (Hybrid AI HAI 1:12:51): pivots auto-detected at a configurable percentage reversal (default 3% on daily, 5% on weekly, 2% on 4H, 1% on 1H). User can manually override individual pivots when ZigZag is too noisy / too smooth
-- **Uptrend**: 3 consecutive higher lows + 3 higher highs (counted right-to-left from the most recent ZigZag pivots)
-- **Downtrend**: 3 consecutive lower highs + 3 lower lows
+- **Uptrend**: consecutive higher lows from the most recent ZigZag pivots; higher highs are NOT required (OTC Lesson 4 "Required: 2× HL")
+- **Downtrend**: consecutive lower highs; lower lows are NOT required
+- Asymmetric and checked in that order (`BP_rules_engine._determine_trend`): rising lows under falling highs read as uptrend
 - **Sideways**: No consecutive pattern. No directional bias — Q5/Q6 must be evaluated; counter-trend setups rejected unless extreme location
 - **Anticipatory**: (1) HTF trend theory — zoom out. (2) Pivot at extreme location
 
@@ -257,9 +259,9 @@ Implementation: `BP_rules_engine.refine_zone(htf_zone, target, ohlcv_by_tf, inco
 ### COT (Commitment of Traders)
 - **Source**: CFTC weekly release (Friday afternoon, data from prior Tuesday)
 - **Chart**: WEEKLY only
-- **COT V2 formula** (Phase 13 — confirmed from Pine Script source `COT V2 120-20.txt`):
-  `index = 140 × (netPos - lowest(netPos, weeks)) / (highest(netPos, weeks) - lowest(netPos, weeks)) − 20`
-  Scale: **−20 (extreme bearish) to +120 (extreme bullish)**. Thresholds: **≥80 = extreme bullish, ≤20 = extreme bearish**. Bernd's verbal "above 100" = casual reference to the +120 upper bound, NOT a separate threshold.
+- **COT index formula** (C-57, supersedes the Phase 13 V2 form):
+  `index = 100 × (netPos - lowest(netPos, weeks)) / (highest(netPos, weeks) - lowest(netPos, weeks))`
+  Scale: **0 to 100**. Thresholds: **≥80 = extreme bullish, ≤20 = extreme bearish**. On CFTC data this reproduces Bernd's on-screen gold commercials reading of 34.43; the V2 form (`140 × … − 20`, scale −20..+120) gives 28.21. V2 remains available as `COTIndex(lower_bound=-20, upper_bound=120)`.
 - **Two-band approach** (Hybrid AI course): the indicator is overlaid with TWO lookbacks:
   - **Primary band** — **26 weeks for ALL assets** (Hybrid AI universal default). 52w override for commodities/energies/PMs only (planting/harvest cycle, Funded Trader 02.03.2024).
   - **156-week extreme** — 3-year historic extreme; the highest-conviction signal. When BOTH bands register at the same end of the spectrum, treat the signal as **strong** (override-grade). Rolling-only extreme = **normal** signal.
@@ -450,8 +452,9 @@ Rationale (CW43-Idx): weekly zones inherently have wider zones. Using distal-onl
 - Toggle in `BP_config.yaml`: `stop_loss.breakeven_at_half_target: true|false`.
 
 ### Trailing Rules
-- After 2R: trail stop to below most recent demand zone distal (longs) or above supply distal (shorts) — `apply_zone_trailing()`
-- No zones visible: use 1R trailing increments — built into `update_positions()`
+- After 2R: trail stop to below most recent demand zone distal (longs) or above supply distal (shorts). **Not live:** `apply_zone_trailing()` exists but nothing calls it (verified 2026-09-14)
+- What runs: after the T2 partial the stop trails `current_price ∓ 1R` in `update_positions()`; the remainder closes at T3
+- The paper trader applies the same 0.5R BE / 50% at T2 / trail ladder to every trade. The context ceilings below are the method; only the counter-trend T2 close is coded, behind `BP_TYPE_LADDERS=1` (default OFF)
 - **With trend**: Target 3R-4R+
 - **Sideways**: Max 1:2
 - **Counter-trend**: **HARD CEILING AT T2 (2R)**. Close full position at T2. No trailing. No moon-shooting. (CW43-Idx, LIVE-May)
