@@ -1,0 +1,372 @@
+<meta charset="utf-8">
+<title>Azalyst Signal Charts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#eef2f0; --surface:#ffffff; --sunk:#f6f8f7; --line:#d5ddd9; --grid:#e4eae7;
+  --ink:#15201c; --ink-2:#44524d; --muted:#6b7a74;
+  --up:#16876a; --down:#bf4436; --up-fill:rgba(22,135,106,.13); --down-fill:rgba(191,68,54,.12);
+  --entry:#2c5aa6; --target:#16876a; --stop:#bf4436; --now:#15201c;
+  --chip-bull-bg:#dcefe8; --chip-bull:#0f6a52; --chip-bear-bg:#f6e0dc; --chip-bear:#9a3226;
+  --chip-neu-bg:#e7ebe9; --chip-neu:#56645e; --warn-bg:#fbf0d6; --warn:#7a5510;
+  --sel:#e3ebf6;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0e1412; --surface:#151d1a; --sunk:#111815; --line:#28332f; --grid:#1f2926;
+    --ink:#e2e9e6; --ink-2:#b3c0bb; --muted:#8b9a94;
+    --up:#3cbf97; --down:#e86b5d; --up-fill:rgba(60,191,151,.14); --down-fill:rgba(232,107,93,.13);
+    --entry:#86aef0; --target:#3cbf97; --stop:#e86b5d; --now:#e2e9e6;
+    --chip-bull-bg:#173a30; --chip-bull:#7fdcbc; --chip-bear-bg:#3d1f1b; --chip-bear:#f3a197;
+    --chip-neu-bg:#222c29; --chip-neu:#a6b3ae; --warn-bg:#3a2e12; --warn:#f0cc7a;
+    --sel:#1c2a3b;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0e1412; --surface:#151d1a; --sunk:#111815; --line:#28332f; --grid:#1f2926;
+  --ink:#e2e9e6; --ink-2:#b3c0bb; --muted:#8b9a94;
+  --up:#3cbf97; --down:#e86b5d; --up-fill:rgba(60,191,151,.14); --down-fill:rgba(232,107,93,.13);
+  --entry:#86aef0; --target:#3cbf97; --stop:#e86b5d; --now:#e2e9e6;
+  --chip-bull-bg:#173a30; --chip-bull:#7fdcbc; --chip-bear-bg:#3d1f1b; --chip-bear:#f3a197;
+  --chip-neu-bg:#222c29; --chip-neu:#a6b3ae; --warn-bg:#3a2e12; --warn:#f0cc7a;
+  --sel:#1c2a3b;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:14px/1.5 var(--sans);margin:0;padding-inline:16px;padding-block:20px 40px}
+.wrap{max-width:1280px;margin:0 auto;display:grid;gap:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px}
+h1{font:700 26px/1.1 var(--cond);letter-spacing:.01em;margin:0}
+.meta{font:12px/1.4 var(--mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 16px}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.list{display:grid;gap:0;overflow:hidden}
+.list h2,.sec h2{font:600 11px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0}
+.list h2{padding:14px 14px 10px}
+.sig{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:10px 14px;border:0;border-top:1px solid var(--grid);background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer;width:100%}
+.sig:hover{background:var(--sunk)}
+.sig[aria-selected="true"]{background:var(--sel);box-shadow:inset 3px 0 0 var(--entry)}
+.sig:focus-visible,.tf button:focus-visible{outline:2px solid var(--entry);outline-offset:-2px}
+.sig .sym{font:600 15px/1.2 var(--cond)}
+.sig .sub{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.dir{font:600 11px/1 var(--mono);letter-spacing:.06em;padding:4px 7px;border-radius:4px;align-self:center}
+.dir.long{background:var(--chip-bull-bg);color:var(--chip-bull)}
+.dir.short{background:var(--chip-bear-bg);color:var(--chip-bear)}
+.empty{padding:14px;color:var(--muted)}
+.main{display:grid;gap:16px;min-width:0}
+.head{padding:16px 18px 6px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 20px}
+.head .t{display:grid;gap:4px}
+.head .name{font:700 24px/1.1 var(--cond)}
+.head .what{color:var(--ink-2)}
+.head .what b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.tf{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.tf button{font:500 12px/1 var(--sans);padding:8px 12px;border:0;background:var(--surface);color:var(--ink-2);cursor:pointer}
+.tf button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.chartbox{position:relative;padding:0 6px 4px}
+svg.chart{display:block;max-width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:4px 18px 14px;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px}
+.legend .zone i{height:10px;border:0;border-radius:2px;vertical-align:-1px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:12px/1.45 var(--mono);color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap}
+.tip[hidden]{display:none}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.sec{padding:16px 18px;display:grid;gap:12px;align-content:start}
+.why{display:grid;gap:0}
+.why .row{display:grid;grid-template-columns:104px 88px 1fr;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--grid)}
+.why .row:first-child{border-top:0}
+.why .k{font-weight:600}
+.why .d{font-size:13px;color:var(--ink-2)}
+.pill{justify-self:start;font:600 11px/1 var(--mono);padding:4px 7px;border-radius:4px;letter-spacing:.03em}
+.pill.bull{background:var(--chip-bull-bg);color:var(--chip-bull)}
+.pill.bear{background:var(--chip-bear-bg);color:var(--chip-bear)}
+.pill.neu{background:var(--chip-neu-bg);color:var(--chip-neu)}
+.agree{font-size:12px;color:var(--muted)}
+.agree.yes{color:var(--chip-bull)} .agree.no{color:var(--chip-bear)}
+.q{display:grid;gap:7px}
+.q .qr{display:grid;grid-template-columns:112px 1fr 38px;gap:10px;align-items:center;font-size:13px}
+.q .bar{height:8px;background:var(--sunk);border:1px solid var(--grid);border-radius:4px;overflow:hidden}
+.q .bar span{display:block;height:100%;background:var(--entry);border-radius:0 4px 4px 0}
+.q .v{font:500 12px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.comp{display:flex;align-items:baseline;gap:8px}
+.comp b{font:600 28px/1 var(--mono)}
+.comp span{color:var(--muted);font-size:12px}
+table.ticket{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.ticket th,.ticket td{padding:7px 6px;border-top:1px solid var(--grid);text-align:right;white-space:nowrap}
+.ticket th:first-child,.ticket td:first-child{text-align:left}
+.ticket thead th{border-top:0;font:600 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ticket td{font-family:var(--mono);font-size:13px}
+.ticket td.lbl{font-family:var(--sans)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.facts{display:flex;flex-wrap:wrap;gap:6px}
+.fact{font-size:12px;padding:4px 8px;border-radius:4px;background:var(--sunk);border:1px solid var(--grid);color:var(--ink-2)}
+.note{font-size:13px;padding:10px 12px;border-radius:6px;background:var(--warn-bg);color:var(--warn)}
+.scroll{overflow-x:auto}
+.foot{font-size:12px;color:var(--muted);max-width:75ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Azalyst Signal Charts</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <div class="layout">
+    <nav class="panel list" aria-label="Signals">
+      <h2>Signals</h2>
+      <div id="list" role="listbox" aria-label="Choose a signal"></div>
+    </nav>
+    <main class="main" id="main"></main>
+  </div>
+  <p class="foot">Paper-trading scanner output, not financial advice. Weekly strategy: the zone is found on the lower timeframe and the order waits at the proximal line until price reaches it. Weekly and monthly trades use the distal line as the stop.</p>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function dec(v){const a=Math.abs(v);return a>=1000?1:a>=100?2:a>=10?3:a>=1?4:5}
+const fmt = (v, d) => v == null ? "–" : Number(v).toFixed(d ?? dec(v));
+const TF_NAME = {"1wk":"Weekly","1d":"Daily","4h":"4-hour","60m":"1-hour","1mo":"Monthly"};
+
+const BIAS = [
+  ["location","Location","Where price sits in the range between the nearest higher-timeframe demand and supply zones. Lower third = cheap (bullish), upper third = expensive (bearish), middle = equilibrium."],
+  ["valuation","Valuation","The asset's rate of change against bonds, gold and the dollar. Undervalued = bullish, overvalued = bearish."],
+  ["cot","COT","Commitment of Traders: the market's primary trader group at a positioning extreme (index ≥ 80 or ≤ 20 on a 0–100 scale)."],
+  ["seasonality","Seasonality","The 5-, 10- and 15-year average seasonal path for the coming weeks. Two of three agreeing sets the direction."],
+  ["trend","Trend","Weekly pivots: higher lows = uptrend, lower highs = downtrend, neither = sideways."],
+];
+const Q = [["departure","Departure",10],["base_duration","Base duration",10],["freshness","Freshness",10],["originality","Originality",12],["profit_margin","Profit margin",10],["arrival","Arrival",10],["level_on_top","Level on top",10]];
+
+function norm(v){v=String(v||"neutral").toLowerCase();return v==="uptrend"?"bullish":v==="downtrend"?"bearish":v==="sideways"?"neutral":v}
+function pillClass(v){v=norm(v);return v==="bullish"?"bull":v==="bearish"?"bear":"neu"}
+
+let cur = 0, tf = null;
+
+function renderMeta(){
+  const t = DATA.scan_time ? new Date(DATA.scan_time) : null;
+  $("#meta").innerHTML = [
+    t ? `Scan ${t.toISOString().slice(0,16).replace("T"," ")} UTC` : "",
+    `${esc(DATA.strategy||"")} strategy · ${TF_NAME[DATA.htf]||DATA.htf} → ${TF_NAME[DATA.ltf]||DATA.ltf}`,
+    DATA.scanned ? `${DATA.scanned} markets scanned` : "",
+    `${DATA.signals.length} signal${DATA.signals.length===1?"":"s"}`
+  ].filter(Boolean).map(x=>`<span>${x}</span>`).join("");
+}
+
+function statusText(s){
+  if (s.source === "live") return `Live account · ${s.live_status||"open"} order`;
+  if (s.at_zone) return "Price is inside the zone";
+  return s.pending ? "Pending limit order" : "Market entry";
+}
+
+function renderList(){
+  const el = $("#list");
+  if (!DATA.signals.length){ el.innerHTML = `<p class="empty">This scan found no signals.</p>`; return; }
+  el.innerHTML = DATA.signals.map((s,i)=>`
+    <button class="sig" role="option" id="sig-${i}" aria-selected="${i===cur}" data-i="${i}">
+      <span class="sym">${esc(s.name)}</span>
+      <span class="dir ${s.direction}">${s.direction.toUpperCase()}</span>
+      <span class="sub">${esc(statusText(s))}${s.q && s.q.composite!=null ? ` · zone ${fmt(s.q.composite,1)}/10` : ""}</span>
+    </button>`).join("");
+  el.querySelectorAll(".sig").forEach(b => b.addEventListener("click", () => { cur = +b.dataset.i; tf = null; render(); }));
+}
+
+function render(){
+  renderList();
+  const s = DATA.signals[cur];
+  const main = $("#main");
+  if (!s){ main.innerHTML = `<section class="panel sec"><p>No signal to chart. Run a scan, then rebuild this page.</p></section>`; return; }
+  tf = tf || (s.zone && !s.zone.approx && s.bars[s.ltf] && s.bars[s.ltf].length ? s.ltf
+            : (s.bars[s.htf] && s.bars[s.htf].length ? s.htf : s.ltf));
+  const risk = Math.abs(s.entry - s.stop);
+  const want = s.direction === "long" ? "bullish" : "bearish";
+
+  const whyRows = BIAS.map(([k,label,desc])=>{
+    const raw = s.bias[k];
+    const v = norm(raw);
+    const ag = v === "neutral" ? ["","no vote"] : v === want ? ["yes","agrees"] : ["no","against"];
+    const extra = k==="cot" && s.bias.cot_strength && s.bias.cot_strength!=="none" ? ` (${esc(s.bias.cot_strength)})` : "";
+    return `<div class="row"><span class="k">${label}</span><span class="pill ${pillClass(raw)}">${esc(raw||"n/a")}${extra}</span>
+      <span class="d">${desc} <span class="agree ${ag[0]}">— ${ag[1]}</span></span></div>`;
+  }).join("");
+
+  const qRows = Q.map(([k,label,max])=>{
+    const v = s.q[k];
+    const w = v==null?0:Math.max(0,Math.min(100,v/max*100));
+    return `<div class="qr"><span>${label}</span><span class="bar"><span style="width:${w}%"></span></span><span class="v">${v==null?"–":fmt(v,1)}</span></div>`;
+  }).join("");
+
+  const tRows = s.targets.map((t,i)=>`<tr><td class="lbl"><span class="sw" style="background:var(--target)"></span>Target ${i+1}</td><td>${fmt(t)}</td><td>${risk?((Math.abs(t-s.entry)/risk).toFixed(1)+"R"):"–"}</td></tr>`).join("");
+  const opts = (s.options||[]).map(o=>`<tr><td class="lbl">${esc(o.label)} · ${esc(o.name)}</td><td>${fmt(o.entry)}</td><td>${fmt(o.stop)}</td><td>${o.rr!=null?Number(o.rr).toFixed(1):"–"}</td><td>${esc(o.fill_prob||"")}</td></tr>`).join("");
+
+  const facts = [
+    s.zone ? `${s.zone.type==="demand"?"Demand":"Supply"} zone${s.zone.formation?" · "+esc(s.zone.formation.replace(/_/g," ")):""}` : "",
+    s.zone && s.zone.approx ? "Zone formed before the charted bars (band drawn entry → stop)" : "",
+    s.zone && s.zone.base_candles!=null ? `${s.zone.base_candles}-candle base` : "",
+    s.zone && !s.zone.approx ? (s.zone.fresh ? "Fresh (untested)" : `Tested ${s.zone.retests??"?"}×`) : "",
+    s.context ? `Context: ${esc(s.context.replace(/_/g," "))}` : "",
+    s.tier ? `Action-matrix tier: ${esc(s.tier)}` : "",
+    s.big_brother===true ? "Inside a higher-timeframe zone" : s.big_brother===false ? "No higher-timeframe zone around it" : "",
+    s.speed_bump ? "Opposing zone in the way" : "",
+    s.risk_usd!=null ? `Risk $${fmt(s.risk_usd,2)}` : "",
+    s.lots!=null ? `${s.lots} lots` : "",
+  ].filter(Boolean).map(f=>`<span class="fact">${f}</span>`).join("");
+
+  const liveNote = s.source === "live" ? `<p class="note">This order is on the live GitHub paper account, opened ${esc(s.opened||"")} UTC. It was generated while COT was silently neutral for forex and CL=F (the 50eeb05 bug that PR #3 fixes), so its COT vote is missing.</p>` : "";
+
+  main.innerHTML = `
+    <section class="panel">
+      <div class="head">
+        <div class="t">
+          <span class="name">${esc(s.name)} <span class="dir ${s.direction}">${s.direction.toUpperCase()}</span></span>
+          <span class="what">${s.direction==="long"?"Buy":"Sell"} limit at <b>${fmt(s.entry)}</b>, stop <b>${fmt(s.stop)}</b>, targets <b>${s.targets.map(t=>fmt(t)).join(" / ")}</b>${s.current!=null?` · last price <b>${fmt(s.current)}</b>`:""}</span>
+        </div>
+        <div class="tf" role="group" aria-label="Chart timeframe">
+          ${[s.htf,s.ltf].filter(x=>s.bars[x]&&s.bars[x].length).map(x=>`<button type="button" id="tf-${x}" aria-pressed="${x===tf}" data-tf="${x}">${TF_NAME[x]||x}</button>`).join("")}
+        </div>
+      </div>
+      <div class="chartbox" id="chartbox"><svg class="chart" id="chart" role="img" aria-label="${esc(s.name)} ${TF_NAME[tf]||tf} candlestick chart with zone, entry, stop and targets"></svg><div class="tip" id="tip" hidden></div></div>
+      <div class="legend">
+        <span class="zone"><i style="background:${s.direction==="long"?"var(--up-fill)":"var(--down-fill)"};outline:1px solid ${s.direction==="long"?"var(--up)":"var(--down)"}"></i>${s.direction==="long"?"Demand":"Supply"} zone (proximal → distal)</span>
+        <span><i style="border-color:var(--entry)"></i>Entry</span>
+        <span><i style="border-color:var(--stop);border-top-style:dashed"></i>Stop</span>
+        <span><i style="border-color:var(--target);border-top-style:dashed"></i>Targets</span>
+        <span><i style="border-color:var(--now);border-top-style:dotted"></i>Last price</span>
+      </div>
+    </section>
+    ${liveNote}
+    <div class="grid2">
+      <section class="panel sec">
+        <h2>Why it fired</h2>
+        <div class="why">${whyRows}</div>
+      </section>
+      <section class="panel sec">
+        <h2>Zone quality</h2>
+        ${s.q.composite!=null?`<div class="comp"><b>${fmt(s.q.composite,2)}</b><span>composite out of 10 · ranks from 4.0</span></div>`:`<p class="agree">No zone scores on this order.</p>`}
+        <div class="q">${qRows}</div>
+        <div class="facts">${facts}</div>
+      </section>
+    </div>
+    <section class="panel sec">
+      <h2>Order</h2>
+      <div class="scroll"><table class="ticket">
+        <thead><tr><th>Level</th><th>Price</th><th>Reward</th></tr></thead>
+        <tbody>
+          <tr><td class="lbl"><span class="sw" style="background:var(--entry)"></span>Entry (${esc(s.entry_type||"limit")})</td><td>${fmt(s.entry)}</td><td>—</td></tr>
+          <tr><td class="lbl"><span class="sw" style="background:var(--stop)"></span>Stop</td><td>${fmt(s.stop)}</td><td>−1.0R</td></tr>
+          ${tRows}
+        </tbody></table></div>
+      ${opts?`<div class="scroll"><table class="ticket"><thead><tr><th>Entry option</th><th>Entry</th><th>Stop</th><th>R:R</th><th>Fill odds</th></tr></thead><tbody>${opts}</tbody></table></div>`:""}
+    </section>`;
+  main.querySelectorAll(".tf button").forEach(b=>b.addEventListener("click",()=>{tf=b.dataset.tf;render();}));
+  watchChart(s);
+}
+
+function drawChart(s){
+  const svg = $("#chart"), tip = $("#tip"), box = $("#chartbox");
+  const bars = (s.bars[tf]||[]).map(b=>({d:b[0],o:b[1],h:b[2],l:b[3],c:b[4]})).filter(b=>b.h!=null);
+  const W = Math.max(280, Math.round(box.getBoundingClientRect().width) - 12), H = W < 600 ? 300 : 430;
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const labelText = [["Entry",s.entry],["Stop",s.stop],...s.targets.map((t,i)=>["T"+(i+1),t]),["Last",s.current]]
+    .filter(p=>p[1]!=null).map(p=>`${p[0]} ${fmt(p[1])}`);
+  const m = {t:14, r:Math.ceil(Math.max(...labelText.map(t=>t.length), 8) * 6.8 + 16), b:26, l:8};
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (!bars.length){ svg.innerHTML = `<text x="16" y="30" fill="var(--muted)" font-size="13">No price data cached for this timeframe.</text>`; return; }
+  const levels = [s.entry, s.stop, ...s.targets, s.current].filter(v=>v!=null);
+  let lo = Math.min(...bars.map(b=>b.l), ...levels), hi = Math.max(...bars.map(b=>b.h), ...levels);
+  if (s.zone){ lo=Math.min(lo,s.zone.distal,s.zone.proximal); hi=Math.max(hi,s.zone.distal,s.zone.proximal); }
+  const pad = (hi-lo)*0.05 || hi*0.01; lo -= pad; hi += pad;
+  const iw = W-m.l-m.r, ih = H-m.t-m.b, n = bars.length, step = iw/n;
+  const x = i => m.l + step*(i+0.5), y = v => m.t + (hi-v)/(hi-lo)*ih;
+  const ns = "http://www.w3.org/2000/svg"; let out = "";
+  // grid + price axis
+  const ticks = niceTicks(lo, hi, 6), d = dec(hi);
+  const levelYs = [s.entry, s.stop, ...s.targets, s.current].filter(v=>v!=null).map(y);
+  ticks.forEach(t=>{
+    out += `<line x1="${m.l}" x2="${W-m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)" stroke-width="1"/>`;
+    if (levelYs.every(ly=>Math.abs(ly-y(t))>14))
+      out += `<text x="${W-m.r+6}" y="${y(t)+4}" fill="var(--muted)" font-size="11" font-family="IBM Plex Mono, monospace">${fmt(t,d)}</text>`;
+  });
+  // date labels
+  const every = Math.max(1, Math.round(n/ (W<600?4:7)));
+  for (let i=0;i<n;i+=every){ out += `<text x="${x(i)}" y="${H-8}" fill="var(--muted)" font-size="11" text-anchor="middle" font-family="IBM Plex Mono, monospace">${bars[i].d.slice(0,7)}</text>`; }
+  // zone box
+  if (s.zone){
+    let si = s.zone.start ? bars.findIndex(b=>b.d>=s.zone.start) : 0;
+    if (si<0) si = n-1;
+    const x0 = Math.max(m.l, x(si)-step/2), yz = y(Math.max(s.zone.proximal,s.zone.distal)), hz = Math.abs(y(s.zone.proximal)-y(s.zone.distal));
+    const col = s.zone.type==="demand" ? "up" : "down";
+    out += `<rect x="${x0}" y="${yz}" width="${W-m.r-x0}" height="${Math.max(hz,1)}" fill="var(--${col}-fill)" stroke="var(--${col})" stroke-width="1" stroke-opacity=".45"/>`;
+  }
+  // candles
+  const bw = Math.max(1, Math.min(10, step*0.62));
+  bars.forEach((b,i)=>{
+    const up = b.c >= b.o, col = up ? "var(--up)" : "var(--down)";
+    const top = y(Math.max(b.o,b.c)), bh = Math.max(1, Math.abs(y(b.o)-y(b.c)));
+    out += `<line x1="${x(i)}" x2="${x(i)}" y1="${y(b.h)}" y2="${y(b.l)}" stroke="${col}" stroke-width="1"/><rect x="${x(i)-bw/2}" y="${top}" width="${bw}" height="${bh}" fill="${col}" rx="1"/>`;
+  });
+  // levels with de-collided labels
+  const L = [
+    {v:s.entry, c:"var(--entry)", dash:"", t:"Entry"},
+    {v:s.stop, c:"var(--stop)", dash:"5 4", t:"Stop"},
+    ...s.targets.map((t,i)=>({v:t, c:"var(--target)", dash:"5 4", t:"T"+(i+1)})),
+  ];
+  if (s.current!=null) L.push({v:s.current, c:"var(--now)", dash:"2 3", t:"Last"});
+  L.forEach(l=>{ out += `<line x1="${m.l}" x2="${W-m.r}" y1="${y(l.v)}" y2="${y(l.v)}" stroke="${l.c}" stroke-width="${l.t==="Entry"?2:1.5}" stroke-dasharray="${l.dash}"/>`; });
+  const lab = L.map(l=>({...l, yy:y(l.v)})).sort((a,b)=>a.yy-b.yy);
+  for (let i=1;i<lab.length;i++) if (lab[i].yy - lab[i-1].yy < 16) lab[i].yy = lab[i-1].yy + 16;
+  const over = lab.length ? lab[lab.length-1].yy - (H-m.b-4) : 0;
+  if (over>0) lab.forEach(l=>l.yy-=over);
+  lab.forEach(l=>{
+    out += `<rect x="${W-m.r+2}" y="${l.yy-8}" width="${m.r-4}" height="16" rx="3" fill="var(--surface)" stroke="${l.c}" stroke-width="1"/>`
+         + `<text x="${W-m.r+6}" y="${l.yy+4}" fill="var(--ink)" font-size="11" font-family="IBM Plex Mono, monospace">${l.t} ${fmt(l.v)}</text>`;
+  });
+  out += `<line id="xh" x1="0" x2="0" y1="${m.t}" y2="${H-m.b}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
+  out += `<rect id="hit" x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/>`;
+  svg.innerHTML = out;
+  const hit = svg.querySelector("#hit"), xh = svg.querySelector("#xh");
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), sx = W / r.width;
+    const px = (ev.clientX - r.left) * sx, i = Math.max(0, Math.min(n-1, Math.floor((px - m.l)/step)));
+    const b = bars[i];
+    xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i)); xh.setAttribute("visibility","visible");
+    tip.hidden = false;
+    tip.innerHTML = `${b.d}<br>O ${fmt(b.o,d)} &nbsp;H ${fmt(b.h,d)}<br>L ${fmt(b.l,d)} &nbsp;C ${fmt(b.c,d)}`;
+    const tx = (x(i)/sx) + 14, maxX = box.clientWidth - tip.offsetWidth - 8;
+    tip.style.left = Math.min(tx, maxX) + "px";
+    tip.style.top = Math.max(4, (ev.clientY - r.top) - tip.offsetHeight - 10) + "px";
+  };
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerleave", ()=>{ tip.hidden = true; xh.setAttribute("visibility","hidden"); });
+}
+
+function niceTicks(lo, hi, count){
+  const span = hi-lo, raw = span/count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const stepv = [1,2,2.5,5,10].map(k=>k*mag).find(s=>s>=raw) || raw;
+  const out = []; for (let v=Math.ceil(lo/stepv)*stepv; v<=hi; v+=stepv) out.push(+v.toFixed(10));
+  return out;
+}
+
+document.addEventListener("keydown", e=>{
+  if (!DATA || !DATA.signals.length) return;
+  if (!document.activeElement || !document.activeElement.classList.contains("sig")) return;
+  if (e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); cur=(cur+(e.key==="ArrowDown"?1:-1)+DATA.signals.length)%DATA.signals.length; tf=null; render(); $("#sig-"+cur).focus(); }
+});
+// Redraw whenever the chart box changes width (first layout, pane resize, theme
+// or font load), so SVG units always equal CSS pixels and labels never scale up.
+let ro = null, lastW = 0;
+function watchChart(s){
+  const box = $("#chartbox");
+  if (ro) ro.disconnect();
+  lastW = 0;
+  const draw = () => { const w = Math.round(box.getBoundingClientRect().width); if (w > 0 && w !== lastW){ lastW = w; drawChart(s); } };
+  if ("ResizeObserver" in window){ ro = new ResizeObserver(draw); ro.observe(box); }
+  else window.addEventListener("resize", draw);
+  draw();
+}
+renderMeta(); render();
+</script>
