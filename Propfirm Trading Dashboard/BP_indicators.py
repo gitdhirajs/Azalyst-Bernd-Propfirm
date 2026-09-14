@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 # The 0-100 form reproduces Bernd's on-screen reading of 34.43 exactly.
 _COT_0_100 = os.environ.get('BP_COT_0_100', '').lower() in ('1', 'true', 'on')
 
+# Reconciliation flag: route forex and CL=F to Retailers (small specs), contrarian.
+# Default OFF: forex reads Non-Commercials, CL=F reads Commercials (pre-reconciliation
+# behaviour). This name was referenced in get_bias() by commit 50eeb05 but never
+# defined, so every forex/CL=F COT read raised NameError inside the rules engine's
+# try/except and silently fell back to COT = neutral.
+_RETAIL_CONTRARIAN = os.environ.get('BP_RETAIL_CONTRARIAN', '').lower() in ('1', 'true', 'on')
+
 def _cot_scale(val, mn, mx):
     """Apply the selected COT scaling formula."""
     if _COT_0_100:
@@ -411,7 +418,7 @@ class COTIndex:
         # not a deliberate exclusion of forex. The 'large_specs_index' primary_col already
         # correctly maps to forex in the momentum trigger below.
         _COT_KING_CLASSES_156W = ('commodities', 'energies', 'precious_metals', 'nat_gas',
-                                   'soft_commodities', 'forex')
+                                   'soft_commodities', 'forex', 'crude_oil')
         if bias == 'neutral' and asset_class in _COT_KING_CLASSES_156W:
             # Phase 45: lowered from 0.75 (60.0) → 0.625 (50.0).
             # GC=F Sep 9 2023 canonical miss: comm_idx=55-58 between reports —
@@ -429,11 +436,18 @@ class COTIndex:
             # When 26w index is trending strongly toward extreme over 5 weeks
             # and 156w is already at extreme, act early before threshold is crossed.
             if bias == 'neutral':
-                primary_col = (
-                    'commercials_index' if asset_class in ('commodities', 'energies', 'precious_metals')
-                    else 'large_specs_index' if asset_class in ('soft_commodities', 'forex', 'equity_indices', 'equities', 'nat_gas')
-                    else 'small_specs_index'
-                )
+                # Must pick the same group get_bias() chose above, including under
+                # BP_RETAIL_CONTRARIAN (forex / crude_oil -> small specs).
+                if asset_class in ('forex', 'crude_oil') and _RETAIL_CONTRARIAN:
+                    primary_col = 'small_specs_index'
+                elif asset_class == 'crude_oil':
+                    primary_col = 'commercials_index'
+                else:
+                    primary_col = (
+                        'commercials_index' if asset_class in ('commodities', 'energies', 'precious_metals')
+                        else 'large_specs_index' if asset_class in ('soft_commodities', 'forex', 'equity_indices', 'equities', 'nat_gas')
+                        else 'small_specs_index'
+                    )
                 if primary_col in cot_df.columns and len(cot_df) >= 6:
                     # Keep the original [-6:-1] window: it is the calibration the
                     # Bernd-clone momentum trigger was tuned against. (Ending the
