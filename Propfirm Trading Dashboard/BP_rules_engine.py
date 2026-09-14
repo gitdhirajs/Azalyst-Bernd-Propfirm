@@ -2364,6 +2364,27 @@ class RulesEngine:
         # to the Valuation-veto check (Step 2) but NOT to the bearish_excl_trend
         # tally, causing bearish_excl_trend to still count val=bearish and
         # blocking Fix-9a's bearish_excl_trend==0 condition.
+        # BP_VAL_TREND_ONLY=2 (2026-09-05) EXPERIMENTAL, DEFAULT OFF -- STRICT variant.
+        # Mode 1 (further down) only stops an against-trend Valuation vote from
+        # carrying a counter-trend call in Step 3; measured on the pinned OOS set it
+        # touches 2 of 239 cases. Mode 2 applies the lesson literally: an
+        # against-trend reading is not looked at AT ALL -- Hybrid AI M3 L3 1:54:36
+        # "we don't look at overvalued when we are up trending"; M3 L2 Pt 2 "we don't
+        # use that against trend". So val=bearish in an uptrend / val=bullish in a
+        # downtrend becomes 'neutral' BEFORE the Rule #1 veto (Step 2), the tallies,
+        # and the Step 4 minimum. Intended pairing: BP_INDEX_VALUATION=1 -- with
+        # index Valuation on, the 2023 bull-market "overvalued" readings are what
+        # produced the wrong-direction index shorts (19 changes, 8 broke, 2 fixed);
+        # this mode is the transcript-faithful way to keep the indicator and drop
+        # exactly those readings. Measure; do not flip the default on an argument.
+        if os.environ.get('BP_VAL_TREND_ONLY') == '2':
+            if trend == 'downtrend' and val == 'bullish':
+                val = 'neutral'
+                logger.debug("BP_VAL_TREND_ONLY=2: val=bullish in downtrend ignored")
+            elif trend == 'uptrend' and val == 'bearish':
+                val = 'neutral'
+                logger.debug("BP_VAL_TREND_ONLY=2: val=bearish in uptrend ignored")
+
         _local_overrides = {'valuation': val, 'location': loc, 'cot': cot, 'seasonality': seas}
         normalized = {}
         for k, v in biases.items():
@@ -2388,6 +2409,35 @@ class RulesEngine:
                                  if k not in _tally_exclude and v == 'bullish')
         bearish_excl_trend = sum(1 for k, v in normalized.items()
                                  if k not in _tally_exclude and v == 'bearish')
+
+        # BP_VAL_TREND_ONLY=1 (2026-09-05) EXPERIMENTAL, DEFAULT OFF.
+        #
+        # Valuation confirms the trend; it does not originate a counter-trend call.
+        # Hybrid AI M3 L2 (Valuation Pt 1 + Pt 2) back-tests the tool on camera
+        # (AAPL, YM, NQ, EUR, GBP, CHF, JPY, GC, SI, CL) and the result is the same
+        # every time: undervalued readings inside a DOWNTREND and overvalued readings
+        # inside an UPTREND "don't work" / are "very low accuracy"; the tool is a
+        # trend-following buy-the-dip / sell-the-rally signal. M3 L3 1:53:38, on YM:
+        # "we only use the valuation for trend following, we don't use it to
+        # determine the end of the bend ... it had very low accuracy in our study".
+        # The end-of-bend call is reserved for the WEEKLY 13-period reading.
+        #
+        # Step 2 (Rule #1 veto) is untouched. Only the Step 3 counter-trend paths
+        # stop COUNTING a Valuation vote that opposes the prevailing trend --
+        # i.e. loc=bullish + val=bullish in a downtrend is no longer "Bernd's
+        # minimum"; it needs COT/Seasonality to carry it. Measure with
+        # goldtest/ab_paired.py; do not flip the default on an argument.
+        _val_trend_only = os.environ.get('BP_VAL_TREND_ONLY') == '1'
+        _val_n_for_ct = normalized.get('valuation', 'neutral')
+        if _val_trend_only:
+            if trend == 'downtrend' and _val_n_for_ct == 'bullish':
+                bullish_excl_trend -= 1
+                _val_n_for_ct = 'neutral'
+                logger.debug("BP_VAL_TREND_ONLY: val=bullish in downtrend not counted for counter-trend")
+            elif trend == 'uptrend' and _val_n_for_ct == 'bearish':
+                bearish_excl_trend -= 1
+                _val_n_for_ct = 'neutral'
+                logger.debug("BP_VAL_TREND_ONLY: val=bearish in uptrend not counted for counter-trend")
 
         # ================================================================
         # Phase 23 (Task 1): Presidential/Sannial cycle Location override
@@ -3107,7 +3157,7 @@ class RulesEngine:
             # Blueprint Cheatsheet Silver: Seasonality ③ actively bearish overrides the
             # relaxed minimum (val+loc+cot = 3 bullish is insufficient for Silver when
             # the odds-enhancer Seasonality opposes). Case #115 (SI=F Mar 2024, bernd=neutral).
-            if (bullish_excl_trend >= 3 and bearish_excl_trend <= 1 and val == 'bullish'
+            if (bullish_excl_trend >= 3 and bearish_excl_trend <= 1 and _val_n_for_ct == 'bullish'
                     and not (symbol and symbol in SILVER_SYMBOLS and seas == 'bearish')):
                 return 'bullish'
             # Phase 11 relaxed path: Bernd's minimum (loc + val = tradeable) with ≤1
@@ -3121,7 +3171,7 @@ class RulesEngine:
             # was firing the Phase 11 relaxed path as a false positive. Block for Silver
             # when the seasonality odds-enhancer is actively working against the trade.
             _silver_seas_ok = not (symbol and symbol in SILVER_SYMBOLS and seas == 'bearish')
-            if val == 'bullish' and loc == 'bullish' and bearish_excl_trend <= 1 and _silver_seas_ok:
+            if _val_n_for_ct == 'bullish' and loc == 'bullish' and bearish_excl_trend <= 1 and _silver_seas_ok:
                 return 'bullish'
             # Phase 42 Fix-9a: Silver downtrend relaxation.
             # Blueprint Cheatsheet: Silver primary = Commercials ① + Seasonality ③.

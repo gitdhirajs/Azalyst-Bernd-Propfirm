@@ -89,9 +89,12 @@ def progress(out_file: Path):
     read = setups = 0
     for line in open(out_file, encoding="utf-8"):
         try:
-            d = json.loads(line).get("data") or {}
+            rec = json.loads(line)
         except Exception:
             continue
+        if not rec.get("model"):
+            continue            # failed request, not a read -- see is_real_read()
+        d = rec.get("data") or {}
         read += 1
         if d.get("has_position_tool") and d.get("entry") and d.get("stop"):
             setups += 1
@@ -108,6 +111,8 @@ def main():
     ap.add_argument("--max-hours", type=float, default=48.0)
     ap.add_argument("--include-unranked", action="store_true",
                     help="pass through to the reader; needed to finish a corpus")
+    ap.add_argument("--key-id", default="all",
+                    help="pass through to the reader: spend only this key (e.g. acct-A)")
     a = ap.parse_args()
 
     root, out_file = CORPORA[a.corpus]
@@ -130,12 +135,18 @@ def main():
         print(f"[cycle {cycle}] {datetime.now():%H:%M}  at {before}/{total} frames, "
               f"{setups_before} setups -- starting batch", flush=True)
 
-        subprocess.run(
+        res = subprocess.run(
             [sys.executable, "-u", str(READER), "--corpus", a.corpus,
-             "--limit", str(a.batch), "--workers", str(a.workers)]
+             "--limit", str(a.batch), "--workers", str(a.workers),
+             "--key-id", a.key_id]
             + (["--include-unranked"] if a.include_unranked else []),
             capture_output=True, text=True,
         )
+        # The reader's own output says WHY a batch stalled (quota, 404, 400...).
+        # Discarding it left the log unable to tell a quota wall from a bug.
+        tail = ((res.stdout or "") + (res.stderr or "")).strip().splitlines()[-6:]
+        for ln in tail:
+            print(f"    reader| {ln[:200]}", flush=True)
 
         after, setups_after = progress(out_file)
         gained = after - before

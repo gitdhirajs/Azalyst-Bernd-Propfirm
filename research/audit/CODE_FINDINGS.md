@@ -6435,3 +6435,82 @@ in direction across every cut, but "significantly different" no longer stands un
 **Process lesson.** Every aggregate check passed: dedupe was in place, scale validation was
 in place, classes were separated. The contradiction was only visible in the IMAGE. When a
 result matters, look at the raw evidence, not the extraction of it.
+
+
+## C-128 — "Valuation is trend-following only" is what Bernd teaches, not what he calls. Encoding it costs 6 of 479.
+
+**Status:** measured (2026-09-05). Flag `BP_VAL_TREND_ONLY`, default OFF. Full detail
+`SESSION_2026-09-05.md` §2 D1.
+
+Three Hybrid AI lessons (A017, A018, A019 1:53:38) state on camera that Valuation is used
+"only for trend following ... very low accuracy" against the trend, with end-of-trend
+reserved for the weekly 13-period reading. The engine's Step-3 long-in-downtrend path
+(Phase 10/11 relaxed) fires on `val==bullish and loc==bullish and bearish_excl_trend<=1`,
+i.e. exactly the setup his backtest rejects.
+
+Mode 1 removes the counter-trend Valuation vote from the Step-3 tallies only; with-trend
+and sideways consensus are byte-identical. Six-shard paired run, n=479:
+
+    group        n    base   arm   changed  fixed/broke   p
+    Bernd       339   176    174      2        0 / 2     0.500
+    instructors 140    79     75      4        0 / 4     0.125
+    pooled      479   255    249      6        0 / 6     0.031
+
+All six are long→neutral and all six carry truth=long (PL=F 2023-11-05, 2023-11-18;
+PA=F 2024-01-04, 2024-02-22; CL=F 2023-05-02; ZS=F 2024-02-01). The counter-trend
+valuation path was right every time it fired. The stated rule and the observed calls
+disagree; the goldtest scores the calls. **Not a candidate.**
+
+Mode 2 (strict: the counter-trend vote is neutralised before the base tally, so it
+touches every consensus path): 16 changed, 4 fixed / 11 broke, pooled p=0.118 (Bernd
+3/6, p=0.508). The seven D1 longs all break (two flip to SHORT once the bullish vote is
+gone), and nine stock/silver/USDCHF cases go neutral→long because the removed bearish
+vote had been holding the engine neutral: 4 right, 5 wrong. With index valuation on top
+(`strictboth0905_?.json`): 48 changed, 7/23, p=0.005. Neither mode is a candidate.
+
+## C-129 — Index Valuation, switched on as the courses say, is significantly worse. Phase 15 is now measured.
+
+**Status:** measured (2026-09-05). Flag `BP_INDEX_VALUATION` (C-93), default OFF.
+
+B074 24:11 calls valuation "the primary tool" for equities and indices; A017/A019/A023 run
+it on YM/NQ/ES throughout. Phase 15 forced index Valuation to neutral without an OOS
+measurement. Six-shard paired run, n=479, single variable:
+
+    group        n    base   arm   changed  fixed/broke   p
+    Bernd       339   176    166     30        3 / 13    0.021  SIG
+    instructors 140    79     77      5        0 / 2     0.500
+    pooled      479   255    243     35        3 / 15    0.008  SIG
+
+All 35 changes are `equity_indices` (31/90 → 19/90 correct). Shifts: neutral→short 14,
+long→short 13, long→neutral 2, short→neutral 1. The index valuation reads overvalued
+through the 2023–24 advance and turns the engine short into a bull market; the three fixes
+are the Sep-2023 and Feb-2024 pullbacks. Combined with C-128's flag the losses are additive
+(pooled −18, p<0.001; `both` vs `idxval` changes exactly C-128's six cases). **Stays OFF.**
+
+## C-130 — Natural Gas primary tool: the course, the docs and the code give three different answers.
+
+**Status:** open, needs a decision. 20 NG cases OOS (13 long / 7 neutral).
+
+- A018 1:14:35 (Bernd): "the COT doesn't work, the valuation doesn't work → true
+  seasonality [is] the primary tool".
+- A025 28:27 (Bernd): "a technical blind demand game in combination with the true
+  seasonals ... and then yes, there is the non commercials with breakouts".
+- A015 1:21: retailer 5-yr extremes — the Phase 12/33 source; `methodology/07` encodes
+  Retailers ① contrarian 260w.
+- `BP_rules_engine.py:38`: `'nat_gas': 26  # Phase 41 S-01: non-commercials are primary`.
+
+Not changed. Whichever teaching is chosen becomes a flag and a paired run; the seasonality
+reading is already available to the engine, so the seasonality-primary variant is cheap.
+
+## C-131 — Q5 documentation said "<1× zone height"; the code scores 0 below 2× and never reads its own 3.0 config.
+
+**Status:** docs synced (2026-09-05); code unchanged.
+
+`methodology/02` and the CLAUDE.md Q5 row described the profit-margin qualifier as "score 0
+only <1× zone height, counter-trend only". The code (`_score_profit_margin`) awards
+10/7/5 at 5×/3×/2× and 0 below 2×, counter-trend only, and `profit_margin_min_ratio: 3.0`
+in config is read but never used by the scorer. Bernd's own words are the honest source:
+A022 0:40:45 "minimum of 1 to 3 ... regardless of trend" (conservative) and 0:46 "bigger
+than 1 to 2" (the floor). Both docs now state what the code does and cite the lesson.
+Still stale and NOT changed: `methodology/03` dual-ROC "13 + 30" (measured in C-87: daily
+10 + 30, weekly 13) and `methodology/07` NG group (waits on C-130).

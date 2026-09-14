@@ -70,6 +70,12 @@ MODEL_CHAIN = (
     "gemini-3.5-flash-lite",
     "gemini-flash-lite-latest",
     "gemini-2.5-flash-lite",
+    # ADDED 2026-09-12. ListModels on both keys returns six `*-lite` models that
+    # serve generateContent; this was the one missing from the chain. A (key,
+    # model) pair is its own 20/day budget, so a fifth usable model is +25%
+    # throughput for free. `gemini-3.1-flash-lite-image` is the sixth and is
+    # deliberately NOT here -- it is an image-GENERATION model.
+    "gemini-3.1-flash-lite-preview",
     # GEMMA tier TRIED AND WITHDRAWN 2026-08-21 (C-77). gemma-4-31b-it and
     # gemma-4-26b-a4b-it draw on a separate quota pool and DO work, which unblocked the
     # backlog while every gemini pair was spent. They are out of the chain anyway:
@@ -418,6 +424,96 @@ def read_image(path, pool, prompt=STRICT_PROMPT, max_attempts=8,
 
     return {"ok": False, "frame": path.name, "path": str(path),
             "error": last_err, "data": None, "warnings": []}
+
+
+def read_blob(raw, mime, pool, prompt, schema=None, max_attempts=8, timeout=600,
+              label=""):
+    """Same contract as `read_image`, for any inline payload (used for PDF slices).
+
+    WHY A SEPARATE FUNCTION RATHER THAN GENERALISING `read_image`
+    `read_image` is the validated path behind every frame read in this project.
+    Its 429/404/403 handling is subtle -- a per-DAY 429 must RETIRE the (key,
+    model) pair rather than sleep on it, because the server's retryDelay is
+    meaningless for a daily quota. Rewriting it to take a mime type would put
+    that logic at risk for no benefit, so this duplicates the loop instead and
+    leaves the frame path untouched.
+
+    `timeout` defaults higher than read_image's: a 40-page PDF slice is ~10 MB
+    of upload and ~20k image tokens, which does not answer in 180s.
+    """
+    b64 = base64.b64encode(raw).decode()
+    last_err = None
+    for attempt in range(max_attempts):
+        try:
+            slot = pool.acquire()
+        except QuotaExhausted as exc:
+            return {"ok": False, "label": label,
+                    "error": "QUOTA EXHAUSTED: %s" % exc, "quota_exhausted": True,
+                    "data": None, "warnings": []}
+
+        url = "%s/%s:generateContent?key=%s" % (API_ROOT, slot.model, slot.key)
+        body = {
+            "contents": [{"parts": [{"text": prompt},
+                                    {"inline_data": {"mime_type": mime, "data": b64}}]}],
+            "generationConfig": {
+                "temperature": 0,
+                "response_mime_type": "application/json",
+            },
+        }
+        if schema:
+            body["generationConfig"]["response_schema"] = schema
+        try:
+            r = requests.post(url, json=body, timeout=timeout)
+        except Exception as exc:
+            last_err = "%s/%s: %s" % (slot.model, slot.key_id, exc)
+            pool.backoff(slot, 2.0 * (attempt + 1))
+            continue
+
+        if r.status_code == 200:
+            try:
+                payload = r.json()
+                parts = payload["candidates"][0]["content"]["parts"]
+                txt = next(p["text"] for p in reversed(parts) if "text" in p)
+                data = json.loads(txt)
+            except Exception as exc:
+                # A truncated answer (MAX_TOKENS on a big slice) lands here. It is
+                # not a quota problem and must not retire the pair; the caller
+                # retries with fewer pages.
+                last_err = "%s/%s: unparseable response (%s)" % (
+                    slot.model, slot.key_id, exc)
+                continue
+            pool.note_ok(slot)
+            usage = payload.get("usageMetadata", {})
+            return {"ok": True, "label": label, "model": slot.model,
+                    "key_id": slot.key_id, "data": data,
+                    "tokens": usage.get("totalTokenCount"), "warnings": []}
+
+        if r.status_code == 429:
+            if _is_per_day_quota(r.text):
+                pool.retire(slot, "daily quota spent")
+            else:
+                pool.backoff(slot, _retry_delay_from(r.text, 20.0))
+            last_err = "%s/%s: 429" % (slot.model, slot.key_id)
+            continue
+        if r.status_code == 404:
+            pool.retire(slot, "404 not available for this key")
+            last_err = "%s/%s: 404" % (slot.model, slot.key_id)
+            continue
+        if r.status_code in (500, 503, 504):
+            pool.backoff(slot, 5.0 + 3 * attempt)
+            last_err = "%s/%s: %d" % (slot.model, slot.key_id, r.status_code)
+            continue
+        if r.status_code == 403:
+            pool.retire(slot, "403 forbidden")
+            last_err = "%s/%s: 403 %s" % (slot.model, slot.key_id, r.text[:150])
+            continue
+        last_err = "%s/%s: HTTP %d %s" % (slot.model, slot.key_id,
+                                          r.status_code, r.text[:200])
+        if r.status_code == 400:
+            break
+
+    return {"ok": False, "label": label, "error": last_err, "data": None,
+            "warnings": []}
 
 
 # ---------------------------------------------------------------------------

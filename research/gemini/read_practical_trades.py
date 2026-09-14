@@ -264,6 +264,19 @@ def targets(breadth=True):
     return out
 
 
+def is_real_read(rec):
+    """True only for a row that came back from the model.
+
+    `read_image` does NOT raise when the key pool is spent or a request fails --
+    it returns {"ok": False, "data": None}. Until 2026-09-13 those envelopes were
+    written as rows with `"model": null, "data": {}`, and every resume/progress
+    check counted them as read. Result: 19,078 of 20,064 frames were "done" with
+    nothing in them, and hybrid/weekly/otc reported CORPUS COMPLETE in minutes
+    with 0 setups. A row without a model is a failed request, never a read.
+    """
+    return bool(rec.get("model"))
+
+
 def already_done():
     if not OUT.exists():
         return set()
@@ -271,9 +284,10 @@ def already_done():
     for line in open(OUT, encoding="utf-8"):
         try:
             r = json.loads(line)
-            done.add((r.get("folder"), r.get("frame")))
         except Exception:
-            pass
+            continue
+        if is_real_read(r):
+            done.add((r.get("folder"), r.get("frame")))
     return done
 
 
@@ -289,6 +303,10 @@ def main():
                          "Without this the corpus can never reach 100%.")
     ap.add_argument("--depth-first", action="store_true",
                     help="exhaust each folder in turn (default is round-robin across folders)")
+    ap.add_argument("--key-id", default="all",
+                    help="use only this key from keys.local.json (e.g. acct-A). The frame "
+                         "pass and the PDF pass run on separate keys so they do not "
+                         "compete for the same 20/day/model budget.")
     a = ap.parse_args()
     global CORPUS, OUT, INCLUDE_UNRANKED
     INCLUDE_UNRANKED = a.include_unranked
@@ -306,7 +324,12 @@ def main():
     if a.dry_run:
         return
 
-    pool = KeyPool(load_keys())
+    _keys = load_keys()
+    if a.key_id != "all":
+        _keys = [k for k in _keys if k.get("id") == a.key_id]
+        if not _keys:
+            raise SystemExit(f"no key with id {a.key_id!r} in keys.local.json")
+    pool = KeyPool(_keys)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     hits = ok = fail = 0
 
@@ -320,20 +343,36 @@ def main():
     import threading
     from concurrent.futures import ThreadPoolExecutor
     lock = threading.Lock()
+    stop = threading.Event()
 
     def work(item):
         nonlocal hits, ok, fail
         i, t = item
+        if stop.is_set():
+            return False
         try:
             w = read_image(t["path"], pool, prompt=PROMPT, schema=SCHEMA)
         except SystemExit as exc:
+            stop.set()
             with lock:
                 print(f"\nQUOTA EXHAUSTED after {ok} reads this run: {exc}")
             return False
         except Exception as exc:
             with lock:
                 fail += 1
+                print(f"[{i}/{len(todo)}] {t['frame']} ERROR {type(exc).__name__}: {exc}")
             return True
+        if not (w or {}).get("ok"):
+            # Failed request: do NOT write a row, or resume treats it as read.
+            with lock:
+                fail += 1
+                if (w or {}).get("quota_exhausted"):
+                    if not stop.is_set():
+                        print(f"\nQUOTA EXHAUSTED after {ok} reads this run")
+                    stop.set()
+                else:
+                    print(f"[{i}/{len(todo)}] {t['frame']} FAIL {str((w or {}).get('error'))[:120]}")
+            return not stop.is_set()
         data = (w or {}).get("data") or {}
         rec = {"folder": t["folder"], "date": t["date"], "frame": t["frame"],
                "path": t["path"], "model": (w or {}).get("model"), "data": data}
@@ -372,6 +411,13 @@ def main():
             except Exception as exc:
                 print(f"[{i}/{len(todo)}] {t['frame']} ERROR {type(exc).__name__}")
                 fail += 1
+                continue
+            if not (w or {}).get("ok"):
+                fail += 1
+                if (w or {}).get("quota_exhausted"):
+                    print(f"\nQUOTA EXHAUSTED after {ok} reads this run")
+                    break
+                print(f"[{i}/{len(todo)}] {t['frame']} FAIL {str((w or {}).get('error'))[:120]}")
                 continue
             data = (w or {}).get("data") or {}
             rec = {"folder": t["folder"], "date": t["date"], "frame": t["frame"],

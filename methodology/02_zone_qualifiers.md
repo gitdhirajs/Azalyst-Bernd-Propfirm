@@ -24,7 +24,7 @@ composite = (Q1_departure * 0.30) +
 |------|-----------|-------------------|
 | Gate 1 | Q1 Departure | Score = 0 (indecisive leg-out) |
 | Gate 2 | Q2 Base Duration | Score = 0 (7+ base candles) |
-| Gate 3 | Q5 Profit Margin | Score = 0 (counter-trend only, < 1x zone height) |
+| Gate 3 | Q5 Profit Margin | Score = 0 (counter-trend only, < 2x zone height) |
 
 ```python
 def zone_passes_gates(q1, q2, q5, is_counter_trend):
@@ -323,10 +323,11 @@ After the leg-out creates the zone, price travels some distance before returning
 | Score | Distance (multiples of zone height) | Description |
 |-------|--------------------------------------|-------------|
 | **10** | >= 5x zone height | Excellent margin — strong institutional move |
-| **7** | >= 3x zone height | Good margin |
-| **5** | >= 2x zone height | Acceptable margin |
-| **3** | >= 1.5x zone height | Minimum for with-trend trades |
-| **0** | < 1x zone height | **ZONE FAILS** (counter-trend only) — insufficient reward |
+| **7** | >= 3x zone height | Good margin — Hybrid AI M4 L1 Pt 3 (0:40:45): the *conservative* rule, "minimum of 1 to 3 away from the zone before price comes back, regardless of trend" |
+| **5** | >= 2x zone height | Acceptable margin — the floor: "profit margin of at least bigger than 1 to 2" (same lesson, 0:46:21) |
+| **0** | < 2x zone height | **ZONE FAILS** (counter-trend only) — insufficient reward |
+
+> **Doc sync 2026-09-05**: this table now matches `BP_zone_detector.py` (10/7/5 at 5×/3×/2×, else 0; gate applies when `with_trend is False`). The earlier "3 at ≥1.5×" tier and "<1×" fail line never existed in code. Note `BP_config.yaml: profit_margin_min_ratio: 3.0` is read into `ZoneDetector.profit_margin_min` but **never used** — the thresholds are the literals above. With-trend zones score 10 unconditionally ("it really doesn't matter", Hybrid AI M4 L1 Pt 3).
 
 ### MUST PASS Gate
 
@@ -370,10 +371,8 @@ def score_profit_margin(zone, price_data_after_zone):
         return 7
     elif ratio >= 2.0:
         return 5
-    elif ratio >= 1.5:
-        return 3
     else:
-        return 0  # MUST PASS GATE FAIL (counter-trend)
+        return 0  # MUST PASS GATE FAIL (counter-trend) — matches BP_zone_detector.py
 
 
 def check_profit_margin_gate(q5_score, is_counter_trend):
@@ -621,7 +620,7 @@ def score_zone(zone, candle_history, all_active_zones, all_zones_all_tf,
 | Q2 Base Duration | 10% | YES | 0, 4, 7, 10 | 7+ candles |
 | Q3 Freshness | 15% | No | 0.5 - 10.0 | Degrades per retest |
 | Q4 Originality | 15% | No | 5, 10, 12 | N/A (always scores) |
-| Q5 Profit Margin | 10% | YES (counter-trend) | 0, 3, 5, 7, 10 | < 1x zone height |
+| Q5 Profit Margin | 10% | YES (counter-trend) | 0, 5, 7, 10 | < 2x zone height |
 | Q6 Arrival | 10% | No | 0, 5, 10 | Blocked path |
 | LOL Bonus | 10% | No | 0, 3, 5 | No overlap |
 

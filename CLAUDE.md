@@ -101,7 +101,7 @@ A valid zone requires: Leg-In (3+ decisive) → Base (1-6 indecisive) → Leg-Ou
 | Q2 | Base Duration | 10% | YES | 1-2 candles | 7+ candles |
 | Q3 | Freshness | 15% | No | Never tested | Formula: 10/(retests+1) |
 | Q4 | Originality | 15% | No | Original (RBR/DBD)=10, Flip=12 | Non-original=5 |
-| Q5 | Profit Margin | 10% | Counter-trend | 5x+ zone height traveled | <1x zone height |
+| Q5 | Profit Margin | 10% | Counter-trend | 5x+ zone height traveled | <2x zone height (code: 10/7/5 at 5×/3×/2×, else 0 — synced 2026-09-05) |
 | Q6 | Arrival | 10% | Counter-trend | Fast clean impulse return | Adjacent opposing zone |
 | LOL | Level-on-Top | 10% | No | HTF+LTF zones stack (max 5) | No stacking |
 
@@ -2381,3 +2381,40 @@ Use `goldtest/ab_paired.py` for any A/B — raw percentages are unsafe because r
 how many cases error out, so a ±2 delta can be pure attrition. Compare arms that differ in
 **one** variable: an early A/B this session was confounded by comparing against a baseline
 taken before the `BP_CYCLE_OVERRIDE` default was flipped.
+
+
+### 2026-09-05 — full-transcript audit (all three courses) vs the rule layer
+
+Full detail and reproduction: `research/SESSION_2026-09-05.md`. Findings C-128..C-131.
+
+All 186 lesson transcripts in `D:\Trading\Output` were read as text (not frames) and
+checked against `methodology/`, this file and `BP_rules_engine.py`. The indicator maths,
+qualifiers, stops, R:R, LOL, containment, trend and seasonality rules all match what the
+instructors say. Two rule-layer divergences survived checking; both were flagged, measured
+paired on the pinned 510-case set (n=479 scored), and **both lower OOS accuracy**.
+
+| flag | default | measured effect (paired, McNemar, `base0905_?.json` vs arm) |
+|---|---|---|
+| `BP_VAL_TREND_ONLY=1` (Valuation counts only with the trend, per A017/A018/A019) | OFF | 6 changed, **0 fixed / 6 broke** (all long→neutral, all truth=long: PL×2, PA×2, CL, ZS); Bernd 0/2 p=0.500, pooled p=0.031 |
+| `BP_VAL_TREND_ONLY=2` (strict: also neutralises the vote in the base tally) | OFF | 16 changed, **4 fixed / 11 broke**, pooled p=0.118; Bernd 3/6 p=0.508. Leaks into stocks: 9 neutral→long (4 right, 5 wrong) where the removed bearish vote had held the engine neutral; the 7 D1 longs all break, two flip to short |
+| `BP_INDEX_VALUATION=1` (existing C-93 flag, now measured) | OFF | 35 index cases change, **3 fixed / 15 broke**; Bernd −10 of 339 **p=0.021**, pooled −12 of 479 **p=0.008**. Reads overvalued through the 2023–24 advance → shorts into a bull market. Phase 15's neutralisation is now measured, not assumed |
+| both together | — | additive, no interaction: pooled −18, p<0.001; `both` vs `idxval` = the same six D1 breaks |
+
+**What this says:** Bernd teaches "valuation with the trend only" (A019 1:53:38) and then
+calls platinum long at the Nov-2023 lows on an undervalued reading. The goldtest scores the
+calls, not the lecture; the engine's Phase 10/11 relaxed counter-trend path was right 6/6
+on those. Do not encode the stated rule over the observed behaviour without a paired run.
+
+Open decision (D3): Natural Gas primary tool — A018 says seasonality, A025 says
+seasonality + non-commercial breakouts, `methodology/07` says retailers-contrarian, code
+(`'nat_gas': 26`, Phase 41 S-01) says non-commercials. 20 NG cases OOS. Needs a choice
+before a flag.
+
+Docs synced to code (D4): Q5 above (10/7/5 at 5×/3×/2×, 0 below 2×, counter-trend only;
+`profit_margin_min_ratio: 3.0` is read but unused); `methodology/02` same. Still stale:
+`methodology/03` dual-ROC "13 + 30" (measured C-87: daily 10+30, weekly 13).
+
+COT Net "mismatch" vs OTC 2025 M3 L2: **both correct** — lecture legend was the crosshair
+bar (Mon 20 Sep 2021), ours the last bar. 7/7 lecture legends reproduce CFTC exactly at
+chart-bar = report + 6 days; TradingView script and Python `COTReport` plot the same series.
+Evidence: `COT net indicator issue/_comparison/`; helper `_audit_ftw_vision/replay/cot_bar_value.py`.
