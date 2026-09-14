@@ -73,3 +73,21 @@ commHist    = calcIndex(commNet,    weeksHiLo)
 nonCommHist = calcIndex(nonCommNet, weeksHiLo)
 nonReptHist = calcIndex(nonReptNet, weeksHiLo)
 
+// ---------------- Plots ----------------
+plot(showComm    ? commIndex    : na, "Commercial Index",    color=color.blue,   linewidth=2)
+plot(showNonComm ? nonCommIndex : na, "NonCommercial Index", color=color.red,    linewidth=1)
+plot(showNonRept ? nonReptIndex : na, "Nonreportable Index", color=color.orange, linewidth=1)
+
+hline(showRefLines ? upperBound   : na, "Upper Bound Level", color=color.new(color.yellow, 35), linestyle=hline.style_dashed, linewidth=1)
+hline(show0100     ? 100          : na, "100 Line",          color=c0100,                       linestyle=hline.style_solid,  linewidth=1)
+hline(showRefLines ? upperExtreme : na, "Upper Threshold",   color=color.new(color.green, 25),  linestyle=hline.style_solid,  linewidth=1)
+hline(showRefLines ? midLevel     : na, "Middle Level",      color=color.new(color.gray, 40),   linestyle=hline.style_dotted, linewidth=1)
+hline(showRefLines ? lowerExtreme : na, "Lower Threshold",   color=color.new(color.red, 25),    linestyle=hline.style_solid,  linewidth=1)
+hline(show0100     ? 0            : na, "0 Line",            color=c0100,                       linestyle=hline.style_solid,  linewidth=1)
+hline(showRefLines ? lowerBound   : na, "Lower Bound Level", color=color.new(color.yellow, 35), linestyle=hline.style_dashed, linewidth=1)
+
+// Historical (156w) extremes -- the "multi year extreme" Bernd reads at the bounds.
+histExtreme = (showComm    and (commHist    >= upperExtreme or commHist    <= lowerExtreme)) or
+              (showNonComm and (nonCommHist >= upperExtreme or nonCommHist <= lowerExtreme)) or
+              (showNonRept and (nonReptHist >= upperExtreme or nonReptHist <= lowerExtreme))
+bgcolor(markExtremes and histExtreme ? color.new(color.gray, 90) : na, title="Historical Hi/Lo extreme")
