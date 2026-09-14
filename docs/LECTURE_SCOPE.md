@@ -50,6 +50,16 @@ source each rule came from.
 - **Seasonality** (M3 L4 `frame_000384`): Seasonality Index v4 defaults 5 years / 45 bars, changed to 10 live (`frame_000538`); Palladium and Natural Gas called unreliable (`frame_000951`).
 - **Targets** (M4 `frame_001042`): "a 1 to 4 target, 1 to 3 target, whatever you want to do".
 
+## Price Action (M2 L8) and the introductory lessons
+
+- **Patterns** (L8 `frame_000054`): only hammer, shooting star, bullish and bearish engulfing are taught. **Hanging man, head & shoulders and inverse H&S are not in the course** (the code's `BP_patterns.py` has all three). Hammer / shooting star: "Long Lower (Upper) Wick: At least 2x the body's height", "Little to No Upper (Lower) Wick", after a down (up) trend, confirmation required (`frame_000115`, `frame_000200`). No body-% threshold is given.
+- **Pattern stops** (L8 `frame_000679`, `frame_000886`, `frame_001822`): beyond the higher-timeframe pattern's extreme ("recommend definitely to go with this stop loss … a lot of protection"); a tighter stop at the refined LTF zone distal is shown as the alternative. In the closing supply-zone practical the stop is "Plus 33 percent. That's our recommendation" (`frame_003171`).
+- **Pattern entries**: option 1 at the HTF pattern proximal, option 2 at a refined LTF zone proximal (R:R e.g. 4.83 → 8.33 on Boeing, 0.29 → 4.34 on EURUSD); targets are structural (previous swing, opposing zone), not R multiples.
+- **Gap**: the one mention (L8 `frame_000897`) places a *target* at a demand box containing a gap. Nowhere in the 28 lessons is a gap described as an explosive leg-out.
+- **Risk** (M1 L3 `frame_000058`, `frame_000682`): 1% per trade appears only as a case-study assumption ($450 on a 45k funded account). The stated targets are "Ø R:R 1:2" and "Ø W/L 40/60". No position-sizing formula, daily-loss or drawdown rule. A live-session order panel shows 0.01 lots (`Earn While You Learn` `frame_000363`).
+- **Timeframes** (M1 L2 `frame_001136`): monthly income = highest timeframes, weekly income = high timeframes, daily income = low timeframes; no specific HTF/LTF pairs.
+- **On-screen indicator legends in the intro lessons agree with the settings above**: TradingView "CampusValuationTool ZB1! GC1! DXY 10 100 100 -100 75 -75" (`Using Charts in Live Sessions` `frame_000218`); TradeStation "Campus COT Index (… 80.00 20.00 100.00)" (`A Good Trader` `frame_000547`).
+
 ## Where the Field Map misdescribes the code
 
 `Blueprint_Field_Map.html` was written from `methodology/`, not from the code. Verified 2026-09-14:
