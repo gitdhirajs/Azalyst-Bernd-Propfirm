@@ -17542,5 +17542,24 @@
     "win_rate": 0.0,
     "total_trades": 0,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-16T04:55:56.522596",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 1,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "BTC-USD",
+        "direction": "long",
+        "entry": 69266.1875,
+        "composite": 9.9
+      }
+    ]
   }
 ]
