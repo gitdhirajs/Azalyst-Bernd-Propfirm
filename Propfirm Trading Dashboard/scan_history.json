@@ -17561,5 +17561,24 @@
         "composite": 9.9
       }
     ]
+  },
+  {
+    "scan_time": "2026-09-17T04:59:03.698500",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 1,
+    "account_balance": 5000.0,
+    "closed_pnl": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "NZDUSD=X",
+        "direction": "long",
+        "entry": 0.578599,
+        "composite": 9.5
+      }
+    ]
   }
 ]

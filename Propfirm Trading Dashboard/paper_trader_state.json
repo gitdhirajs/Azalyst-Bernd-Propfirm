@@ -11,7 +11,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 5000.0,
-  "current_date": "2026-09-16",
+  "current_date": "2026-09-17",
   "account_blown": false,
   "zone_memory": {},
   "challenge_started_at": "2026-09-14T00:00:00.000000",
@@ -75,8 +75,38 @@
       "notes": "",
       "income_strategy": "weekly",
       "trade_context": "standard"
+    },
+    {
+      "id": "6540a928-e97",
+      "symbol": "NZDUSD=X",
+      "direction": "long",
+      "entry_price": 0.578599,
+      "stop_price": 0.574267,
+      "current_stop": 0.574267,
+      "targets": [
+        0.582932,
+        0.587264,
+        0.591596
+      ],
+      "position_size": 1000.0,
+      "risk_amount": 4.33,
+      "entry_time": "2026-09-17T05:03:24.335319",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "f35e79bae3",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly",
+      "trade_context": "standard"
     }
   ],
   "trade_history": [],
-  "saved_at": "2026-09-16T04:58:50.619711"
+  "saved_at": "2026-09-17T05:03:24.336381"
 }
