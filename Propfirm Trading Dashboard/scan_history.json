@@ -17580,5 +17580,24 @@
         "composite": 9.5
       }
     ]
+  },
+  {
+    "scan_time": "2026-09-18T04:51:21.229944",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 0,
+    "account_balance": 4995.67,
+    "closed_pnl": -4.33,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "CHFJPY=X",
+        "direction": "long",
+        "entry": 190.30512,
+        "composite": 6.85
+      }
+    ]
   }
 ]
