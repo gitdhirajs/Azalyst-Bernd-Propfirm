@@ -11,43 +11,13 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 4995.668,
-  "current_date": "2026-09-21",
+  "current_date": "2026-09-22",
   "account_blown": false,
   "zone_memory": {
     "f35e79bae3": true
   },
   "challenge_started_at": "2026-09-14T00:00:00.000000",
   "open_positions": [
-    {
-      "id": "a9450ef2-67a",
-      "symbol": "USDJPY=X",
-      "direction": "short",
-      "entry_price": 157.362,
-      "stop_price": 158.856995,
-      "current_stop": 158.856995,
-      "targets": [
-        155.867004,
-        154.372009,
-        152.877014
-      ],
-      "position_size": 6.493633,
-      "risk_amount": 9.71,
-      "entry_time": "2026-09-14T05:08:38.692677",
-      "status": "pending",
-      "realized_pnl": 0.0,
-      "partial_taken": false,
-      "partial_qty": 0.0,
-      "partial_price": 0.0,
-      "breakeven_triggered": false,
-      "trail_stop_level": null,
-      "zone_id": "9bc689e0f9",
-      "close_time": null,
-      "close_price": null,
-      "trade_r_multiple": 0.0,
-      "notes": "",
-      "income_strategy": "weekly",
-      "trade_context": "standard"
-    },
     {
       "id": "9e672ceb-680",
       "symbol": "BTC-USD",
@@ -71,6 +41,36 @@
       "breakeven_triggered": false,
       "trail_stop_level": null,
       "zone_id": "0e349e15e2",
+      "close_time": null,
+      "close_price": null,
+      "trade_r_multiple": 0.0,
+      "notes": "",
+      "income_strategy": "weekly",
+      "trade_context": "standard"
+    },
+    {
+      "id": "a9450ef2-67a",
+      "symbol": "USDJPY=X",
+      "direction": "short",
+      "entry_price": 157.362,
+      "stop_price": 158.856995,
+      "current_stop": 158.856995,
+      "targets": [
+        155.867004,
+        154.372009,
+        152.877014
+      ],
+      "position_size": 6.493633,
+      "risk_amount": 9.71,
+      "entry_time": "2026-09-22T05:11:00.039824",
+      "status": "active",
+      "realized_pnl": 0.0,
+      "partial_taken": false,
+      "partial_qty": 0.0,
+      "partial_price": 0.0,
+      "breakeven_triggered": false,
+      "trail_stop_level": null,
+      "zone_id": "9bc689e0f9",
       "close_time": null,
       "close_price": null,
       "trade_r_multiple": 0.0,
@@ -111,5 +111,5 @@
       "trade_context": "standard"
     }
   ],
-  "saved_at": "2026-09-21T05:09:59.485281"
+  "saved_at": "2026-09-22T05:11:00.040760"
 }
