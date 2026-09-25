@@ -17671,5 +17671,24 @@
     "win_rate": 0.0,
     "total_trades": 1,
     "signals_summary": []
+  },
+  {
+    "scan_time": "2026-09-25T05:04:20.883022",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 1,
+    "auto_traded": 1,
+    "account_balance": 4995.67,
+    "closed_pnl": -4.33,
+    "win_rate": 0.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "GBPCHF=X",
+        "direction": "long",
+        "entry": 1.096385,
+        "composite": 7.65
+      }
+    ]
   }
 ]
