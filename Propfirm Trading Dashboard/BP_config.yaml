@@ -41,8 +41,13 @@ risk:
   # Used as fallback when prop_firm.enabled is false. When prop_firm is on,
   # `prop_firm.account_size` overrides account_balance for the paper trader.
   account_balance: 5000.0
-  risk_per_trade_pct: 1.0          # 1% = $50 risk per trade on $5,000 -- IGNORED while fixed_lot_mode is on (below)
+  risk_per_trade_pct: 1.0          # 1% = $50 risk per trade on $5,000 (user decision 2026-09-27)
   reduced_risk_pct: 0.5            # Counter-trend & anticipatory: 0.5% = $25 (HAI Module 4)
+  # Hard ceiling per trade. When the 1% budget rounds below the broker's minimum
+  # lot (e.g. gold with a $60 stop: 0.01 lot = $60 = 1.2%), the minimum lot is
+  # taken only while its risk stays <= this; a wider stop is skipped instead.
+  # Before 2026-09-27 such a trade got 0 lots and silently vanished.
+  max_risk_per_trade_pct: 1.5
   max_daily_loss_pct: 3.0          # 2-Step Pro daily cap (matches prop_firm.max_daily_loss_usd)
   max_total_loss_pct: 6.0          # 2-Step Pro static total cap (matches prop_firm.max_total_loss_usd)
   # 2026-07-13: user lost the prior 1-Step account to an unexpected daily-loss
@@ -58,7 +63,19 @@ risk:
   # To size up: bump fixed_lot_multiplier (1 = 0.01 "1 lot", 2 = 0.02 "2 lot",
   # etc.) only AFTER you've closed at least one trade in profit on this
   # challenge. Set fixed_lot_mode: false to go back to full 1%-risk sizing.
-  fixed_lot_mode: true
+  #
+  # 2026-09-27 -- fixed_lot_mode OFF, 1% risk per trade (user decision; a fresh
+  # $5k challenge starts on deploy, together with the execution fixes: 1h bar
+  # replay, no fill at signal time, stop orders for pattern entries). Under the
+  # fixed 0.01 lot the dollar risk depended on the instrument, not on the plan:
+  # the last live history shows NZDUSD risking $4.33 while a BTC order risked
+  # $51.55 at the same "size". Stacking stays capped by the aggregate open-risk
+  # check below: realized-today + open risk + new risk must stay UNDER $150, so
+  # about two unprotected 1% trades can be live at once (three full $50 risks
+  # reach $150 and the third is refused until one is at breakeven or closed),
+  # plus the correlation gate. Single-trade risk is capped at
+  # max_risk_per_trade_pct.
+  fixed_lot_mode: false
   fixed_lot_multiplier: 1.0
   # Cap removed (user request 2026-07-13): after a week live, max_open_positions=1
   # meant a single position occupied the only slot for 6 days and blocked every
@@ -400,8 +417,16 @@ patterns:
 
 stop_loss:
   fibonacci_extension_pct: 33.0
-  breakeven_at_r: 1.0                # Conservative: BE at T1 (textbook)
-  breakeven_at_half_target: true     # Aggressive: BE at half-way to T1 (Bernd's live)
+  # Trade management (user decision 2026-09-27): "fixed" = set-and-forget.
+  # The stop never moves and the whole position closes at take_profit_target
+  # (2 = T2 = 2R). No breakeven, no partial, no trailing. On the Jul-Sep live
+  # ledger 5 of 13 $0 closes were trades that armed half-T1 breakeven and came
+  # back to entry. "ladder" restores the old path: breakeven (settings below),
+  # 50% at T2, trail, close at T3.
+  management: fixed
+  take_profit_target: 2
+  breakeven_at_r: 1.0                # ladder only: BE at T1 (textbook)
+  breakeven_at_half_target: false    # ladder only: BE at half-way to T1 (Bernd's live)
   partial_take_r: 2.0
   full_take_r: 3.0
 

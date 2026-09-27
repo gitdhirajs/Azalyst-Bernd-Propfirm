@@ -1,28 +1,45 @@
-name: Scan markets (daily)
+name: Scan markets (hourly)
 
-# Runs the Azalyst Propfirm scanner DAILY from a GitHub Actions runner so a
-# fresh signal is caught close to its actual price (a zone can form and fill
-# within a 4h gap). This repo is PUBLIC, so Actions minutes are free/unlimited.
-# The scanner produces paper signals for the live Fundingpips $5k challenge
-# ($150 daily / $300 total loss caps enforced in BP_paper_trader.py). After
-# scanning it posts a Discord summary (the TAKE/CAUTION/SKIP composite tiers were
-# removed in send_discord.py -- every signal posts as TAKE) and commits the small
-# state files back to main.
+# Runs the Azalyst Propfirm scanner EVERY HOUR from a GitHub Actions runner.
+# This repo is PUBLIC, so Actions minutes are free/unlimited. The scanner
+# produces paper signals for the live FundingPips $5k challenge ($150 daily /
+# $300 total loss caps enforced in BP_paper_trader.py), posts to Discord and
+# commits the small state files back.
+#
+# Design (2026-09-27):
+#   * Zones and entries still come from WEEKLY + DAILY candles ("weekly"
+#     strategy: zones on 1wk, entries on 1d -- run_scanner.py
+#     STRATEGY_TIMEFRAMES). Nothing about the strategy is intraday.
+#   * Fills, stops and targets are decided by REPLAYING the COMPLETED 1-hour
+#     bars since each order/position was last priced, in time order -- the way
+#     a broker works a resting order. Before this, the paper trader priced
+#     everything against ONE daily bar per run, so a once-a-day run only ever
+#     saw ~6h of each FX day: stops and targets were missed (USDJPY stop hit on
+#     24 Sep never registered), fills were booked from lows printed before the
+#     order existed, and the half-T1 breakeven + stop were both "hit" by the
+#     same bar's high and low. Replaying from the last priced bar means a late
+#     or dropped run can't miss a stop -- the next run catches up.
+#   * Running hourly keeps that replay window short and gets new signals and
+#     fills to Discord within about an hour. send_discord.py posts only when
+#     something happened (new signal, fill, close, cancelled order); otherwise
+#     it posts the account status once a day, on the first run at or after
+#     21:30 UTC (after the FX daily close).
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   DISCORD_WEBHOOK_URL   -- Discord webhook for the channel to post to
-#   DISCORD_USER_ID       -- your Discord snowflake ID for @-pings on TAKE signals
+#   DISCORD_USER_ID       -- your Discord snowflake ID for @-pings on new signals
 
-# Cron runs once a day at 00:17 UTC (changed from hourly in b23ca62). The :17
-# minute (not :00) avoids top-of-hour GitHub Actions congestion where scheduled
-# events get dropped; a skipped day is caught up by the next run.
+# The :17 minute (not :00) avoids top-of-hour GitHub Actions congestion where
+# scheduled events get delayed or dropped. A delayed or dropped run loses
+# nothing: the next run replays every completed 1h bar since the last one.
 on:
   schedule:
-    - cron: '17 0 * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:               # manual trigger from the Actions tab
 
-# Only one scan at a time -- avoids two runs racing on the commit-back step.
-# Queue subsequent runs rather than cancel so we don't drop the cron beat.
+# Only one scan at a time -- avoids two runs racing on the state files and the
+# commit-back step. Queue rather than cancel: GitHub keeps at most one pending
+# run per group, so a slow scan delays the next beat instead of stacking runs.
 concurrency:
   group: scan-markets
   cancel-in-progress: false
@@ -49,9 +66,13 @@ jobs:
           cache-dependency-path: 'Propfirm Trading Dashboard/requirements.txt'
 
       - name: Install dependencies
+        # requirements.txt pins mplfinance + matplotlib (the per-signal chart in
+        # draw_chart.py). If they ever fail to install, send_discord.py still
+        # posts the text alerts -- draw_chart imports them lazily.
         run: pip install -r "Propfirm Trading Dashboard/requirements.txt"
 
       - name: Run scanner (headless)
+        id: scan
         working-directory: Propfirm Trading Dashboard
         run: python run_scanner.py --no-open --all-strategies
         # --all-strategies does NOT loop over timeframes: run_scanner.py logs a
@@ -68,8 +89,18 @@ jobs:
         run: python send_discord.py
         # send_discord.py silently no-ops if DISCORD_WEBHOOK_URL is unset,
         # so the workflow still succeeds even before you configure secrets.
+        # It decides the cadence itself (news now, status once a day) and
+        # records what it posted in discord_state.json.
 
       - name: Commit updated state files
+        # Runs whenever the SCANNER succeeded, even if the Discord step failed:
+        # the paper account state it advanced (replayed bars, fills, closes)
+        # must not be lost. send_discord.py diffs by ids against its own saved
+        # state, so anything not posted this run is still posted next run.
+        # Not after a scanner failure -- a crash could leave a half-written file.
+        if: ${{ !cancelled() && steps.scan.outcome == 'success' }}
+        env:
+          BRANCH: ${{ github.ref_name }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -87,10 +118,21 @@ jobs:
           git add -f "Propfirm Trading Dashboard/discord_state.json" || true
           if git diff --staged --quiet; then
             echo "No state file changes to commit."
-          else
-            git commit -m "scan: daily state update [skip ci]"
-            # Pull --rebase --autostash protects against the rare case where
-            # someone pushed between this run's checkout and this commit.
-            git pull --rebase --autostash origin main
-            git push
+            exit 0
           fi
+          git commit -m "scan: hourly state update [skip ci]"
+          # Push to the branch this run was started from (the default branch
+          # for scheduled runs). Pull --rebase --autostash first in case
+          # something was pushed after this run's checkout (e.g. the all-coins
+          # workflow, which commits to the same branch in its own concurrency
+          # group); retry a few times if a push races.
+          for attempt in 1 2 3; do
+            if git pull --rebase --autostash origin "$BRANCH" && git push origin "HEAD:$BRANCH"; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying in $((attempt * 10))s."
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 10))
+          done
+          echo "Could not push state files after 3 attempts." >&2
+          exit 1

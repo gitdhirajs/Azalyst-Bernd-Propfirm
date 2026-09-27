@@ -16,6 +16,36 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def completed_bars(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """R1 (2026-09-27, defect 2) -- drop the still-forming bar before any zone or
+    pattern is read off the chart.
+
+    Rule #4 is "NEVER anticipate a zone -- wait for complete formation". The data
+    fetcher appends the in-progress daily/weekly candle, and zone detection read it
+    like a finished one. On Yahoo FX daily data that was worse than a timing issue:
+    completed candles carried Close ~= Open (median body% 0.00-0.02, zero decisive
+    candles in a year), so the ONLY candle that could be explosive was the in-progress
+    one, whose Open is real and whose Close is the live price. Leg-outs, and therefore
+    whole zones, were being built on a candle that had not closed and whose body
+    changed on every scan -- which also changed the zone_id daily (defect 9).
+
+    The fetcher marks every row with `is_complete` (False only for the still-forming
+    last bar). A frame without the column is treated as all-complete, so historical
+    callers and older snapshots are unaffected. Row labels are preserved so callers
+    can map a completed-frame row back to the full frame.
+
+    Kill switch: BP_COMPLETED_BARS=0 restores reading every row.
+    """
+    if df is None or os.environ.get('BP_COMPLETED_BARS') == '0':
+        return df
+    if 'is_complete' not in df.columns or df.empty:
+        return df
+    mask = df['is_complete'].fillna(True).astype(bool)
+    if bool(mask.all()):
+        return df
+    return df[mask]
+
+
 class ZoneDetector:
     """Detect supply/demand zones and score using 6 qualifiers + LOL."""
 
@@ -46,6 +76,21 @@ class ZoneDetector:
         self._base_max6 = _on('BP_BASE_MAX6')
         if self._base_max6:
             self.base_max = max(self.base_max, 6)
+
+        # 2026-09-27 live-account audit fixes, DEFAULT ON (set to "0" to disable).
+        # Both govern TRADE zones only -- the zones an order is built on. Location,
+        # LOL, big-brother and the bias consensus keep the legacy zones, so the
+        # measured Stage-1 bias is unchanged by them.
+        #   BP_LEGOUT_ADJACENT     R5: trade zones need a leg-out that follows the base
+        #                          immediately (see _find_leg_out). The rules engine
+        #                          passes detect_zones(legout_adjacent=
+        #                          trade_legout_adjacent); every other caller gets the
+        #                          legacy formation unless it asks.
+        #   BP_HARD_INVALIDATE_25  R4: >25%-penetrated / consumed zones are never TRADE
+        #                          zones (see filter_trade_zones)
+        _off = lambda k: os.environ.get(k) == '0'
+        self.trade_legout_adjacent = not _off('BP_LEGOUT_ADJACENT')
+        self._hard_invalidate_25 = not _off('BP_HARD_INVALIDATE_25')
 
         self.weights = config.get('qualifier_weights', {
             'departure': 0.30, 'base_duration': 0.10, 'freshness': 0.15,
@@ -96,6 +141,7 @@ class ZoneDetector:
         symbol: str,
         timeframe: str,
         trend: Optional[str] = None,
+        legout_adjacent: Optional[bool] = None,
     ) -> List[Dict]:
         """
         Scan price history and detect supply/demand zones.
@@ -104,12 +150,28 @@ class ZoneDetector:
             df: OHLCV DataFrame with columns: open, high, low, close, volume
             symbol: Trading symbol
             timeframe: Chart timeframe
+            legout_adjacent: R5 formation rule. True = the leg-out must follow the
+                base immediately (trade zones). None/False = the legacy 20-bar
+                leg-out search (Location, LOL, bias, charts).
 
         Returns:
             List of zone dictionaries with all qualifier scores
         """
-        if df.empty or len(df) < 20:
+        adjacent = bool(legout_adjacent)
+        # R1: zones are formed from COMPLETED bars only (rule #4). Location, trend and
+        # the entry gates still see the live bar -- they take the frame from the caller,
+        # not from here.
+        df = completed_bars(df)
+        if df is None or df.empty or len(df) < 20:
             return []
+
+        # R6 (zone_id stability): the id hashes the leg-out bar's timestamp. A frame
+        # indexed by date with no 'timestamp' column used to fall back to the bar's
+        # POSITION, which shifts every time the history window slides, so the "same"
+        # zone got a new id on every run. Carry the date through instead.
+        if 'timestamp' not in df.columns and isinstance(df.index, pd.DatetimeIndex):
+            df = df.copy()
+            df['timestamp'] = df.index
 
         df = df.copy().reset_index(drop=True)
         # FIX Bug 1+6: pandas 2.x hangs in iterrows() when the DataFrame
@@ -157,10 +219,10 @@ class ZoneDetector:
         while i < len(df) - 5:
             if _fair:
                 _cands = [
-                    (self._detect_dbr(df, i), 'demand', 'drop_base_rally'),
-                    (self._detect_rbr(df, i), 'demand', 'rally_base_rally'),
-                    (self._detect_rbd(df, i), 'supply', 'rally_base_drop'),
-                    (self._detect_dbd(df, i), 'supply', 'drop_base_drop'),
+                    (self._detect_dbr(df, i, adjacent), 'demand', 'drop_base_rally'),
+                    (self._detect_rbr(df, i, adjacent), 'demand', 'rally_base_rally'),
+                    (self._detect_rbd(df, i, adjacent), 'supply', 'rally_base_drop'),
+                    (self._detect_dbd(df, i, adjacent), 'supply', 'drop_base_drop'),
                 ]
                 _hits = [(f, zt, nm) for f, zt, nm in _cands if f]
                 if _hits:
@@ -173,28 +235,28 @@ class ZoneDetector:
                 continue
 
             # ---- Demand Zone: Drop-Base-Rally (DBR) ----
-            dbr = self._detect_dbr(df, i)
+            dbr = self._detect_dbr(df, i, adjacent)
             if dbr:
                 zones.append(self._score_zone(dbr, df, symbol, timeframe, 'demand', 'drop_base_rally', with_trend=_aligns('demand')))
                 i = dbr['leg_out_end'] + 1
                 continue
 
             # ---- Demand Zone: Rally-Base-Rally (RBR) ----
-            rbr = self._detect_rbr(df, i)
+            rbr = self._detect_rbr(df, i, adjacent)
             if rbr:
                 zones.append(self._score_zone(rbr, df, symbol, timeframe, 'demand', 'rally_base_rally', with_trend=_aligns('demand')))
                 i = rbr['leg_out_end'] + 1
                 continue
 
             # ---- Supply Zone: Rally-Base-Drop (RBD) ----
-            rbd = self._detect_rbd(df, i)
+            rbd = self._detect_rbd(df, i, adjacent)
             if rbd:
                 zones.append(self._score_zone(rbd, df, symbol, timeframe, 'supply', 'rally_base_drop', with_trend=_aligns('supply')))
                 i = rbd['leg_out_end'] + 1
                 continue
 
             # ---- Supply Zone: Drop-Base-Drop (DBD) ----
-            dbd = self._detect_dbd(df, i)
+            dbd = self._detect_dbd(df, i, adjacent)
             if dbd:
                 zones.append(self._score_zone(dbd, df, symbol, timeframe, 'supply', 'drop_base_drop', with_trend=_aligns('supply')))
                 i = dbd['leg_out_end'] + 1
@@ -217,7 +279,7 @@ class ZoneDetector:
             j -= 1
         return None if j == end else j + 1
 
-    def _detect_dbr(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
+    def _detect_dbr(self, df: pd.DataFrame, start: int, adjacent: bool = False) -> Optional[Dict]:
         """Detect Drop-Base-Rally (demand) formation."""
         leg_in_end = start
         if self._legin_decisive:
@@ -240,7 +302,7 @@ class ZoneDetector:
         if base_start >= len(df) - 3:
             return None
 
-        base_end = self._find_base(df, base_start, 'demand')
+        base_end = self._find_base(df, base_start, 'demand', strict=adjacent)
         if base_end is None:
             return None
 
@@ -248,7 +310,7 @@ class ZoneDetector:
         if leg_out_start >= len(df):
             return None
 
-        leg_out_end = self._find_leg_out(df, leg_out_start, 'bullish')
+        leg_out_end = self._find_leg_out(df, leg_out_start, 'bullish', adjacent=adjacent)
         # `<= leg_out_start` rejects an explosive FIRST leg-out candle -- the other
         # three detectors compare against base_end, which never rejects it.
         if leg_out_end is None or leg_out_end < leg_out_start + (0 if self._dbr_legout_fix else 1):
@@ -260,7 +322,7 @@ class ZoneDetector:
             'leg_out_start': leg_out_start, 'leg_out_end': leg_out_end
         }
 
-    def _detect_rbr(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
+    def _detect_rbr(self, df: pd.DataFrame, start: int, adjacent: bool = False) -> Optional[Dict]:
         """Detect Rally-Base-Rally (demand continuation) formation."""
         if self._legin_decisive:
             leg_in_start = self._decisive_run_start(df, start, 1)
@@ -273,11 +335,11 @@ class ZoneDetector:
             if bullish_pct < 0.70:
                 return None
 
-        base_end = self._find_base(df, start + 1, 'demand')
+        base_end = self._find_base(df, start + 1, 'demand', strict=adjacent)
         if base_end is None:
             return None
 
-        leg_out_end = self._find_leg_out(df, base_end + 1, 'bullish')
+        leg_out_end = self._find_leg_out(df, base_end + 1, 'bullish', adjacent=adjacent)
         if leg_out_end is None or leg_out_end <= base_end:
             return None
 
@@ -287,7 +349,7 @@ class ZoneDetector:
             'leg_out_start': base_end + 1, 'leg_out_end': leg_out_end
         }
 
-    def _detect_rbd(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
+    def _detect_rbd(self, df: pd.DataFrame, start: int, adjacent: bool = False) -> Optional[Dict]:
         """Detect Rally-Base-Drop (supply) formation."""
         if self._legin_decisive:
             leg_in_start = self._decisive_run_start(df, start, 1)
@@ -300,11 +362,11 @@ class ZoneDetector:
             if bullish_pct < 0.70:
                 return None
 
-        base_end = self._find_base(df, start + 1, 'supply')
+        base_end = self._find_base(df, start + 1, 'supply', strict=adjacent)
         if base_end is None:
             return None
 
-        leg_out_end = self._find_leg_out(df, base_end + 1, 'bearish')
+        leg_out_end = self._find_leg_out(df, base_end + 1, 'bearish', adjacent=adjacent)
         if leg_out_end is None or leg_out_end <= base_end:
             return None
 
@@ -314,7 +376,7 @@ class ZoneDetector:
             'leg_out_start': base_end + 1, 'leg_out_end': leg_out_end
         }
 
-    def _detect_dbd(self, df: pd.DataFrame, start: int) -> Optional[Dict]:
+    def _detect_dbd(self, df: pd.DataFrame, start: int, adjacent: bool = False) -> Optional[Dict]:
         """Detect Drop-Base-Drop (supply continuation) formation."""
         if self._legin_decisive:
             leg_in_start = self._decisive_run_start(df, start, -1)
@@ -327,11 +389,11 @@ class ZoneDetector:
             if bearish_pct < 0.70:
                 return None
 
-        base_end = self._find_base(df, start + 1, 'supply')
+        base_end = self._find_base(df, start + 1, 'supply', strict=adjacent)
         if base_end is None:
             return None
 
-        leg_out_end = self._find_leg_out(df, base_end + 1, 'bearish')
+        leg_out_end = self._find_leg_out(df, base_end + 1, 'bearish', adjacent=adjacent)
         if leg_out_end is None or leg_out_end <= base_end:
             return None
 
@@ -342,9 +404,20 @@ class ZoneDetector:
         }
 
     def _find_base(
-        self, df: pd.DataFrame, start: int, zone_type: str
+        self, df: pd.DataFrame, start: int, zone_type: str, strict: bool = False,
     ) -> Optional[int]:
-        """Find the base consolidation (1-6 indecisive candles)."""
+        """Find the base consolidation (1-6 indecisive candles).
+
+        `strict` (R5 trade-zone formation, 2026-09-27): when no indecisive run
+        starts at `start`, return None. The legacy fallback below returns `start`
+        itself once the window passes base_max, i.e. it hands back a DECISIVE
+        candle as a one-candle "base" -- methodology/01 s2 requires ALL base
+        candles to be indecisive. Measured on a synthetic RBR followed by a 60%
+        bearish drop: the drop became the base and the zone's distal widened to
+        the bottom of the drop, the exact defect R5 removes from the leg-out.
+        Legacy callers (Location, LOL, bias) keep the fallback so the measured
+        Stage-1 bias is unchanged.
+        """
         best_end = None
         for end in range(start, min(start + self.base_max + 1, len(df))):
             base_slice = df.iloc[start:end + 1]
@@ -353,6 +426,8 @@ class ZoneDetector:
             if n_candles < self.base_min:
                 continue
             if n_candles > self.base_max:
+                if strict:
+                    return best_end
                 return best_end if best_end is not None else start
 
             # All base candles must be indecisive (body <= 50% of range)
@@ -371,7 +446,7 @@ class ZoneDetector:
         return best_end
 
     def _find_leg_out(
-        self, df: pd.DataFrame, start: int, direction: str
+        self, df: pd.DataFrame, start: int, direction: str, adjacent: bool = False,
     ) -> Optional[int]:
         """Find explosive leg-out (body/range >= 70%) OR a price gap in the
         leg-out direction.
@@ -393,6 +468,60 @@ class ZoneDetector:
         avg_body = df['avg_body_20'].iloc[start] if pd.notna(df['avg_body_20'].iloc[start]) else df['body'].iloc[max(0, start - 20):start].mean()
         if pd.isna(avg_body) or avg_body == 0:
             avg_body = df['body'].mean() or 0.0001
+
+        # R5 (2026-09-27, defect 5) -- `adjacent=True`. The rules engine requests it
+        # for TRADE zones (LTF entry zones and refinement) unless BP_LEGOUT_ADJACENT=0;
+        # every other caller keeps the legacy 20-bar search below. Scoped this way
+        # because the same rule applied to the HTF Location zones moved the measured
+        # Stage-1 bias (full510_shard0 case 1, NQ=F 2023-01-01: Location bullish ->
+        # neutral, a correct long lost), and the bias path is not what failed live.
+        #
+        # The methodology defines a zone as "exactly three components in sequence
+        # [LEG-IN] -> [BASE] -> [LEG-OUT]" (methodology/01_zone_detection.md s2), and its
+        # reference scanner starts the leg-out at `base.end + 1` and breaks at the first
+        # candle that does not qualify (s5, scan_leg_out). Nothing there allows candles
+        # between the base and the departure. The only sanctioned non-explosive first
+        # leg-out candle is the lecture's alternative departure "decisive candle
+        # (abnormally bigger) followed by another decisive candle" (OTC M2 L6
+        # frame_000251, L2 frame_000403), and s2's "the green candle could be part of
+        # the leg out" (Ch 171/177). So: the explosive (or gap) candle must be the first
+        # candle after the base, or the second one when the first is a DECISIVE candle
+        # in the leg-out direction. Anything else -- in particular a decisive candle in
+        # the opposite direction -- ends the search with no zone. (An indecisive candle
+        # at base_end+1 can only occur when _find_base capped a longer run at base_max,
+        # i.e. the base was too long, which s2 also makes invalid.)
+        #
+        # What the old search did: it skipped up to 20 non-qualifying candles, and the
+        # caller computes the distal over base_end+1..leg_out_end, so a decline straight
+        # THROUGH the base became part of the zone's own formation (widening the distal
+        # to the bottom of the decline) instead of penetrating it. Such a zone was never
+        # "tested" by the move that broke it, and was traded as fresh.
+        #
+        # Interplay: _detect_dbr (without BP_DBR_LEGOUT_FIX) still rejects an explosive
+        # FIRST candle, so under this rule a DBR needs exactly [decisive, explosive].
+        if adjacent:
+            for i in range(start, min(start + 2, len(df))):
+                candle = df.iloc[i]
+                same_dir = candle['direction'] == expected_dir
+                body_pct = candle['body'] / candle['range'] if candle['range'] > 0 else 0
+                if same_dir:
+                    _explosive = body_pct > 0.70 if self._explosive_strict else body_pct >= 0.70
+                    if _explosive and candle['body'] >= self.leg_out_mult * max(avg_body, 0.0001):
+                        return i
+                    # Phase 6: gap-as-leg-out (Ch 171), same-direction candles only,
+                    # exactly as in the legacy search below.
+                    if i > 0:
+                        prior = df.iloc[i - 1]
+                        if direction == 'bullish' and candle['low'] > prior['high']:
+                            return i
+                        if direction == 'bearish' and candle['high'] < prior['low']:
+                            return i
+                # Not the departure candle. The one candle allowed in front of it is a
+                # decisive candle in the leg-out direction, in first position.
+                if i == start and same_dir and body_pct > 0.50:
+                    continue
+                return None
+            return None
 
         for i in range(start, min(start + 20, len(df))):
             candle = df.iloc[i]
@@ -485,6 +614,26 @@ class ZoneDetector:
             freshness_score = 0.0
         is_fresh = (wider_hits == 0 and preferred_hits == 0 and not invalidated_25pct)
         retests = wider_hits + preferred_hits  # for backward compat fields
+
+        # R4 (2026-09-27, defect 5): the hard trade-zone verdict, kept SEPARATE from the
+        # Q3 score above so every composite -- and with it the Stage-1 bias path, which
+        # reads composites -- is unchanged. The live account traded zones that were
+        # already >25% penetrated because Q3=0 only costs 1.5 composite points (weight
+        # 0.15), and a 25%-penetrated zone with a strong departure still ranked first.
+        #
+        # Penetration is measured on the completed bars after the BASE ends, excluding
+        # only the zone's own leg-out candles (they draw the distal, so they cannot
+        # "penetrate" it). For an adjacent leg-out (R5) this is exactly the Q3 window
+        # (after leg_out_end); for a legacy leg-out it also covers the candles the
+        # 20-bar search skipped -- the decline through the base that it absorbed.
+        # `consumed` is Q3's own "consumed (2+)" branch: two or more preferred retests.
+        # Deliberately NOT named 'invalidated': RulesEngine._analyze_htf reads that key
+        # to drop Location-Fib anchors, which measured -7 Bernd-clone cases (Phase 37).
+        penetrated_hard = self._is_penetrated_25pct_after_base(
+            df, zone, zone_type, proximal=proximal, distal=distal,
+        )
+        consumed = preferred_hits >= 2
+        trade_usable = not (penetrated_hard or consumed)
 
         # Q4: Originality
         if formation in ('rally_base_rally', 'drop_base_drop'):
@@ -609,6 +758,11 @@ class ZoneDetector:
         # Stable zone ID: same zone detected on different scan dates gets the
         # same ID so zone_memory suppression works across weekly scans.
         # Key = symbol + type + timeframe + origin_time + proximal (4dp) + distal (4dp).
+        # R6 (2026-09-27, defect 9): `df` is the completed-bar frame (R1), so
+        # origin_time is always a closed bar and the proximal/distal cannot move once
+        # the zone exists. Before R1 a leg-out on the in-progress bar re-keyed the zone
+        # on every scan, and the exact-id consumed check then let a closed setup trade
+        # again (EURNZD lost twice). The engine also emits a price-based setup_key.
         _origin_time_str = str(df.iloc[zone['leg_out_end']].get('timestamp', zone['leg_out_end']))
         _stable_key = f"{symbol}|{zone_type}|{timeframe}|{_origin_time_str}|{proximal:.4f}|{distal:.4f}"
         _zone_id = hashlib.md5(_stable_key.encode()).hexdigest()[:10]
@@ -651,6 +805,11 @@ class ZoneDetector:
             'htf_aligned': False,
             'q5_failed_gate': q5_failed_gate,
             'with_trend':     with_trend,
+            # R4: trade-zone eligibility (see above). Consumed by filter_trade_zones /
+            # is_trade_usable only; bias, Location, LOL and big-brother ignore them.
+            'invalidated_25pct': bool(penetrated_hard),
+            'consumed':          bool(consumed),
+            'trade_usable':      bool(trade_usable),
             # NOTE: intentionally NOT emitting an 'invalidated' flag here. A 25%
             # penetration already forces Q3 freshness to 0 (so the composite is
             # heavily penalised). Adding a hard 'invalidated' flag additionally
@@ -658,7 +817,8 @@ class ZoneDetector:
             # `_zone_is_usable` filter drop it as an anchor — which regressed the
             # goldtest by ~7 Bernd-clone cases (equity + PM long calls -> neutral),
             # exactly the Phase 37 finding that Bernd's own calls use the
-            # UN-filtered Fib. Freshness=0 is the correct, sufficient penalty.
+            # UN-filtered Fib. Freshness=0 is the correct, sufficient penalty
+            # for RANKING; the trade-zone block is 'trade_usable' (R4) above.
         }
 
     def _is_zone_invalidated_25pct(
@@ -695,6 +855,53 @@ class ZoneDetector:
             threshold_25 = proximal + 0.25 * (distal - proximal)
             future_highs = df.iloc[origin_idx + 1:]['high']
             return bool((future_highs > threshold_25).any())
+
+    def _is_penetrated_25pct_after_base(
+        self, df: pd.DataFrame, zone: Dict, zone_type: str,
+        proximal: float, distal: float,
+    ) -> bool:
+        """R4: same 25% rule as _is_zone_invalidated_25pct, but measured on every
+        completed bar after the BASE ends except the zone's own leg-out candles.
+
+        The zone's own leg-out = the run of decisive candles in the leg-out direction
+        that ends at leg_out_end (at most two candles for an adjacent leg-out). Any
+        candle between base_end and that run was skipped by the legacy leg-out search
+        and IS tested, because it is price action after the base, not formation.
+        """
+        base_end = zone['base_end']
+        lo_end = zone['leg_out_end']
+        exp_dir = 1 if zone_type == 'demand' else -1
+        j = lo_end
+        while j - 1 > base_end:
+            c = df.iloc[j - 1]
+            if c['direction'] != exp_dir or c['range'] <= 0 or c['body'] / c['range'] <= 0.50:
+                break
+            j -= 1
+        col = 'low' if zone_type == 'demand' else 'high'
+        vals = df[col].to_numpy()
+        window = np.concatenate([vals[base_end + 1:j], vals[lo_end + 1:]])
+        if window.size == 0:
+            return False
+        if zone_type == 'demand':
+            threshold_25 = proximal - 0.25 * (proximal - distal)
+            return bool((window < threshold_25).any())
+        threshold_25 = proximal + 0.25 * (distal - proximal)
+        return bool((window > threshold_25).any())
+
+    def is_trade_usable(self, zone: Dict) -> bool:
+        """R4: may this zone be the TRADE zone (entry/stop)? Zones scored before
+        R4 existed carry no flag and stay usable. BP_HARD_INVALIDATE_25=0 disables."""
+        if not self._hard_invalidate_25:
+            return True
+        return bool(zone.get('trade_usable', True))
+
+    def filter_trade_zones(self, zones: List[Dict]) -> List[Dict]:
+        """R4 (2026-09-27, defect 5) -- drop zones that were penetrated >25% or
+        consumed, preserving order. Use ONLY where a zone becomes an order (best
+        trade zone, refinement). Location Fib, LOL and big-brother must keep the
+        unfiltered list so the directional bias is unchanged (Phase 37 measured
+        -7 Bernd-clone cases when the Location anchors were filtered)."""
+        return [z for z in zones if self.is_trade_usable(z)]
 
     def _count_retests(self, df: pd.DataFrame, zone: Dict, zone_type: str) -> int:
         """Count how many times price has retested the zone since formation
@@ -789,7 +996,9 @@ class ZoneDetector:
         NOTE: a >25%-penetrated zone is NOT hard-rejected here — its Q3 freshness
         is already 0 (heavy composite penalty), and hard-rejecting it regressed
         the Bernd-clone match (Phase 37). The composite gate is the intended
-        filter for consumed zones.
+        filter for consumed zones. The hard block on TRADING such a zone is
+        filter_trade_zones (R4, 2026-09-27), which the rules engine applies after
+        the bias has been computed from this unfiltered ranking.
 
         C-88 (2026-08-26). A zone whose proximal equals its distal cannot produce
         a tradeable order. Downstream, `entry = proximal` and (weekly/monthly)

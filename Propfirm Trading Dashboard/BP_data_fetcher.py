@@ -2,6 +2,7 @@
 
 import time
 import os
+import re
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -42,6 +43,461 @@ FUTURES_PROXY = {
     "6S=F": "FXF",
     "DX-Y.NYB": "UUP",
 }
+
+
+# ===========================================================================
+# Price-data hygiene (2026-09-27 audit of the live FundingPips paper account)
+# ===========================================================================
+# Every fix below has an environment kill switch that defaults ON, so each one
+# can be measured by paired A/B. Setting the variable to "0" restores the old
+# frame exactly:
+#   BP_FX_CLOSE_REPAIR=0  -- keep Yahoo's broken daily FX Close        (defect 1)
+#   BP_DROP_STUB_BARS=0   -- keep weekend stub bars and non-finite OHLC
+#                            rows                                  (defects 7, 8)
+#   BP_FX_WEEKLY_REPAIR=1 -- OPT-IN: repair weekly/monthly FX High/Low/Close
+#                            (found 2026-09-27, see below; default OFF until A/B-measured)
+# To A/B one of them alone, leave the others at their default in both arms.
+# The `is_complete` column (defect 2) is data, not behaviour: its consumer
+# (BP_zone_detector.completed_bars) owns the switch, BP_COMPLETED_BARS=0.
+
+def _flag_on(name: str) -> bool:
+    return os.environ.get(name, "1") != "0"
+
+
+def _utcnow() -> pd.Timestamp:
+    """Wall clock in UTC. A module function so tests can pin 'now'."""
+    return pd.Timestamp.now(tz="UTC")
+
+
+# Column contract of fetch_bars_since (and of every fetch_ohlcv frame, which
+# additionally carries `is_complete` on 1d / 1wk frames).
+BAR_COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"]
+_OHLC = ["open", "high", "low", "close"]
+
+# How long one bar lasts, for "has the last bar finished forming?" (defect 2).
+_COMPLETE_SPAN = {"1d": pd.Timedelta(days=1), "1wk": pd.Timedelta(days=7)}
+
+# Yahoo's intraday history depth, in days. 60m is documented at 730 days; 729
+# keeps the same safety margin fetch_multi_timeframe already uses.
+_INTRADAY_MAX_DAYS = {"1m": 7, "2m": 59, "5m": 59, "15m": 59, "30m": 59,
+                      "90m": 59, "60m": 729, "1h": 729}
+
+# --- Defect 1: Yahoo daily FX Close is (nearly) a copy of the Open ----------
+# Measured 2026-09-27 against the TRUE London-day candle built from Yahoo 1h
+# bars (Europe/London), last 2 years, ~517 complete days per pair, medians
+# (scratchpad smoke_fx_close.py; "next Open" = what pinned/goldtest reads get,
+# "live" = next Open + the 1h refinement below):
+#               body% yahoo/true   |close err|/range: yahoo  next Open  live
+#   EURUSD=X      0.000 / 0.452                     0.429    0.064   0.046
+#   NZDUSD=X      0.016 / 0.500                     0.501    0.061   0.041
+#   USDJPY=X      0.000 / 0.483                     0.476    0.054   0.030
+#   GBPAUD=X      0.000 / 0.440                     0.446    0.040   0.028
+# Repaired body% 0.46-0.51 (true 0.44-0.50). Open/High/Low are fine (0.02-0.05
+# of range). With the defect zero daily FX candles in a year were decisive
+# (body > 50%), so the body-% zone rules could only ever read the still-forming
+# bar -- whose Open is real -- as a leg-out.
+#
+# Which series: all 13 "=X" pairs measured (majors and crosses) have it.
+# DX-Y.NYB (body 0.478 vs true 0.481), GC=F, CL=F (close err 0.08-0.10 =
+# settlement vs last trade, body% intact), BTC-USD and ETH-USD (0.00) do NOT,
+# so only "=X" daily frames get this repair. (Weekly/monthly FX bars have a
+# DIFFERENT corruption -- see _repair_period_bars.)
+#
+# When: the defect starts on Yahoo in late July / early August 2010 for every
+# pair checked (rolling 41-bar median body% drops from >= 0.20 to <= 0.07 in a
+# single step, and stays there through 2026). Pre-2010 closes are genuine, so
+# the repair is limited to the defective REGIME (see _defective_close_mask):
+# pinned 2008-2023 goldtest frames keep their real early history.
+#
+# Weak spot: a bar followed by a GAP (Friday -> Monday). Its next Open carries
+# the weekend gap: |close err|/range 0.12-0.15 on Fridays vs 0.03-0.06 on
+# Mon-Thu, and 28-35% of Friday candles change body class (12-18% change
+# colour) versus 11-13% (2-4%) on other days. In live mode (snapshot mode
+# "off") gap bars, and the last bar, therefore take the last completed 1h
+# close of their own London day instead (Friday error -> 0.00-0.04). In
+# pinned/historical frames the Friday close is still the Monday Open, i.e. it
+# includes the Sunday-evening gap: a small look-ahead for a backtest that cuts
+# a full-period frame on a weekend (a frame that ENDS on the Friday is not
+# affected -- its last bar has no next Open and is flagged incomplete).
+_CLOSE_DEFECT_BODY_MAX = 0.15   # regime threshold; measured gap is 0.07 .. 0.20
+_CLOSE_DEFECT_WINDOW = 41       # rolling bars (~2 months) for the regime test
+
+
+def _has_daily_close_defect(symbol: str) -> bool:
+    """Only Yahoo spot FX ("=X") carries the copied-Open daily Close."""
+    return str(symbol).upper().endswith("=X")
+
+
+def _ts_series(df: pd.DataFrame) -> Optional[pd.Series]:
+    if df is None or "timestamp" not in df.columns:
+        return None
+    try:
+        return pd.to_datetime(df["timestamp"])
+    except Exception:
+        return None
+
+
+def _as_utc(ts) -> Optional[pd.Timestamp]:
+    """Timestamp/datetime/str -> tz-aware UTC. Naive values are taken as UTC."""
+    if ts is None:
+        return None
+    try:
+        t = pd.Timestamp(ts)
+    except Exception:
+        return None
+    if t is pd.NaT:
+        return None
+    return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")
+
+
+def _utc_index(ts: pd.Series) -> pd.DatetimeIndex:
+    idx = pd.DatetimeIndex(ts)
+    return idx.tz_localize("UTC") if idx.tz is None else idx.tz_convert("UTC")
+
+
+def _interval_timedelta(interval: str) -> Optional[pd.Timedelta]:
+    """"60m" -> 1h, "1h" -> 1h, "1d" -> 1 day, "1wk" -> 7 days. None if unknown."""
+    m = re.fullmatch(r"(\d+)(m|h|d|wk)", str(interval).strip())
+    if not m:
+        return None
+    n, unit = int(m.group(1)), m.group(2)
+    return {"m": pd.Timedelta(minutes=n), "h": pd.Timedelta(hours=n),
+            "d": pd.Timedelta(days=n), "wk": pd.Timedelta(weeks=n)}[unit]
+
+
+def _is_intraday(interval: str) -> bool:
+    return str(interval).endswith(("m", "h")) and not str(interval).endswith("mo")
+
+
+def _drop_bad_rows(df: pd.DataFrame, interval: str, symbol: str = "") -> pd.DataFrame:
+    """Defects 7 + 8: drop non-finite OHLC rows and weekend stub bars.
+
+    Non-finite: a NaN last close bypassed the engine's distance gate (every
+    NaN comparison is False) and created the fake CL=F order. Any row with a
+    NaN/inf open/high/low/close is dropped, on every interval.
+
+    Weekend stubs: Yahoo appends a zero-volume placeholder dated Saturday or
+    Sunday (the frame's own time zone) to FX daily series. Measured over 5 years
+    of daily history: 0 of ~1,300 bars per pair are weekend-dated EXCEPT the
+    live one at the end, so these are always artifacts. They are not always
+    exactly flat -- EURUSD/GBPAUD/EURNZD stubs had 0.6-4.8% of the median daily
+    range, and the EURUSD stub's Open was a stale Friday-16:00 price -- so on
+    daily frames "stub" means weekend-dated, zero volume and a range of at most
+    10% of the frame's median range. Crypto weekend bars carry volume and are
+    kept. Intraday frames use the strict form (O==H==L==C, zero volume,
+    weekend-dated). Weekly/monthly bars are never stubs (a monthly bar can be
+    dated on a Saturday the 1st).
+    """
+    if df is None or df.empty or not all(c in df.columns for c in _OHLC):
+        return df
+    ohlc = df[_OHLC].apply(pd.to_numeric, errors="coerce")
+    finite = pd.Series(np.isfinite(ohlc.to_numpy(dtype=float)).all(axis=1),
+                       index=df.index)
+    stub = pd.Series(False, index=df.index)
+    ts = _ts_series(df)
+    daily = interval == "1d"
+    if ts is not None and (daily or _is_intraday(interval)):
+        weekend = pd.Series(ts.dt.dayofweek.to_numpy() >= 5, index=df.index)
+        vol = (pd.to_numeric(df["volume"], errors="coerce").fillna(0)
+               if "volume" in df.columns else pd.Series(0.0, index=df.index))
+        rng = ohlc["high"] - ohlc["low"]
+        if daily:
+            med = rng[finite & (rng > 0)].median()
+            tiny = rng <= 0.10 * med if pd.notna(med) and med > 0 else rng <= 0
+        else:
+            tiny = ((ohlc["high"] == ohlc["low"]) & (ohlc["open"] == ohlc["close"])
+                    & (ohlc["open"] == ohlc["high"]))
+        stub = weekend & (vol == 0) & tiny & finite
+    drop = ~finite | stub
+    if drop.any():
+        logger.debug("%s %s: dropped %d non-finite OHLC row(s) and %d weekend stub bar(s): %s",
+                     symbol, interval, int((~finite).sum()), int(stub.sum()),
+                     [str(t) for t in (ts[drop] if ts is not None else [])][:5])
+        df = df.loc[~drop].reset_index(drop=True)
+    return df
+
+
+def _defective_close_mask(df: pd.DataFrame) -> np.ndarray:
+    """True for bars inside Yahoo's copied-Open regime (see header comment).
+
+    A centred rolling median of body% is compared with 0.15: real FX daily
+    bodies never median below 0.20 over 41 bars (2003-2010), defective ones
+    never above 0.07 (2011-2026), so the boundary lands on the July/Aug 2010
+    onset. Short frames (< 11 bars) use the whole-frame median.
+    """
+    rng = (df["high"] - df["low"]).astype(float)
+    body = (df["close"] - df["open"]).abs().astype(float) / rng.where(rng > 0)
+    if len(df) >= 11:
+        med = body.rolling(_CLOSE_DEFECT_WINDOW, center=True, min_periods=11).median()
+        med = med.fillna(body.median())
+    else:
+        med = pd.Series(body.median(), index=df.index)
+    # an all-flat frame has no body at all -- treat as defective
+    return (med.fillna(0.0) < _CLOSE_DEFECT_BODY_MAX).to_numpy()
+
+
+def _session_last_close(day_starts_utc: pd.DatetimeIndex, hourly: pd.DataFrame,
+                        span: pd.Timedelta = pd.Timedelta(days=1)) -> pd.Series:
+    """Last hourly close whose bar STARTS inside each daily session.
+
+    Returns a Series indexed by daily row POSITION (only sessions that have at
+    least one hourly bar). `hourly` must already be cleaned by _clean_bars:
+    completed, finite, stub-free, UTC timestamps, ascending.
+    """
+    if hourly is None or hourly.empty or len(day_starts_utc) == 0:
+        return pd.Series(dtype=float)
+    d_ns = day_starts_utc.as_unit("ns").asi8
+    h_ns = _utc_index(hourly["timestamp"]).as_unit("ns").asi8
+    pos = np.searchsorted(d_ns, h_ns, side="right") - 1
+    ok = pos >= 0
+    ok &= h_ns < d_ns[np.clip(pos, 0, None)] + span.value
+    if not ok.any():
+        return pd.Series(dtype=float)
+    closes = pd.Series(hourly["close"].to_numpy(dtype=float)[ok])
+    return closes.groupby(pos[ok]).last()
+
+
+def _repair_daily_close(df: pd.DataFrame, hourly: Optional[pd.DataFrame] = None,
+                        now_utc: Optional[pd.Timestamp] = None,
+                        symbol: str = "") -> Tuple[pd.DataFrame, bool]:
+    """Defect 1: rebuild Yahoo's daily FX Close. Returns (frame, last_unrepaired).
+
+    Inside the defective regime:
+      * every bar with a next bar: Close[d] := Open[d+1] (the London-day close
+        IS the next London-day open for a 24h market), clamped into the bar's
+        own [Low, High] because Yahoo's daily Open comes from a slightly
+        different feed and a gap would otherwise give body% > 1;
+      * if `hourly` is given (live mode): GAP bars (next bar > 1 calendar day
+        later, i.e. Friday) take the last completed 1h close of their own
+        London day instead of the gap-contaminated Monday Open;
+      * the LAST bar has no next Open (the next bar does not exist yet in live
+        data, and a pinned frame is cut there). Complete: last completed 1h
+        close of its day. Still forming: the latest completed 1h close of its
+        day, widening High/Low if Yahoo's live range lags it. With no hourly
+        data (snapshot modes, or a failed fetch) it is left untouched and
+        reported as `last_unrepaired=True`: its Open/High/Low are real but its
+        Close is not, exactly like an unfinished bar, so the caller marks it
+        is_complete=False.
+    """
+    if df is None or df.empty or not all(c in df.columns for c in _OHLC):
+        return df, False
+    df = df.copy()
+    n = len(df)
+    bad = _defective_close_mask(df)
+    o = df["open"].astype(float)
+    h = df["high"].astype(float).copy()
+    l = df["low"].astype(float).copy()
+    c = df["close"].astype(float)
+
+    new_c = o.shift(-1).clip(lower=l, upper=h)
+    new_c = new_c.where(new_c.notna(), c)      # NaN next open -> keep original
+    new_c.iloc[n - 1] = c.iloc[n - 1]          # last bar decided below
+
+    ts = _ts_series(df)
+    last_unrepaired = bool(bad[n - 1])
+    if hourly is not None and not hourly.empty and ts is not None \
+            and getattr(ts.dt, "tz", None) is not None:
+        starts = _utc_index(ts)
+        sess = _session_last_close(starts, hourly)
+        local_day = ts.dt.tz_localize(None).dt.normalize()
+        gap = ((local_day.shift(-1) - local_day) > pd.Timedelta(days=1)).to_numpy()
+        for p in np.flatnonzero(gap & bad):
+            if p in sess.index:
+                new_c.iloc[p] = min(max(float(sess[p]), l.iloc[p]), h.iloc[p])
+        last = n - 1
+        if bad[last] and last in sess.index:
+            v = float(sess[last])
+            now = now_utc if now_utc is not None else _utcnow()
+            if starts[last] + pd.Timedelta(days=1) <= now:
+                new_c.iloc[last] = min(max(v, l.iloc[last]), h.iloc[last])
+            else:
+                new_c.iloc[last] = v
+                h.iloc[last] = max(h.iloc[last], v)
+                l.iloc[last] = min(l.iloc[last], v)
+            last_unrepaired = False
+    if last_unrepaired:
+        logger.debug("%s 1d: last bar close could not be repaired (no hourly data) "
+                     "-- flagged is_complete=False", symbol)
+
+    df["close"] = np.where(bad, new_c.to_numpy(), c.to_numpy())
+    df["high"] = h.to_numpy()
+    df["low"] = l.to_numpy()
+    return df, last_unrepaired
+
+
+# --- Weekly / monthly FX bars: corrupted Low and Close ----------------------
+# NOT one of the audited defects -- found while measuring defect 1, contrary to
+# the audit's "weekly FX candles are fine" (true for EURUSD, not for crosses).
+# Yahoo's COMPLETED weekly FX bars often carry a Low far below anything traded
+# that week and a Close outside the week's range (GBPAUD week of 2026-09-14:
+# Low = Close = 1.8168 while every daily/1h bar of the week sat 1.873-1.895).
+# Measured over 2 years (104 weeks) against the TRUE weekly low built from 1h:
+#   |weekly Low - true Low| / range   EURAUD 0.507 (72% of weeks > 0.1),
+#   GBPAUD 0.554; the daily bars aggregated into the week: 0.015 (8%).
+# Share of weeks where Yahoo's weekly Low/High sits > 10% of range outside the
+# daily bars, or its Close lies outside them: GBPAUD 76%, EURAUD 74%, EURNZD
+# 30%, AUDNZD 29%, EURGBP 26%, EURCHF 23% ... 18 of the 28 watchlist pairs
+# above 10%, EURUSD 5%. The daily High/Low are right (0.02-0.06 vs 1h), so
+# weekly/monthly FX bars take High/Low from the daily bars inside them, and the
+# Close only when Yahoo's lies outside that range (then: last daily close).
+# The Open (0.000 median error) is kept. OPT-IN with BP_FX_WEEKLY_REPAIR=1: it moves
+# Stage-1 FX bias on pinned cases (EURUSD 2024-02-19, NZDUSD 2024-01-27) and has not
+# been measured on the full set, so it stays off in live until it is.
+_PERIOD_MIN_DAILY_BARS = {"1wk": 3, "1mo": 15}
+
+
+def _repair_period_bars(df: pd.DataFrame, daily: Optional[pd.DataFrame],
+                        interval: str, symbol: str = "") -> pd.DataFrame:
+    """Rebuild weekly/monthly FX High/Low (and a corrupt Close) from daily bars.
+
+    `daily` must be the same instrument over the same scope (already cleaned
+    and Close-repaired). A period is rebuilt only when the daily frame covers
+    it from its start and holds enough bars (3 per week, 15 per month) --
+    except the last, still-forming period, which the daily frame covers by
+    construction. Timestamps must be both tz-aware or both naive (pins).
+    """
+    if (df is None or df.empty or daily is None or daily.empty
+            or not all(c in df.columns for c in _OHLC)
+            or not all(c in daily.columns for c in _OHLC)):
+        return df
+    tw, td = _ts_series(df), _ts_series(daily)
+    if tw is None or td is None:
+        return df
+    aware_w = getattr(tw.dt, "tz", None) is not None
+    aware_d = getattr(td.dt, "tz", None) is not None
+    if aware_w != aware_d:
+        return df
+    w_idx = _utc_index(tw) if aware_w else pd.DatetimeIndex(tw)
+    d_idx = _utc_index(td) if aware_d else pd.DatetimeIndex(td)
+    w_ns = w_idx.as_unit("ns").asi8
+    d_ns = d_idx.as_unit("ns").asi8
+    nxt = np.empty_like(w_ns)
+    nxt[:-1] = w_ns[1:]
+    # the last period ends one week/month later in LOCAL wall-clock (DST-safe)
+    last_end = pd.Timestamp(tw.iloc[-1]) + (pd.DateOffset(months=1) if interval == "1mo"
+                                             else pd.DateOffset(days=7))
+    last_end = last_end.tz_convert("UTC") if aware_w else last_end
+    nxt[-1] = pd.DatetimeIndex([last_end]).as_unit("ns").asi8[0]
+    pos = np.searchsorted(w_ns, d_ns, side="right") - 1
+    ok = (pos >= 0) & (d_ns < nxt[np.clip(pos, 0, None)])
+    if not ok.any():
+        return df
+    g = pd.DataFrame({"p": pos[ok],
+                      "h": daily["high"].to_numpy(dtype=float)[ok],
+                      "l": daily["low"].to_numpy(dtype=float)[ok],
+                      "c": daily["close"].to_numpy(dtype=float)[ok]}).groupby("p")
+    agg = pd.DataFrame({"h": g["h"].max(), "l": g["l"].min(), "c": g["c"].last(),
+                        "n": g["h"].size()})
+    min_n = _PERIOD_MIN_DAILY_BARS.get(interval, 3)
+    last = len(df) - 1
+    covered = (w_ns[agg.index.to_numpy()] >= d_ns[0]) & \
+              ((agg["n"].to_numpy() >= min_n) | (agg.index.to_numpy() == last))
+    agg = agg[covered]
+    if agg.empty:
+        return df
+    df = df.copy()
+    o = df["open"].to_numpy(dtype=float).copy()
+    h = df["high"].to_numpy(dtype=float).copy()
+    l = df["low"].to_numpy(dtype=float).copy()
+    c = df["close"].to_numpy(dtype=float).copy()
+    p = agg.index.to_numpy()
+    nh, nl, dc = agg["h"].to_numpy(), agg["l"].to_numpy(), agg["c"].to_numpy()
+    eps = 1e-9 * np.abs(nh)
+    bad_c = (c[p] > nh + eps) | (c[p] < nl - eps)
+    changed = int(((np.abs(h[p] - nh) > eps) | (np.abs(l[p] - nl) > eps) | bad_c).sum())
+    c[p] = np.where(bad_c, np.clip(dc, nl, nh), c[p])
+    h[p] = np.fmax(np.fmax(nh, o[p]), c[p])     # fmax/fmin: a NaN open never wins
+    l[p] = np.fmin(np.fmin(nl, o[p]), c[p])
+    df["high"], df["low"], df["close"] = h, l, c
+    if changed:
+        logger.debug("%s %s: rebuilt High/Low/Close of %d of %d bars from daily bars "
+                     "(%d corrupt closes)", symbol, interval, changed, len(p), int(bad_c.sum()))
+    return df
+
+
+def _mark_is_complete(df: pd.DataFrame, interval: str, now_utc: pd.Timestamp,
+                      from_snapshot: bool, force_last_incomplete: bool = False) -> pd.DataFrame:
+    """Defect 2: add `is_complete` to 1d / 1wk frames.
+
+    Rule: every bar that has a later bar is complete. The last bar is complete
+    when its start + 1 day (1d) / 7 days (1wk) <= now UTC, `now` being the wall
+    clock when the bars were fetched. Frames served from a pinned snapshot are
+    history, so all their bars are complete (now = the frame's own end) -- the
+    one exception, for either source, is an FX daily last bar whose Close could
+    not be repaired (force_last_incomplete).
+    """
+    span = _COMPLETE_SPAN.get(interval)
+    if span is None or df is None or df.empty:
+        return df
+    flags = np.ones(len(df), dtype=bool)
+    ts = _ts_series(df)
+    if not from_snapshot and ts is not None:
+        last = _as_utc(ts.iloc[-1])
+        flags[-1] = last is not None and (last + span) <= now_utc
+    if force_last_incomplete:
+        flags[-1] = False
+    df = df.copy()
+    df["is_complete"] = flags
+    return df
+
+
+def _clean_bars(raw: pd.DataFrame, interval: str, now_utc: pd.Timestamp,
+                since_utc: Optional[pd.Timestamp] = None,
+                drop_stubs: bool = True) -> pd.DataFrame:
+    """fetch_bars_since contract: UTC bar starts, completed, finite, no stubs.
+
+    Completed means start + interval <= now_utc (the in-progress bar Yahoo
+    appends is partial). A stub is a bar with O==H==L==C and no volume: a
+    placeholder, not a trade -- e.g. the FX 22:00-London print after Friday's
+    close, or DX-Y.NYB's Sunday pre-open bars (measured: 78 of 128 flat EURUSD
+    hours are Friday 21:00 UTC, 40 more Friday 22:00 UTC).
+    """
+    if raw is None or raw.empty or "timestamp" not in raw.columns:
+        return _empty_bars()
+    df = raw.copy()
+    for col in BAR_COLUMNS[1:]:
+        if col not in df.columns:
+            df[col] = 0.0 if col == "volume" else np.nan
+    df = df[BAR_COLUMNS].copy()
+    df["timestamp"] = _utc_index(df["timestamp"]).as_unit("ns")
+    for col in BAR_COLUMNS[1:]:
+        df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+    keep = pd.Series(np.isfinite(df[_OHLC].to_numpy()).all(axis=1), index=df.index)
+    if drop_stubs:
+        flat = ((df["open"] == df["high"]) & (df["high"] == df["low"])
+                & (df["low"] == df["close"]))
+        keep &= ~(flat & (df["volume"].fillna(0) == 0))
+    span = _interval_timedelta(interval) or pd.Timedelta(0)
+    keep &= (df["timestamp"] + span) <= now_utc
+    if since_utc is not None:
+        keep &= df["timestamp"] >= since_utc
+    df = df.loc[keep].sort_values("timestamp", kind="mergesort")
+    df = df.drop_duplicates(subset="timestamp", keep="last").reset_index(drop=True)
+    return df
+
+
+def _empty_bars() -> pd.DataFrame:
+    return pd.DataFrame({
+        "timestamp": pd.Series(dtype="datetime64[ns, UTC]"),
+        "open": pd.Series(dtype=float), "high": pd.Series(dtype=float),
+        "low": pd.Series(dtype=float), "close": pd.Series(dtype=float),
+        "volume": pd.Series(dtype=float),
+    })
+
+
+def clean_ohlcv_frame(df: pd.DataFrame, symbol: str, interval: str,
+                      daily: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+    """Offline hygiene for a pinned OHLCV frame read WITHOUT DataFetcher.
+
+    Applies exactly what fetch_ohlcv applies to a snapshot read (stub/NaN
+    drop, FX daily Close repair, is_complete), never touching the network.
+    For scripts that pd.read_csv pins directly (goldtest/expectancy.py,
+    goldtest/replay_trades.py) so they see the same candles as the engine.
+    Weekly/monthly FX frames are only repaired when the matching daily frame
+    is passed as `daily`.
+    """
+    return DataFetcher._post_process_frame(df, symbol, interval, from_snapshot=True,
+                                           hourly=None, now_utc=_utcnow(), daily=daily)
 
 
 class DataFetcher:
@@ -114,6 +570,16 @@ class DataFetcher:
         # Cache OHLCV by (symbol, interval, period) so repeat calls within one
         # scan (valuation refs reused across symbols) don't hammer Yahoo.
         self._ohlcv_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
+        # 1h bars used to repair the FX daily Close (defect 1), fetched once per
+        # symbol per process: symbol -> cleaned hourly frame (may be empty).
+        self._repair_hourly: Dict[str, pd.DataFrame] = {}
+        # (symbol, interval) -> ETF proxy that actually served it this process,
+        # so fetch_bars_since(allow_proxy=True) prices against the same series.
+        self._proxy_served: Dict[Tuple[str, str], str] = {}
+
+    # Depth of the 1h history used for the live FX daily-Close repair. Gap bars
+    # (Fridays) older than this keep Close := next Open.
+    FX_REPAIR_HOURLY_PERIOD = "729d"
 
     def fetch_ohlcv(
         self,
@@ -142,7 +608,12 @@ class DataFetcher:
         a plausible-but-mis-scaled one. (Audit rank 2.)
 
         Returns:
-            DataFrame with columns: timestamp, open, high, low, close, volume.
+            DataFrame with columns: timestamp, open, high, low, close, volume,
+            plus a boolean `is_complete` on 1d / 1wk frames (False only for a
+            still-forming last bar -- see _mark_is_complete). Non-finite OHLC
+            rows and weekend stub bars are dropped, and the Yahoo daily FX
+            Close is repaired (see the module header). Both happen on live
+            downloads AND on snapshot reads; pins on disk stay raw Yahoo data.
             Empty DataFrame when no data is available after all retries.
         """
         # 2026-08 FTW audit C-51 (CRITICAL) — the cache key used to omit
@@ -178,9 +649,14 @@ class DataFetcher:
         # pin returns empty (-> no signal, fail-safe) rather than silently
         # falling back to live data.
         _snap_key = self._ohlcv_snap_key(symbol, interval, _scope, allow_proxy)
+        # Snapshot-served frames get the same hygiene as live ones (so pinned
+        # goldtest data is repaired on LOAD; the files stay untouched), but no
+        # network: the FX last-bar / gap-bar 1h refinement is live-only.
         if self.ohlcv_snapshot_mode == "fill":
             _cached = self._read_ohlcv_snapshot(_snap_key)
             if _cached is not None:
+                _cached = self._post_process(_cached, symbol, interval, from_snapshot=True,
+                                             scope=(period, start, end, allow_proxy))
                 self._ohlcv_cache[cache_key] = _cached
                 return _cached.copy()
         if self.ohlcv_snapshot_mode == "read":
@@ -190,6 +666,8 @@ class DataFetcher:
                     "OHLCV snapshot missing for %s (mode=read) — returning empty. "
                     "Run build_ohlcv_snapshot.py to create it.", _snap_key)
                 return pd.DataFrame()
+            snap = self._post_process(snap, symbol, interval, from_snapshot=True,
+                                      scope=(period, start, end, allow_proxy))
             self._ohlcv_cache[cache_key] = snap
             return snap.copy()
 
@@ -205,17 +683,130 @@ class DataFetcher:
             used_proxy = not df.empty
 
         if not df.empty:
+            # Pin the RAW Yahoo bars under the key actually requested, BEFORE any
+            # repair: repairs are re-applied on every load, so a repair change
+            # never needs a re-pin and A/B kill switches work on pinned data.
+            # Proxy-derived bars are only ever written under the allow_proxy=True
+            # key, preserving the C-51 guarantee that proxy data can never
+            # satisfy a tradable request.
+            self._write_ohlcv_snapshot(
+                self._ohlcv_snap_key(symbol, interval, _scope,
+                                     True if used_proxy else allow_proxy), df)
+            if used_proxy:
+                self._proxy_served[(symbol, interval)] = FUTURES_PROXY[symbol]
+            df = self._post_process(df, FUTURES_PROXY[symbol] if used_proxy else symbol,
+                                    interval, from_snapshot=False,
+                                    scope=(period, start, end, allow_proxy))
+        if not df.empty:
             self._ohlcv_cache[(symbol, interval, _scope, True)] = df.copy()
             if not used_proxy:
                 # genuine primary data — safe for the tradable path too
                 self._ohlcv_cache[(symbol, interval, _scope, False)] = df.copy()
-            # Pin under the key actually requested. Proxy-derived bars are only
-            # ever written under the allow_proxy=True key, preserving the C-51
-            # guarantee that proxy data can never satisfy a tradable request.
-            self._write_ohlcv_snapshot(
-                self._ohlcv_snap_key(symbol, interval, _scope,
-                                     True if used_proxy else allow_proxy), df)
         return df
+
+    # ------------------------------------------------------------------
+    # Price-data hygiene (defects 1, 2, 7, 8 -- see module header)
+    # ------------------------------------------------------------------
+    def _post_process(self, df: pd.DataFrame, symbol: str, interval: str,
+                      from_snapshot: bool, scope: Optional[tuple] = None) -> pd.DataFrame:
+        """Instance wrapper: gathers what the pure repair needs from the network.
+
+        1h refinement of the FX daily Close: only in snapshot mode "off". In
+        write/fill the frame is being pinned for a reproducible test, and the
+        next read of that pin has no 1h data -- so the first (live) run must
+        process it exactly as the later reads will.
+
+        Weekly/monthly FX repair: needs the daily frame of the SAME scope
+        (period or start/end, allow_proxy) -- fetched through fetch_ohlcv, so it
+        is cached, Close-repaired, and in read mode served only from its own
+        pin (skipped, with no warning, when that pin does not exist).
+        """
+        if df is None or df.empty:
+            return df
+        hourly = None
+        if (not from_snapshot and self.ohlcv_snapshot_mode == "off"
+                and interval == "1d" and _has_daily_close_defect(symbol)
+                and _flag_on("BP_FX_CLOSE_REPAIR") and self._frame_is_recent(df)):
+            hourly = self._hourly_for_close_repair(symbol)
+        daily = None
+        if (interval in ("1wk", "1mo") and _has_daily_close_defect(symbol)
+                and os.environ.get("BP_FX_WEEKLY_REPAIR") == "1" and scope is not None):
+            daily = self._daily_for_period_repair(symbol, *scope)
+        return self._post_process_frame(df, symbol, interval, from_snapshot,
+                                        hourly=hourly, now_utc=_utcnow(), daily=daily)
+
+    def _daily_for_period_repair(self, symbol: str, period, start, end,
+                                 allow_proxy: bool) -> Optional[pd.DataFrame]:
+        try:
+            _scope = (start, end) if (start and end) else period
+            if self.ohlcv_snapshot_mode == "read" and not self._ohlcv_snapshot_path(
+                    self._ohlcv_snap_key(symbol, "1d", _scope, allow_proxy)).exists():
+                return None
+            d = self.fetch_ohlcv(symbol, "1d", period=period, start=start, end=end,
+                                 allow_proxy=allow_proxy)
+            return d if d is not None and not d.empty else None
+        except Exception as exc:  # never let a repair input break the fetch
+            logger.warning("%s: daily bars for the weekly repair unavailable: %s", symbol, exc)
+            return None
+
+    @staticmethod
+    def _post_process_frame(df: pd.DataFrame, symbol: str, interval: str,
+                            from_snapshot: bool, hourly: Optional[pd.DataFrame],
+                            now_utc: pd.Timestamp,
+                            daily: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+        """Pure (no network): stub/NaN drop -> FX Close repair (daily) or FX
+        High/Low/Close rebuild from `daily` (weekly/monthly) -> is_complete.
+
+        Order matters: stubs go first because a weekend stub's Open is stale
+        (the EURUSD Saturday stub's Open was the Friday 16:00 London price) and
+        would otherwise become Friday's repaired Close.
+        """
+        if df is None or df.empty:
+            return df
+        ts = _ts_series(df)
+        if ts is not None and not ts.is_monotonic_increasing:
+            df = df.iloc[ts.argsort(kind="mergesort").to_numpy()].reset_index(drop=True)
+        if _flag_on("BP_DROP_STUB_BARS"):
+            df = _drop_bad_rows(df, interval, symbol)
+            if df.empty:
+                return df
+        last_unrepaired = False
+        if interval == "1d" and _has_daily_close_defect(symbol) and _flag_on("BP_FX_CLOSE_REPAIR"):
+            df, last_unrepaired = _repair_daily_close(df, hourly=hourly, now_utc=now_utc,
+                                                      symbol=symbol)
+        if (interval in ("1wk", "1mo") and daily is not None
+                and _has_daily_close_defect(symbol) and os.environ.get("BP_FX_WEEKLY_REPAIR") == "1"):
+            df = _repair_period_bars(df, daily, interval, symbol)
+        return _mark_is_complete(df, interval, now_utc, from_snapshot,
+                                 force_last_incomplete=last_unrepaired)
+
+    def _frame_is_recent(self, df: pd.DataFrame) -> bool:
+        """Does the frame reach into the 1h history window? (skip the 1h fetch for
+        historical goldtest slices, which it could never cover)."""
+        ts = _ts_series(df)
+        if ts is None or ts.empty:
+            return False
+        last = _as_utc(ts.iloc[-1])
+        return last is not None and last >= _utcnow() - pd.Timedelta(days=725)
+
+    def _hourly_for_close_repair(self, symbol: str) -> pd.DataFrame:
+        """Cleaned, completed 1h bars for the FX Close repair; once per symbol.
+
+        Completeness is judged at FETCH time, so a cached frame can never pass
+        off a then-partial hour as finished. Stubs are always excluded here
+        (the 22:00-London flat print after Friday's close is not a trade), so
+        BP_DROP_STUB_BARS only changes what callers see, not the repair.
+        A failed fetch is cached as empty: the scan must not retry 3x per frame.
+        """
+        if symbol not in self._repair_hourly:
+            fetched_at = _utcnow()
+            raw = self._fetch_one(symbol, "60m", self.FX_REPAIR_HOURLY_PERIOD, None, None, 3)
+            hourly = _clean_bars(raw, "60m", now_utc=fetched_at, drop_stubs=True)
+            if hourly.empty:
+                logger.warning("%s: no 1h bars for the daily-Close repair -- gap bars keep "
+                               "next Open, last bar flagged incomplete", symbol)
+            self._repair_hourly[symbol] = hourly
+        return self._repair_hourly[symbol]
 
     def _fetch_one(
         self,
@@ -288,6 +879,107 @@ class DataFetcher:
                 results[tf] = df
 
         return results
+
+    def fetch_bars_since(
+        self,
+        symbol: str,
+        since_utc,
+        interval: str = "60m",
+        retries: int = 4,
+        allow_proxy: bool = False,
+    ) -> pd.DataFrame:
+        """Completed bars that STARTED at or after `since_utc`, for order replay.
+
+        Why (defect 6): the paper trader priced every order against ONE daily
+        bar per run, so it filled on lows printed before the order existed,
+        armed breakeven on the bar high and stopped out on the same bar's low,
+        and -- seeing only ~6h of each FX day at a once-a-day schedule -- missed
+        stops outright (USDJPY 24 Sep). Replaying completed 1h bars since the
+        last evaluation gives the real order of events, like a broker's book.
+
+        Returns columns timestamp (tz-aware UTC bar START), open, high, low,
+        close, volume: only bars with start + interval <= now UTC, start >=
+        since_utc, finite OHLC, no stub bars (O==H==L==C with no volume; kept
+        when BP_DROP_STUB_BARS=0), ascending, unique. `since_utc` may be naive
+        (taken as UTC), aware, or an ISO string. Never raises: any failure
+        returns an empty frame with the same columns.
+
+        Instrument: the SAME series the daily data came from. The tradable path
+        fetches daily bars with allow_proxy=False, so it is never a proxy (C-51)
+        and the default here is primary-only too -- replaying GLD bars against
+        GC=F order levels would fill/stop at ~1/10th the price. With
+        allow_proxy=True the proxy is used when the daily for `symbol` was
+        served by it in this process, or as fetch_ohlcv's fallback.
+
+        Snapshot modes: "read" serves only a pin written by this method
+        (`<symbol>__<interval>__bars-utc__<primary|proxy>.csv`, UTC timestamps)
+        and returns empty without one; "fill" reads that pin or fetches and
+        writes it; "write" always fetches and (re)writes it. The pin holds the
+        completed bars of the first fetch -- a later request that starts
+        earlier than the pin cannot be served from it.
+        """
+        empty = _empty_bars()
+        try:
+            span = _interval_timedelta(interval)
+            since = _as_utc(since_utc)
+            if span is None or since is None:
+                logger.warning("fetch_bars_since(%s): bad interval %r or since %r",
+                               symbol, interval, since_utc)
+                return empty
+            now = _utcnow()          # captured BEFORE the download: conservative
+            if since >= now:
+                return empty
+            drop_stubs = _flag_on("BP_DROP_STUB_BARS")
+            snap_key = self._ohlcv_snap_key(symbol, interval, "bars-utc", allow_proxy)
+
+            if self.ohlcv_snapshot_mode in ("read", "fill"):
+                pinned = self._read_ohlcv_snapshot(snap_key)
+                if pinned is not None:
+                    return _clean_bars(pinned, interval, now_utc=now, since_utc=since,
+                                       drop_stubs=drop_stubs)
+                if self.ohlcv_snapshot_mode == "read":
+                    logger.debug("bars-since pin missing for %s (mode=read) -- empty", snap_key)
+                    return empty
+
+            proxy = FUTURES_PROXY.get(symbol)
+            fetch_sym = symbol
+            if allow_proxy and proxy and self._proxy_served.get((symbol, "1d")) == proxy:
+                fetch_sym = proxy
+
+            if _is_intraday(interval):
+                days = int(np.ceil((now - since) / pd.Timedelta(days=1))) + 2
+                max_days = _INTRADAY_MAX_DAYS.get(interval, 59)
+                if days > max_days:
+                    logger.warning("fetch_bars_since(%s): since %s is beyond Yahoo's %dd %s "
+                                   "history -- older bars unavailable", symbol, since,
+                                   max_days, interval)
+                    days = max_days
+                period, start, end = f"{max(days, 1)}d", None, None
+            else:
+                period = None
+                start = (since - pd.Timedelta(days=2)).strftime("%Y-%m-%d")
+                end = (now + pd.Timedelta(days=2)).strftime("%Y-%m-%d")
+
+            raw = self._fetch_one(fetch_sym, interval, period, start, end, retries)
+            if raw.empty and allow_proxy and proxy and fetch_sym == symbol:
+                logger.warning("%s %s bars unreachable, falling back to REFERENCE proxy %s "
+                               "(allow_proxy=True)", symbol, interval, proxy)
+                raw = self._fetch_one(proxy, interval, period, start, end, retries)
+                fetch_sym = proxy if not raw.empty else symbol
+
+            if raw.empty:
+                return empty
+            if self.ohlcv_snapshot_mode in ("write", "fill"):
+                # pin every COMPLETED bar (stubs/NaN kept: hygiene re-applied on read)
+                self._write_ohlcv_snapshot(
+                    self._ohlcv_snap_key(symbol, interval, "bars-utc",
+                                         True if fetch_sym != symbol else allow_proxy),
+                    _clean_bars(raw, interval, now_utc=now, drop_stubs=False))
+            return _clean_bars(raw, interval, now_utc=now, since_utc=since,
+                               drop_stubs=drop_stubs)
+        except Exception as exc:
+            logger.error("fetch_bars_since(%s, %s) failed: %s", symbol, interval, exc)
+            return empty
 
     def fetch_cot_data(self, cftc_code: str = "") -> pd.DataFrame:
         """

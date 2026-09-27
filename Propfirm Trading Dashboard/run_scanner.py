@@ -17,15 +17,22 @@ import logging
 import webbrowser
 import traceback
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from dataclasses import asdict
+from dataclasses import asdict, fields as dc_fields
 
 # ---------------------------------------------------------------------------
 # Path setup
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
+
+# BP_STATE_DIR (2026-09-27): write every state/result/log file to another folder.
+# Lets the scanner be run end-to-end against a COPY of paper_trader_state.json
+# without touching the live bot's committed state. Unset = the script folder,
+# i.e. exactly the old paths.
+STATE_DIR = Path(os.environ["BP_STATE_DIR"]).resolve() if os.environ.get("BP_STATE_DIR") else SCRIPT_DIR
+STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Load DISCORD_WEBHOOK_URL / DISCORD_USER_ID from .secrets.bat when launching
 # the scanner directly with `python run_scanner.py` (i.e. without going through
@@ -35,6 +42,11 @@ sys.path.insert(0, str(SCRIPT_DIR))
 def _load_secrets_from_bat() -> None:
     secrets_path = SCRIPT_DIR / ".secrets.bat"
     if not secrets_path.exists():
+        return
+    if STATE_DIR != SCRIPT_DIR:
+        # A BP_STATE_DIR run works on a COPY of the state (tests, dry runs); it
+        # must never pick up the live webhook and post to the real channel.
+        # An explicitly exported DISCORD_WEBHOOK_URL still applies.
         return
     try:
         with open(secrets_path, "r", encoding="utf-8") as f:
@@ -56,7 +68,7 @@ _load_secrets_from_bat()
 
 from BP_data_fetcher import DataFetcher, get_cftc_code
 from BP_rules_engine import RulesEngine
-from BP_paper_trader import PaperTrader
+from BP_paper_trader import PaperTrader, to_utc, bar_replay_enabled
 from BP_position_sizer import compute_lots, build_usd_quote_table
 
 # ---------------------------------------------------------------------------
@@ -83,8 +95,8 @@ if sys.platform == "win32":
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-LOG_FILE  = SCRIPT_DIR / "scanner.log"
-LOCK_FILE = SCRIPT_DIR / ".scanner.lock"
+LOG_FILE  = STATE_DIR / "scanner.log"
+LOCK_FILE = STATE_DIR / ".scanner.lock"
 # Only the shared rolling log file is set up at module level.
 # The console handler (stderr) and per-strategy file handler are added
 # inside main() so each run gets its own clean, non-interleaved log.
@@ -246,9 +258,9 @@ EQUITY_INDEX_CONSTITUENT_STOCKS = {
 # ---------------------------------------------------------------------------
 # Output file paths
 # ---------------------------------------------------------------------------
-SCAN_RESULTS_FILE   = SCRIPT_DIR / "scan_results.json"
-SCAN_HISTORY_FILE   = SCRIPT_DIR / "scan_history.json"
-PAPER_STATE_FILE    = SCRIPT_DIR / "paper_trader_state.json"
+SCAN_RESULTS_FILE   = STATE_DIR / "scan_results.json"
+SCAN_HISTORY_FILE   = STATE_DIR / "scan_history.json"
+PAPER_STATE_FILE    = STATE_DIR / "paper_trader_state.json"
 DASHBOARD_FILE      = SCRIPT_DIR / "dashboard.html"
 
 
@@ -337,10 +349,10 @@ def _apply_profile() -> None:
     PROFILE_SUFFIX = suffix
     PROFILE_CONFIG = config
 
-    SCAN_RESULTS_FILE = SCRIPT_DIR / f"scan_results{suffix}.json"
-    SCAN_HISTORY_FILE = SCRIPT_DIR / f"scan_history{suffix}.json"
-    PAPER_STATE_FILE  = SCRIPT_DIR / f"paper_trader_state{suffix}.json"
-    LOCK_FILE         = SCRIPT_DIR / f".scanner{suffix}.lock"
+    SCAN_RESULTS_FILE = STATE_DIR / f"scan_results{suffix}.json"
+    SCAN_HISTORY_FILE = STATE_DIR / f"scan_history{suffix}.json"
+    PAPER_STATE_FILE  = STATE_DIR / f"paper_trader_state{suffix}.json"
+    LOCK_FILE         = STATE_DIR / f".scanner{suffix}.lock"
 
 
 def _load_profile_config() -> Dict:
@@ -387,7 +399,7 @@ def _write_slim_artifact(results: Dict) -> None:
     slim = {k: results.get(k) for k in keep}
     slim["profile"] = PROFILE_NAME
     slim["engine_accuracy"] = 0.74  # Phase 41 forward-price accuracy (tier framing)
-    slim_path = SCRIPT_DIR / f"scan_results{PROFILE_SUFFIX}_slim.json"
+    slim_path = STATE_DIR / f"scan_results{PROFILE_SUFFIX}_slim.json"
     with open(slim_path, "w", encoding="utf-8") as f:
         json.dump(slim, f, indent=2, default=str)
     n = len(slim.get("signals") or [])
@@ -399,48 +411,55 @@ def _write_slim_artifact(results: Dict) -> None:
 # Helper: load / save paper trader state for persistence
 # ===================================================================
 
+# Position fields that hold datetimes (stored as ISO-8601 UTC strings).
+_POSITION_DT_FIELDS = ("entry_time", "close_time", "placed_at", "filled_at", "last_priced_ts")
+
+
 def _position_to_dict(pos) -> Dict:
-    """Serialise a Position for JSON state (enum -> value, datetime -> iso)."""
+    """Serialise a Position for JSON state (enum -> value, datetime -> iso).
+
+    Every dataclass field is written (asdict), and every datetime among them is
+    converted -- not a hand-picked list, so a new field can't be lost on save.
+    """
     d = asdict(pos)
     d["direction"] = pos.direction.value if hasattr(pos.direction, "value") else pos.direction
     d["status"]    = pos.status.value if hasattr(pos.status, "value") else pos.status
-    d["entry_time"] = pos.entry_time.isoformat() if hasattr(pos.entry_time, "isoformat") else pos.entry_time
-    d["close_time"] = pos.close_time.isoformat() if getattr(pos, "close_time", None) and hasattr(pos.close_time, "isoformat") else None
+    for k, v in list(d.items()):
+        if hasattr(v, "isoformat"):
+            d[k] = v.isoformat()
     return d
 
 
 def _position_from_dict(d: Dict):
-    """Reconstruct a Position from its serialised dict."""
+    """Reconstruct a Position from its serialised dict.
+
+    Built from dataclasses.fields(Position): every stored field is carried
+    back. The old hand-written list dropped close_reason and trade_context on
+    every reload (E-01b), and would have dropped the 2026-09-27 replay fields
+    (placed_at / filled_at / last_priced_ts / order_type / setup_key /
+    fill_price) the same way -- losing last_priced_ts would re-apply bars that
+    were already priced. Unknown keys in old files are ignored.
+    """
     from BP_paper_trader import Position, TradeDirection, TradeStatus
-    def _dt(v):
-        try:
-            return datetime.fromisoformat(v) if v else None
-        except (TypeError, ValueError):
-            return None
-    fields = {
-        "id": d.get("id"), "symbol": d.get("symbol"),
-        "direction": TradeDirection(d.get("direction", "long")),
-        "entry_price": d.get("entry_price", 0.0), "stop_price": d.get("stop_price", 0.0),
-        "current_stop": d.get("current_stop", d.get("stop_price", 0.0)),
-        "targets": d.get("targets", []) or [],
-        "position_size": d.get("position_size", 1.0), "risk_amount": d.get("risk_amount", 0.0),
-        "entry_time": _dt(d.get("entry_time")) or datetime.now(),
-        "status": TradeStatus(d.get("status", "active")),
-        "realized_pnl": d.get("realized_pnl", 0.0),
-        "partial_taken": d.get("partial_taken", False),
-        "partial_qty": d.get("partial_qty", 0.0), "partial_price": d.get("partial_price", 0.0),
-        "breakeven_triggered": d.get("breakeven_triggered", False),
-        "trail_stop_level": d.get("trail_stop_level"),
-        "zone_id": d.get("zone_id"), "close_time": _dt(d.get("close_time")),
-        "close_price": d.get("close_price"),
-        "trade_r_multiple": d.get("trade_r_multiple", 0.0), "notes": d.get("notes", ""),
-        "income_strategy": d.get("income_strategy"),
-        # Without these two, a reload blanked close_reason on every closed trade
-        # (E-01b) and reset trade_context to 'standard' on open positions.
-        "close_reason": d.get("close_reason", "") or "",
-        "trade_context": d.get("trade_context") or "standard",
-    }
-    return Position(**fields)
+    kw = {f.name: d[f.name] for f in dc_fields(Position) if f.name in d}
+    kw["id"] = d.get("id")
+    kw["symbol"] = d.get("symbol")
+    kw["direction"] = TradeDirection(d.get("direction", "long"))
+    kw["status"] = TradeStatus(d.get("status", "active"))
+    kw.setdefault("entry_price", 0.0)
+    kw.setdefault("stop_price", 0.0)
+    kw["current_stop"] = d.get("current_stop", d.get("stop_price", 0.0))
+    kw["targets"] = d.get("targets", []) or []
+    kw.setdefault("position_size", 1.0)
+    kw.setdefault("risk_amount", 0.0)
+    for k in _POSITION_DT_FIELDS:
+        kw[k] = to_utc(d.get(k))            # aware UTC; legacy naive read as UTC
+    kw["entry_time"] = kw["entry_time"] or datetime.now(timezone.utc)
+    kw["close_reason"] = d.get("close_reason", "") or ""
+    kw["trade_context"] = d.get("trade_context") or "standard"
+    kw["order_type"] = d.get("order_type") or "limit"
+    kw["setup_key"] = d.get("setup_key") or ""
+    return Position(**kw)
 
 
 def load_paper_trader_state(trader: PaperTrader) -> None:
@@ -499,9 +518,10 @@ def load_paper_trader_state(trader: PaperTrader) -> None:
 def save_paper_trader_state(trader: PaperTrader) -> None:
     """Persist paper trader state to disk, including open positions and history."""
     # Start the challenge clock on the first save after a reset (state file
-    # didn't exist / had no challenge_started_at yet).
+    # didn't exist / had no challenge_started_at yet). Aware UTC: a naive local
+    # stamp read back on the UTC runner produced "Day -1 since reset" (defect 10).
     if not trader.challenge_started_at:
-        trader.challenge_started_at = datetime.now().isoformat()
+        trader.challenge_started_at = datetime.now(timezone.utc).isoformat()
 
     state = {
         "balance":          trader.balance,
@@ -522,7 +542,7 @@ def save_paper_trader_state(trader: PaperTrader) -> None:
         "challenge_started_at": trader.challenge_started_at,
         "open_positions":   [_position_to_dict(p) for p in trader.positions.values()],
         "trade_history":    [_position_to_dict(p) for p in trader.trade_history[-200:]],
-        "saved_at":         datetime.now().isoformat(),
+        "saved_at":         datetime.now(timezone.utc).isoformat(),
     }
     with open(PAPER_STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
@@ -826,11 +846,19 @@ def scan_symbol(
     if signal:
         signal["asset_class"] = ac
         signal["display_name"] = name
-        # Store current LTF close so display can show distance-to-zone
-        try:
-            signal["current_price"] = float(ohlcv[ltf]["close"].iloc[-1])
-        except Exception:
-            signal["current_price"] = 0.0
+        # The engine now stamps current_price itself (latest finite price; it
+        # refuses to emit a signal without one). Only fill it in for an engine
+        # that doesn't, and never with a NaN: the old unconditional overwrite
+        # with close.iloc[-1] is how a NaN reached the gate (defect 8).
+        import math as _m
+        _cp = signal.get("current_price")
+        if not (isinstance(_cp, (int, float)) and _m.isfinite(_cp)):
+            try:
+                _closes = ohlcv[ltf]["close"].astype(float)
+                _closes = _closes[_closes.apply(_m.isfinite)]
+                signal["current_price"] = float(_closes.iloc[-1]) if len(_closes) else 0.0
+            except Exception:
+                signal["current_price"] = 0.0
         out["signal"] = signal
 
     # 6. Build indicator timeseries for the dashboard (always, even when no signal)
@@ -840,6 +868,77 @@ def scan_symbol(
     )
 
     return out
+
+
+# ===================================================================
+# Core: replay completed 1h bars through open orders / positions
+# ===================================================================
+
+def replay_open_orders(trader: PaperTrader, fetcher: DataFetcher):
+    """Fetch the completed 1h bars each symbol with a PENDING/ACTIVE position
+    has printed since it was last priced, and replay them through the trader
+    in one chronological stream.
+
+    Returns (events, last_close_by_symbol). last_close is the close of the last
+    replayed 1h bar -- the "Now" price for the Discord open-positions table.
+
+    Defect 6 (2026-09-27): this replaces pricing every order against the single
+    last 1d bar of the scan. fetch_bars_since uses the same instrument the daily
+    data used (including the futures->ETF proxy), so bar prices are on the same
+    scale as the order levels.
+    """
+    import math as _m
+    events: Dict[str, List[Dict]] = {"fills": [], "closed": [], "cancelled": []}
+    last_close: Dict[str, float] = {}
+    symbols = trader.open_symbols()
+    if not symbols:
+        return events, last_close
+
+    fetch = getattr(fetcher, "fetch_bars_since", None)
+    if fetch is None:
+        # Contract breach, not a market condition: say so loudly. Nothing is
+        # priced this run; last_priced_ts is untouched, so the next run with a
+        # working fetcher replays the whole gap.
+        logger.error("DataFetcher.fetch_bars_since is missing -- open orders/positions "
+                     "were NOT priced this run")
+        print(f"  {RED}[replay] fetch_bars_since missing -- positions not priced this run{RESET}")
+        return events, last_close
+
+    print(f"  {CYAN}[replay]{RESET} pricing {len(symbols)} symbol(s) with open orders "
+          f"on completed 1h bars")
+    bars_by_symbol: Dict = {}
+    for sym in symbols:
+        since = trader.last_priced_ts(sym) or trader.oldest_placed_at(sym)
+        if since is None:
+            continue
+        try:
+            bars = fetch(sym, since, "60m")
+        except Exception as exc:          # contract says never raises; belt and braces
+            logger.warning(f"[{sym}] fetch_bars_since failed: {exc}")
+            bars = None
+        n = 0 if bars is None else len(bars)
+        logger.info(f"[{sym}] replay: {n} completed 1h bar(s) since {since.isoformat()}")
+        if n:
+            bars_by_symbol[sym] = bars
+            try:
+                _c = float(bars["close"].iloc[-1])
+                if _m.isfinite(_c):
+                    last_close[sym] = _c
+            except Exception:
+                pass
+
+    events = trader.replay_bars_multi(bars_by_symbol)
+    for ev in events["fills"]:
+        print(f"  {GREEN}[FILLED]{RESET} {ev['symbol']} {ev['direction']} {ev['order_type']} "
+              f"@ {ev['fill_price']} on {ev['filled_at']}")
+    for ev in events["closed"]:
+        print(f"  {MAGENTA}[CLOSED]{RESET} {ev['symbol']} {ev['direction']} "
+              f"PnL=${ev['realized_pnl']:,.2f} ({ev['r_multiple']:+.2f}R) "
+              f"{ev.get('close_reason', '')} at {ev.get('close_time', '')}")
+    for ev in events["cancelled"]:
+        print(f"  {YELLOW}[CANCELLED]{RESET} {ev['symbol']} {ev['direction']} "
+              f"{ev.get('order_type', '')} ({ev['close_reason']}) {ev.get('why', '')}")
+    return events, last_close
 
 
 # ===================================================================
@@ -856,7 +955,9 @@ def scan_all_markets(
 
     Returns a results dict ready for JSON serialisation.
     """
-    scan_start = datetime.now()
+    # Aware UTC: send_discord prints this as "... UTC", which was wrong whenever
+    # the scan ran on a non-UTC machine (defect 10).
+    scan_start = datetime.now(timezone.utc)
 
     strategy = config.get("active_strategy", "weekly")
     tf = STRATEGY_TIMEFRAMES.get(strategy, STRATEGY_TIMEFRAMES["weekly"])
@@ -884,17 +985,36 @@ def scan_all_markets(
     # Start the challenge clock immediately (not just at save time) so the
     # very first scan after a reset already reports "Day 0" instead of a gap.
     if not trader.challenge_started_at:
-        trader.challenge_started_at = datetime.now().isoformat()
+        trader.challenge_started_at = datetime.now(timezone.utc).isoformat()
     # Positions carried over from prior runs -- these get priced forward this
     # scan. Positions opened during THIS scan are excluded from the update so
     # they aren't closed against the same bar they were entered on.
     restored_position_ids = set(trader.positions.keys())
+
+    # ----------------------------------------------------------------
+    # 1h BAR REPLAY (2026-09-27, defect 6/7) -- BEFORE anything else.
+    # Every order/position carried over from earlier runs is walked through the
+    # COMPLETED 1h bars printed since it was last evaluated, in time order, so
+    # fills, stops, breakevens and targets happen in the order the market
+    # actually produced them. New orders placed later in this run are NOT
+    # priced this run: their first eligible bar starts after placement.
+    # BP_BAR_REPLAY=0 -> the legacy single-bar block after the scan loop.
+    # ----------------------------------------------------------------
+    _bar_replay = bar_replay_enabled()
+    replay_events: Dict[str, List[Dict]] = {"fills": [], "closed": [], "cancelled": []}
+    replay_last_close: Dict[str, float] = {}
+    if _bar_replay:
+        replay_events, replay_last_close = replay_open_orders(trader, fetcher)
+        _stale = trader.expire_stale_pending()
+        replay_events["cancelled"].extend(_stale)
 
     # Roll the daily window via the trader's single source of truth. maybe_roll_day
     # uses the broker's UTC reset hour AND re-anchors today_starting_equity to the
     # current balance, so the $150 daily-loss cap is always measured from the right
     # equity. (The old inline reset used a LOCAL date and did NOT re-anchor
     # today_starting_equity, so a missed session-roll left the daily anchor stale.)
+    # Runs AFTER the replay: the replay rolls days on bar time as it goes, and
+    # rolling to "today" first would book yesterday's replayed closes into today.
     trader.maybe_roll_day()
 
     signals: List[Dict] = []
@@ -909,7 +1029,7 @@ def scan_all_markets(
     print(f"{BOLD}{CYAN}{'=' * 60}{RESET}")
     print(f"{BOLD}{CYAN}  Blueprint Market Scanner{RESET}")
     print(f"{BOLD}{CYAN}  Strategy: {strategy.upper()}  |  HTF: {htf}  |  LTF: {ltf}{RESET}")
-    print(f"{BOLD}{CYAN}  Watchlist: {total} symbols  |  {scan_start.strftime('%Y-%m-%d %H:%M:%S')}{RESET}")
+    print(f"{BOLD}{CYAN}  Watchlist: {total} symbols  |  {scan_start.strftime('%Y-%m-%d %H:%M:%S')} UTC{RESET}")
     print(f"{BOLD}{CYAN}{'=' * 60}{RESET}")
     print()
 
@@ -962,7 +1082,7 @@ def scan_all_markets(
         # rate limit even when scanning a large watchlist (77+ symbols).
         time.sleep(0.4)
 
-    scan_end = datetime.now()
+    scan_end = datetime.now(timezone.utc)
     elapsed = (scan_end - scan_start).total_seconds()
 
     # ----------------------------------------------------------------
@@ -1053,20 +1173,33 @@ def scan_all_markets(
                 continue
             current_prices[_sym] = _px
 
-    closed_events: List[Dict] = []
+    closed_events: List[Dict] = list(replay_events.get("closed", []))
+    legacy_fills: List[Dict] = []
+    # LEGACY single-bar pricing (BP_BAR_REPLAY=0 only). Under bar replay the
+    # carried-over orders/positions were already priced at the top of this
+    # function, bar by bar; current_prices is then only the display fallback.
+    #
     # Fill any resting PENDING limit orders that price has now reached, THEN
     # price the carried-over ACTIVE positions forward. A limit only fills once
     # the latest bar's range trades to the entry (long: low<=entry; short:
     # high>=entry) -- it is NOT filled instantly at signal time. Freshly-filled
     # orders are set aside from this scan's stop/target update so a limit is
     # never opened and closed on the same bar.
-    newly_filled_ids = set(trader.check_pending_fills(current_prices))
+    newly_filled_ids = set() if _bar_replay else set(trader.check_pending_fills(current_prices))
     for _pid in newly_filled_ids:
         _fp = trader.positions.get(_pid)
         if _fp:
+            legacy_fills.append({
+                "event": "order_filled", "position_id": _fp.id, "symbol": _fp.symbol,
+                "direction": _fp.direction.value, "order_type": _fp.order_type,
+                "entry_price": _fp.entry_price, "fill_price": _fp.fill_price,
+                "filled_at": _fp.filled_at.isoformat() if _fp.filled_at else "",
+                "stop_price": _fp.stop_price, "targets": list(_fp.targets),
+                "risk_amount": _fp.risk_amount,
+            })
             print(f"  {GREEN}[FILLED]{RESET} pending {_fp.symbol} {_fp.direction.value} "
                   f"limit @ {_fp.entry_price}")
-    if restored_position_ids:
+    if restored_position_ids and not _bar_replay:
         # Set aside: positions opened this scan (none yet -- submit runs later)
         # AND pending orders just filled this scan (grace on the fill bar).
         _set_aside = {pid: trader.positions.pop(pid)
@@ -1079,6 +1212,20 @@ def scan_all_markets(
         for ev in closed_events:
             print(f"  {MAGENTA}[CLOSED]{RESET} {ev['symbol']} {ev['direction']} "
                   f"PnL=${ev['realized_pnl']:,.2f} ({ev['r_multiple']:+.2f}R)")
+
+    # Display price per symbol for the "Now" column / distance-to-entry: the
+    # close of the last REPLAYED 1h bar (the price the trader actually used),
+    # else the latest daily close from this scan. Never NaN: a symbol with no
+    # finite price is omitted and send_discord falls back to showing entry
+    # (it printed "Now:nan" before, defect 10).
+    display_prices: Dict[str, float] = {}
+    for _sym, _px in current_prices.items():
+        _c = _px.get("close")
+        if isinstance(_c, (int, float)) and _math.isfinite(_c) and _c > 0:
+            display_prices[_sym] = float(_c)
+    for _sym, _c in replay_last_close.items():
+        if _math.isfinite(_c) and _c > 0:
+            display_prices[_sym] = float(_c)
 
     # ----------------------------------------------------------------
     # Position sizing -- convert each signal's $ risk into a MatchTrader
@@ -1098,12 +1245,24 @@ def scan_all_markets(
         _b = _bars.get(ltf) or _bars.get(htf)
         if _b:
             try:
-                _fx_prices[_si["name"]] = float(_b[-1].get("close", 0))
+                _fxc = float(_b[-1].get("close", 0))
             except (TypeError, ValueError):
-                pass
+                continue
+            # A NaN rate passes build_usd_quote_table's `not price or price <= 0`
+            # test (both are False for NaN) and would make every lot NaN.
+            if _math.isfinite(_fxc) and _fxc > 0:
+                _fx_prices[_si["name"]] = _fxc
     usd_quote_table = build_usd_quote_table(_fx_prices)
 
-    risk_pct = float(config.get("risk", {}).get("risk_per_trade_pct", 1.0)) / 100.0
+    _risk_cfg = config.get("risk", {}) or {}
+    risk_pct = float(_risk_cfg.get("risk_per_trade_pct", 1.0)) / 100.0
+    # Counter-trend / anticipatory setups risk reduced_risk_pct (HAI Module 4,
+    # OTC L5 decision matrix). The engine sized them that way, but this block
+    # used to overwrite position_size/risk_amount with the flat 1% for every
+    # signal, so the reduction never reached the paper account.
+    reduced_pct = float(_risk_cfg.get("reduced_risk_pct", risk_pct * 100.0 / 2.0)) / 100.0
+    # Hard ceiling on what min-lot rounding may push a single trade to.
+    _max_risk_pct = _risk_cfg.get("max_risk_per_trade_pct", 1.5)
     # Size risk off the STATIC challenge account size, NOT the drifting paper
     # balance: 1% must stay a stable $50 of the real $5k regardless of paper P&L.
     # (Sizing off trader.balance meant a paper run-up printed lots that risk
@@ -1119,15 +1278,25 @@ def scan_all_markets(
     # 2026-07-13: risk.fixed_lot_mode overrides ALL tiers (TAKE included) to
     # the fixed min-lot size -- see BP_config.yaml risk section for why.
     _take_bar_sz  = float(config.get("alerts", {}).get("min_composite_to_post", 7.0))
-    _fixed_lot_mode = bool(config.get("risk", {}).get("fixed_lot_mode", False))
-    _fixed_lot_mult = float(config.get("risk", {}).get("fixed_lot_multiplier", 1.0))
+    _fixed_lot_mode = bool(_risk_cfg.get("fixed_lot_mode", False))
+    _fixed_lot_mult = float(_risk_cfg.get("fixed_lot_multiplier", 1.0))
+    _max_risk_usd = (_account_size * float(_max_risk_pct) / 100.0) if _max_risk_pct else None
     for s in signals:
         ac    = s.get("asset_class", "")
         sname = s.get("display_name") or s.get("symbol", "")
         spec  = dict(specs_class.get(ac, {}))
         spec.update(specs_over.get(sname, {}))
-        # Risk budget for this trade = 1% of the static challenge account.
+        # Risk budget for this trade = 1% of the static challenge account,
+        # 0.5% for counter-trend / anticipatory setups, scaled down further by
+        # a partial calendar blackout (risk_multiplier 0 never reaches here:
+        # the engine returns no signal).
         risk_usd = _account_size * risk_pct
+        if s.get("trade_context") in ("counter_trend", "anticipatory"):
+            risk_usd = _account_size * reduced_pct
+        _bo = s.get("calendar_blackout") or {}
+        _bo_mult = _bo.get("risk_multiplier") if _bo.get("in_blackout") else None
+        if isinstance(_bo_mult, (int, float)) and 0 < _bo_mult < 1:
+            risk_usd *= float(_bo_mult)
         _comp_sz = float((s.get("qualifier_scores") or {}).get("composite", 0) or 0)
         _is_caution_sz = _comp_sz < _take_bar_sz   # CAUTION -> min lot
         _force_min = _fixed_lot_mode or _is_caution_sz
@@ -1139,10 +1308,14 @@ def scan_all_markets(
                 risk_usd=risk_usd, spec=spec, usd_per_quote_ccy=usd_quote_table,
                 force_min_lot=_force_min,
                 min_lot_multiplier=(_fixed_lot_mult if _fixed_lot_mode else 1.0),
+                max_risk_usd=_max_risk_usd,
             )
             s["lot_size"]        = sz.lots
             s["units"]           = sz.units
-            s["risk_usd_target"] = round(risk_usd, 2)
+            # risk_usd_target stays the FULL 1% budget: send_discord prints
+            # risk_actual / risk_usd_target as "% of account".
+            s["risk_usd_target"] = round(_account_size * risk_pct, 2)
+            s["risk_usd_budget"] = round(risk_usd, 2)
             s["risk_usd_actual"] = sz.risk_usd_actual
             s["contract_size"]   = sz.contract_size
             s["spec_verified"]   = sz.verified
@@ -1186,17 +1359,34 @@ def scan_all_markets(
             print(f"  {YELLOW}-> {s.get('display_name')}: below CAUTION bar "
                   f"(composite {_comp:.1f} < {_min_comp:g}); not paper-traded{RESET}")
             continue
-        pos_id = trader.submit_signal(s)
+        # Defect 8 belt-and-braces: the engine must not emit a signal without a
+        # finite current_price, entry and stop; a NaN here created the fake
+        # CL=F order because every comparison against NaN is False.
+        _lvls = (s.get("entry_price"), s.get("stop_price"), s.get("current_price"))
+        if not all(isinstance(v, (int, float)) and _math.isfinite(v) for v in _lvls):
+            s["paper_trade_id"] = None
+            print(f"  {YELLOW}-> {s.get('display_name')}: non-finite price in signal "
+                  f"{_lvls}; not paper-traded{RESET}")
+            continue
+        # The order exists from the moment it is submitted, not from when the
+        # engine stamped signal_time earlier in the scan: placed_at is the later
+        # of the two, so a 1h bar that began before submission can never fill it.
+        _submit_now = datetime.now(timezone.utc)
+        _st = to_utc(s.get("signal_time"))
+        _placed = _st if (_st is not None and _st > _submit_now) else _submit_now
+        s["placed_at"] = _placed.isoformat()
+        pos_id = trader.submit_signal({**s, "signal_time": _placed.isoformat()})
         if pos_id:
             auto_traded += 1
             s["paper_trade_id"] = pos_id
             _tier = "MIN-lot CAUTION" if s.get("sizing_tier") == "caution_min" else "1% TAKE"
-            print(f"  {MAGENTA}-> Paper trade opened ({_tier}): {s.get('display_name')} "
+            _ot = trader.positions[pos_id].order_type if pos_id in trader.positions else "limit"
+            print(f"  {MAGENTA}-> Paper {_ot} order placed ({_tier}): {s.get('display_name')} "
                   f"{s.get('lot_size')} lots ({pos_id}){RESET}")
         else:
             s["paper_trade_id"] = None
             print(f"  {YELLOW}-> {s.get('display_name')}: paper trade rejected "
-                  f"(limits / max positions){RESET}")
+                  f"(duplicate setup / limits / correlation -- see log){RESET}")
 
     # Build the results payload
     account_summary = trader.get_account_summary()
@@ -1205,28 +1395,34 @@ def scan_all_markets(
     trade_history   = trader.get_trade_history(limit=100)
 
     # Stamp live price, unrealized USD PnL, and open R-multiple onto open
-    # positions so the alert shows running-trade progress.
+    # positions so the alert shows running-trade progress. P&L is measured from
+    # the actual fill price (a gap fill differs from the order level); R stays
+    # in units of the planned entry-to-stop risk.
+    _open_pnl_total = 0.0
     for op in open_positions:
-        px = current_prices.get(op.get("symbol"), {})
-        now = px.get("close")
-        if now and _math.isfinite(now):   # bool(nan) is True -- see C-89
+        now = display_prices.get(op.get("symbol"))
+        if now is not None and _math.isfinite(now):   # bool(nan) is True -- see C-89
             entry = float(op.get("entry_price", 0))
+            fill  = float(op.get("fill_price") if op.get("fill_price") is not None else entry)
             size  = float(op.get("position_size", 0))   # USD per 1.0 move
             stopd = abs(entry - float(op.get("stop_price", entry)))
-            move  = (now - entry) if op.get("direction") == "long" else (entry - now)
+            move  = (now - fill) if op.get("direction") == "long" else (fill - now)
             op["current_price"]   = round(now, 6)
             op["unrealized_pnl"]  = round(move * size, 2)
             op["r_multiple_open"] = round(move / stopd, 2) if stopd > 0 else 0.0
+            _open_pnl_total += op["unrealized_pnl"]
+    account_summary["open_pnl"] = round(_open_pnl_total, 2)
 
-    # Stamp live price + distance-to-entry on resting PENDING limit orders so
-    # the alert can show how far price is from filling each one.
+    # Stamp live price + distance-to-entry on resting PENDING orders so the
+    # alert can show how far price is from filling each one.
     for po in pending_orders:
-        px = current_prices.get(po.get("symbol"), {})
-        now = px.get("close")
-        if now and _math.isfinite(now):   # bool(nan) is True -- see C-89
+        now = display_prices.get(po.get("symbol"))
+        if now is not None and _math.isfinite(now) and now > 0:
             entry = float(po.get("entry_price", 0))
             po["current_price"] = round(now, 6)
-            po["distance_pct"]  = round(abs(now - entry) / now * 100, 3) if now else 0.0
+            po["distance_pct"]  = round(abs(now - entry) / now * 100, 3)
+
+    all_fills = list(replay_events.get("fills", [])) + legacy_fills
 
     results = {
         "scan_time":           scan_start.isoformat(),
@@ -1243,6 +1439,13 @@ def scan_all_markets(
         "positions":           json_safe(open_positions),
         "pending_orders":      json_safe(pending_orders),
         "trade_history":       json_safe(trade_history),
+        # 2026-09-27: what happened to carried-over orders this run. An order can
+        # fill AND close inside one replay, which send_discord's open-id diff
+        # never sees, so the events are published explicitly.
+        "fills":               json_safe(all_fills),
+        "closed_this_run":     json_safe(closed_events),
+        "cancelled_this_run":  json_safe(replay_events.get("cancelled", [])),
+        "pricing_mode":        "bar_replay_1h" if _bar_replay else "legacy_single_bar",
         "ohlcv_cache":         ohlcv_cache,
         "indicators":          indicators_by_symbol,
         # Phase 27: constituent routing — index symbols that have no direct zone
@@ -1287,6 +1490,27 @@ def save_results(results: Dict) -> None:
                 "composite": s.get("qualifier_scores", {}).get("composite", 0),
             }
             for s in results.get("signals", [])
+        ],
+        "fills": [
+            {
+                "symbol":     f.get("symbol"),
+                "direction":  f.get("direction"),
+                "order_type": f.get("order_type"),
+                "fill_price": f.get("fill_price"),
+                "filled_at":  f.get("filled_at"),
+            }
+            for f in results.get("fills", []) or []
+        ],
+        "closed": [
+            {
+                "symbol":       c.get("symbol"),
+                "direction":    c.get("direction"),
+                "close_reason": c.get("close_reason"),
+                "r_multiple":   c.get("r_multiple"),
+                "pnl":          c.get("realized_pnl"),
+                "close_time":   c.get("close_time"),
+            }
+            for c in results.get("closed_this_run", []) or []
         ],
     }
 
@@ -1340,7 +1564,7 @@ def print_summary(results: Dict) -> None:
             t1 = targets[0] if targets else 0
             composite = s.get("qualifier_scores", {}).get("composite", 0)
             pending = s.get("pending_order", False)
-            cur_price = s.get("current_price", 0)
+            cur_price = s.get("current_price") or 0
             entry = s.get("entry_price", 0)
             dist_pct = abs(cur_price - entry) / cur_price * 100 if cur_price else 0
             status_color = YELLOW if pending else GREEN
@@ -1474,7 +1698,7 @@ def main():
     _active_strategy = config.get("active_strategy", "weekly")  # match scan_all_markets default
     # Suffix the per-strategy log with the profile so two concurrent runners
     # (which both open the log in mode='w') don't truncate each other's logs.
-    _strat_log_path  = SCRIPT_DIR / f"scanner_{_active_strategy}{PROFILE_SUFFIX}.log"
+    _strat_log_path  = STATE_DIR / f"scanner_{_active_strategy}{PROFILE_SUFFIX}.log"
     _strat_fh = logging.FileHandler(_strat_log_path, encoding="utf-8", mode="w")
     _strat_fh.setFormatter(_fmt)
     _root.addHandler(_strat_fh)
@@ -1546,6 +1770,9 @@ def main():
             # scan_results / discord_state (not the FundingPips defaults).
             _denv = os.environ.copy()
             _denv["AZALYST_STATE_SUFFIX"] = PROFILE_SUFFIX
+            if STATE_DIR != SCRIPT_DIR:
+                # BP_STATE_DIR run: send_discord must read THIS folder's files.
+                _denv["AZALYST_DATA_DIR"] = str(STATE_DIR)
             subprocess.run(
                 [sys.executable, str(SCRIPT_DIR / "send_discord.py"), "--always-send"],
                 check=False,

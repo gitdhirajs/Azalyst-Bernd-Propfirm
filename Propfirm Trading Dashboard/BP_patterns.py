@@ -54,6 +54,10 @@ class PatternDetector:
         """
         Detect candlestick pattern at given index.
         Returns dict with pattern details or None.
+
+        `df` must hold COMPLETED bars only (R1, 2026-09-27): a hammer or engulfing
+        read off the still-forming bar can vanish by the close. RulesEngine.
+        _check_entry_pattern filters with BP_zone_detector.completed_bars first.
         """
         if idx < 1 or idx >= len(df):
             return None
@@ -263,17 +267,35 @@ class PatternDetector:
         return True
 
     def _make_signal(self, pattern_type, direction, candle, body, total_range, lower_wick, upper_wick, idx, custom_entry=None, custom_stop=None):
+        # R3 (2026-09-27, defect 4): each entry carries the ORDER TYPE it must be
+        # placed as. A candle-pattern entry sits 0.1% BEYOND the pattern bar's extreme
+        # in the trade direction (E3b, methodology/04 "stop-buy above hammer high":
+        # "only triggers if price continues in the expected direction"), i.e. it is a
+        # STOP order -- a long fills only when price trades UP to it. The live account
+        # booked these like limits, "filling" when price was BELOW the buy-stop, which
+        # is exactly the case where the setup had failed.
+        # The head-and-shoulders family is the exception: detection already requires a
+        # close through the neckline, and the entry is the neckline itself, so the
+        # order that waits there is a neckline-retest LIMIT (price is past it in the
+        # profit direction and must come back to it).
         if custom_entry is not None and custom_stop is not None:
             entry, stop = custom_entry, custom_stop
+            order_type = 'limit'
         elif direction == TradeDirection.LONG:
             entry = candle['high'] * 1.001
             stop = candle['low'] - 0.33 * (candle['high'] - candle['low'])
+            order_type = 'stop'
         else:
             entry = candle['low'] * 0.999
             stop = candle['high'] + 0.33 * (candle['high'] - candle['low'])
+            order_type = 'stop'
 
         risk = abs(entry - stop)
         return {
+            'order_type': order_type,
+            # Pattern bar's timestamp (empty when the frame has none), for display and
+            # audit: which completed bar the entry was built from.
+            'candle_time': str(candle.get('timestamp', '')),
             'pattern_type': pattern_type,
             'direction': direction,
             'entry_price': round(entry, 6),

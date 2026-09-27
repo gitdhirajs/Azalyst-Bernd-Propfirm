@@ -6,12 +6,13 @@ From DELIVERABLE_2_STRATEGY_RULEBOOK, sections A-H.
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 import logging
+import math
 import os
 
 from BP_indicators import COTIndex, Valuation, Seasonality
-from BP_zone_detector import ZoneDetector
+from BP_zone_detector import ZoneDetector, completed_bars
 from BP_patterns import PatternDetector, PatternType, TradeDirection
 from BP_roadmap import build_monthly_roadmap, filter_signal_by_roadmap
 from BP_calendar import get_calendar, BlackoutStatus
@@ -308,6 +309,18 @@ class RulesEngine:
             logger.warning(f"No {ltf} data for {symbol}")
             return None
 
+        # R1 (2026-09-27): zones and patterns are read from COMPLETED bars only --
+        # ZoneDetector.detect_zones and _check_entry_pattern drop the still-forming
+        # bar themselves (BP_zone_detector.completed_bars). The PRICE the gates compare
+        # against is the latest close INCLUDING the in-progress bar, because that is
+        # where the market is now. Location/trend (_analyze_htf) and the fundamentals
+        # keep the full frame, unchanged.
+        try:
+            _px_now = float(ltf_df['close'].iloc[-1])
+        except (TypeError, ValueError, KeyError, IndexError):
+            _px_now = float('nan')
+        _px_now_ok = math.isfinite(_px_now)
+
         # == STEP 4 (early): detect HTF zones first so Location uses zone distals ==
         # First pass without trend so we can derive trend from the data, then
         # we re-score later with trend context.
@@ -373,7 +386,7 @@ class RulesEngine:
         # first when BP_ZONE_REACHABLE is set. Ignored otherwise.
         ranked_zones = self.zone_detector.rank_zones(
             ltf_zones, min_score=4.0,
-            current_price=float(ltf_df['close'].iloc[-1]) if len(ltf_df) else None)
+            current_price=_px_now if _px_now_ok else None)
 
         if not ranked_zones:
             logger.info(f"[{symbol}] No qualified zones found")
@@ -443,6 +456,76 @@ class RulesEngine:
         if consensus == 'hold':
             logger.info(f"[{symbol}] C-102: consensus 'hold' overridden -- zone decides")
 
+        # R4 (2026-09-27, defect 5), DEFAULT ON -- BP_HARD_INVALIDATE_25=0 disables.
+        # From here on `best_zone` is the zone an ORDER is built on, so it must not be
+        # a zone price has already penetrated >25% or consumed (Ch 184: "the zone was
+        # tested more than 25%" = taken out). Before this, Q3=0 only cost the zone 1.5
+        # composite points and the live account kept placing orders on broken zones.
+        # The consensus above was computed from the UNFILTERED ranking on purpose: the
+        # bias (and _last_htf_analysis) must not change because a zone is untradeable.
+        #
+        # R5 (2026-09-27, defect 5), DEFAULT ON -- BP_LEGOUT_ADJACENT=0 disables.
+        # The trade candidates are re-detected with the leg-out required to follow the
+        # base immediately (ZoneDetector._find_leg_out), then put through the same LOL
+        # / big-brother / ranking steps as the bias list above. The legacy list keeps
+        # serving the consensus composite, the speed-bump scan and (HTF) Location.
+        if self.zone_detector.trade_legout_adjacent:
+            _trade_ltf = self.zone_detector.detect_zones(
+                ltf_df, symbol, ltf, trend=trend, legout_adjacent=True)
+            _trade_ltf = self.zone_detector.align_multi_timeframe(htf_zones, _trade_ltf)
+            _trade_ltf = self.zone_detector.filter_by_big_brother(
+                _trade_ltf, htf_zones, require_coverage=require_bb)
+            _trade_ranked = self.zone_detector.rank_zones(
+                _trade_ltf, min_score=4.0,
+                current_price=_px_now if _px_now_ok else None)
+        else:
+            _trade_ranked = ranked_zones
+        trade_zones = self.zone_detector.filter_trade_zones(_trade_ranked)
+        if not trade_zones:
+            logger.info(
+                f"[{symbol}] R4/R5: none of {len(_trade_ranked)} qualified trade zones "
+                f"is unpenetrated (<=25%), unconsumed and adjacent-leg-out -- no tradeable zone")
+            return None
+
+        # R4b (2026-09-27), DEFAULT ON -- BP_TRADE_ZONE_REACHABLE=0 takes trade_zones[0]
+        # as before. Removing consumed zones leaves the NEWEST zones (not yet revisited)
+        # and the OLDEST ones (price left them years ago), and rank_zones breaks
+        # composite ties in detection order, i.e. oldest first. Measured on
+        # full510_shard0: TSLA 2023-01-22 picked a demand at 16.53 (87.6% below price)
+        # over the fresh 123.56 demand 7.4% away that the legacy path traded; META
+        # 2023-05-28 picked 67.46 (74% away). The distance gate then rejects the far
+        # zone ("watch-list only") and the reachable zone is never considered. So the
+        # trade zone is the highest-ranked usable zone, in the consensus direction,
+        # whose E1 limit passes the entry-side gate at the current price. When none
+        # does, trade_zones[0] is kept and the gate below rejects it with its reason.
+        _trade_pick = trade_zones[0]
+        if _px_now_ok and os.environ.get('BP_TRADE_ZONE_REACHABLE') != '0':
+            _cap_r, _cap_pct = self._entry_distance_caps(income_strategy)
+            _distal_only = income_strategy in ('weekly', 'monthly')
+            for _z in trade_zones:
+                _is_dem = _z['zone_type'] == 'demand'
+                if (_is_dem and consensus == 'bearish') or (not _is_dem and consensus == 'bullish'):
+                    continue
+                _zh = abs(_z['proximal'] - _z['distal'])
+                _sgn = 1 if _is_dem else -1
+                _stp = _z['distal'] if _distal_only else _z['distal'] - _sgn * 0.33 * _zh
+                if self.entry_side_gate('long' if _is_dem else 'short', 'limit',
+                                        _z['proximal'], _stp, _px_now,
+                                        _cap_r, _cap_pct)[0]:
+                    _trade_pick = _z
+                    break
+            else:
+                logger.info(
+                    f"[{symbol}] R4b: no usable zone in the consensus direction "
+                    f"({consensus}) is within the entry caps ({_cap_pct}% / {_cap_r}R); "
+                    f"falling back to the top-ranked usable zone")
+        if _trade_pick['id'] != best_zone['id']:
+            logger.info(
+                f"[{symbol}] R4/R5: bias zone {best_zone['id']} is not the trade zone; "
+                f"trading {_trade_pick['zone_type']} {_trade_pick['id']} at "
+                f"{_trade_pick['proximal']:.5f} (score {_trade_pick['composite_score']:.1f})")
+        best_zone = _trade_pick
+
         # Zone direction must match consensus
         zone_dir = 'long' if best_zone['zone_type'] == 'demand' else 'short'
         if (zone_dir == 'long' and consensus == 'bearish') or (zone_dir == 'short' and consensus == 'bullish'):
@@ -507,23 +590,16 @@ class RulesEngine:
         # The old "if not in_zone: return None" gate was blocking 80%+ of real
         # Bernd trades. Now we always fire E1 when a qualified zone exists, marking
         # pending vs immediate so the paper trader and dashboard can distinguish.
+        # 2026-09-27: every signal is now a PENDING order of an explicit type
+        # (`order_type`, see the entry-side gate in STEP 5b); the paper trader fills it
+        # only from bars printed after `signal_time`. The old wick-based `in_zone`
+        # computed here fed nothing but the pending flag and has been removed.
         pattern_signal = self._check_entry_pattern(ltf_df, best_zone)
-
-        last = ltf_df.iloc[-1]
         zone_dir_str = best_zone['zone_type']
-        in_zone = (
-            zone_dir_str == 'demand'
-            and last['low']  <= best_zone['proximal']
-            and last['low']  >= best_zone['distal']
-        ) or (
-            zone_dir_str == 'supply'
-            and last['high'] >= best_zone['proximal']
-            and last['high'] <= best_zone['distal']
-        )
 
         if pattern_signal is None:
-            # E1/E2: limit order at zone proximal (pending if price not yet there,
-            # immediate fill if price is inside the zone).
+            # E1/E2: LIMIT order at zone proximal (or midpoint) -- a long fills when
+            # price trades DOWN to it.
             zone_height = abs(best_zone['proximal'] - best_zone['distal'])
             # Rule #8 exception (CLAUDE.md): HTF weekly/monthly income trades
             # use the DISTAL LINE ONLY as the stop (no -33% extension) — this
@@ -580,7 +656,7 @@ class RulesEngine:
                 direction = 'short'
             targets = self._calculate_targets(entry, stop, direction)
             _entry_type = 'E2' if prefer_midpoint_entry else 'E1'
-            _pending_order = not in_zone
+            _order_type = 'limit'
         else:
             entry = pattern_signal['entry_price']
             stop = pattern_signal['stop_price']
@@ -591,7 +667,10 @@ class RulesEngine:
                 pattern_signal['target_r3']
             ]
             _entry_type = 'E3b'
-            _pending_order = False
+            # E3b = stop order beyond the pattern bar (BP_patterns._make_signal); the
+            # H&S family carries 'limit' (neckline retest). Default 'stop' for patterns
+            # built before the field existed.
+            _order_type = pattern_signal.get('order_type', 'stop')
 
         # == STEP 6: Trade Management ==
         # Determine trade context for position-size adjustment.
@@ -678,6 +757,12 @@ class RulesEngine:
                         entry = refined_rec['entry']
                         stop  = refined_rec['stop']
                         targets = self._calculate_targets(entry, stop, direction)
+                        # The order type follows the option actually chosen: a
+                        # refined E1/E2 is a limit at the refined zone even when the
+                        # unrefined signal was a pattern stop entry (and vice versa).
+                        _order_type = refined_rec.get('order_type', _order_type)
+                        if refined_rec.get('label') in ('E1', 'E2'):
+                            _entry_type = refined_rec['label']
             except Exception as e:
                 logger.warning(f"Auto-refine failed: {e}")
 
@@ -717,40 +802,55 @@ class RulesEngine:
         # the cap scales with each asset's volatility. refine_zone can shrink
         # the stop (a tighter contained sub-zone), which is exactly why this
         # must run on the post-refinement values, not the original wide zone.
-        _final_close = float(ltf_df['close'].iloc[-1])
-        _risk_per_unit = abs(stop - entry)
-        # Recompute the in-zone / pending flags against the FINAL entry so the
-        # emitted signal's price_at_zone / pending_order fields stay accurate
-        # even when refinement moved the entry. Close-based (not last-bar-wick)
-        # so a single intrabar spike can no longer disable the gate.
-        if direction == 'long':
-            in_zone = _final_close <= entry      # price at/below a long limit = fillable now
-        else:
-            in_zone = _final_close >= entry      # price at/above a short limit = fillable now
-        _pending_order = not in_zone
+        #
+        # 2026-09-27 (defects 3, 4, 8) -- the gate is now DIRECTIONAL; see
+        # entry_side_gate() for the rules and the live-account evidence.
         # Combined distance gate: reject if the entry is too far from current
         # price in EITHER R-multiples (volatility-scaled) OR raw percent. The
         # R cap alone has a blind spot for very WIDE zones (a 23%-away entry can
         # still be <3R when the stop is far); the % cap closes it.
-        _ed_cfg = self.config.get('entry_distance', {}) or {}
-        _r_away = abs(_final_close - entry) / _risk_per_unit if _risk_per_unit > 0 else 0.0
-        _pct_away = abs(_final_close - entry) / _final_close * 100 if _final_close else 0.0
-        _max_r_map   = _ed_cfg.get('max_r_to_entry_pending', {}) or {}
-        _max_pct_map = _ed_cfg.get('max_pct_to_entry', {}) or {}
-        _max_r   = float(_max_r_map.get(income_strategy, _ed_cfg.get('default_max_r', 3.0)))
-        _max_pct = float(_max_pct_map.get(income_strategy, _ed_cfg.get('default_max_pct', 15.0)))
-        if (_risk_per_unit > 0 and _r_away > _max_r) or (_pct_away > _max_pct):
+        _max_r, _max_pct = self._entry_distance_caps(income_strategy)
+
+        # Defect 8: a NaN last close made every comparison below False, so the
+        # distance gate passed and the fake CL=F order was created. Always on --
+        # there is no meaningful "old behaviour" for a price that does not exist,
+        # and the signal contract promises current_price is finite.
+        if not _px_now_ok:
+            logger.info(f"[{symbol}] Rejected: current price is not finite ({_px_now}) -- no signal")
+            return None
+
+        # A stop entry built from a pattern must not have been triggered already by a
+        # bar after the pattern (including the live one): that trade has happened.
+        _hi_since = _lo_since = None
+        if pattern_signal is not None and _order_type == 'stop':
+            _hi_since = pattern_signal.get('high_since')
+            _lo_since = pattern_signal.get('low_since')
+
+        _gate_ok, _gate_reason, _gate_m = self.entry_side_gate(
+            direction, _order_type, entry, stop, _px_now, _max_r, _max_pct,
+            high_since=_hi_since, low_since=_lo_since,
+            legacy=(os.environ.get('BP_ENTRY_SIDE_GATE') == '0'),
+        )
+        if not _gate_ok:
             logger.info(
-                f"[{symbol}] Entry too far from price: {_pct_away:.1f}% / {_r_away:.1f}R "
-                f"(caps {_max_pct}% / {_max_r}R, type={_entry_type}, strategy={income_strategy}). "
-                f"Zone exists but price has not approached — watch-list only."
+                f"[{symbol}] Rejected at entry gate: {_gate_reason} "
+                f"(type={_entry_type}/{_order_type}, entry={entry:.6g}, stop={stop:.6g}, "
+                f"price={_px_now:.6g}, {_gate_m['pct_away']:.1f}% / {_gate_m['r_away']:.2f}R away, "
+                f"caps {_max_pct}% / {_max_r}R, strategy={income_strategy})"
             )
             return None
+
+        # Display-only: would the order be marketable at the current price? The
+        # paper trader must NOT fill on it (pending_order is always True below).
+        if _order_type == 'stop':
+            _price_at_zone = (_px_now >= entry) if direction == 'long' else (_px_now <= entry)
+        else:
+            _price_at_zone = (_px_now <= entry) if direction == 'long' else (_px_now >= entry)
 
         # Speed-bump check: opposing zones in the path between current price
         # and entry. Per OTC L6, a qualified opposing zone in the return
         # path will likely stall the trade. We flag but don't auto-reject.
-        current_price = float(ltf_df['close'].iloc[-1])
+        current_price = _px_now
         speed_bumps = self.zone_detector.detect_speed_bumps(
             ltf_zones, best_zone, current_price,
         )
@@ -804,14 +904,31 @@ class RulesEngine:
                     f"position_size reduced to {position_size:.4f}"
                 )
 
+        _entry_r = round(entry, 6)
+        _stop_r = round(stop, 6)
         signal = {
             'symbol': symbol,
             'direction': direction,
             'entry_type': _entry_type,           # E1/E2 (pending limit) or E3b (pattern confirmed)
-            'pending_order': _pending_order,     # True = price hasn't reached zone yet
-            'price_at_zone': in_zone,            # True = price currently inside zone
-            'entry_price': round(entry, 6),
-            'stop_price': round(stop, 6),
+            # 2026-09-27 signal contract (engine -> paper trader):
+            #   order_type    'limit' = E1/E2 zone entry, a long fills when price trades
+            #                 DOWN to entry; 'stop' = E3b pattern entry, a long fills when
+            #                 price trades UP to entry (defect 4).
+            #   pending_order ALWAYS True -- nothing fills at signal time; the paper
+            #                 trader fills only from bars printed after signal_time
+            #                 (defects 3, 6). price_at_zone is display-only.
+            #   signal_time   ISO-8601 UTC; the order's placed_at.
+            #   current_price latest close INCLUDING the in-progress bar (finite).
+            #   setup_key     price-based dedup key that survives zone re-keying (defect 9).
+            'order_type': _order_type,
+            'pending_order': True,
+            'price_at_zone': bool(_price_at_zone),
+            'signal_time': self._signal_time_utc(ltf_df, today_override),
+            'current_price': round(_px_now, 6),
+            'setup_key': f"{symbol}|{direction}|{_entry_r:.5g}|{_stop_r:.5g}",
+            'entry_gate': {k: round(float(v), 4) for k, v in _gate_m.items()},
+            'entry_price': _entry_r,
+            'stop_price': _stop_r,
             'targets': [round(t, 6) for t in targets],
             'entry_options': entry_options,
             'recommended_entry': recommended['label'],
@@ -3226,7 +3343,18 @@ class RulesEngine:
             return 'hold'
 
     def _check_entry_pattern(self, df: pd.DataFrame, zone: Dict) -> Optional[Dict]:
-        """Step 5: Check for candlestick pattern at the zone."""
+        """Step 5: Check for candlestick pattern at the zone.
+
+        R1 (2026-09-27): patterns are read from COMPLETED bars only -- a hammer on
+        the still-forming bar can close as anything. The returned pattern also
+        carries `high_since` / `low_since`: the extremes of every bar AFTER the
+        pattern bar in the FULL frame (live bar included), so the entry gate can
+        tell whether its stop entry already triggered.
+        """
+        full = df
+        df = completed_bars(df)
+        if df is None or df.empty:
+            return None
         zone_type = zone['zone_type']
         proximal = zone['proximal']
         distal = zone['distal']
@@ -3234,17 +3362,150 @@ class RulesEngine:
         # Look at the most recent candles
         for i in range(len(df) - 1, max(0, len(df) - 20), -1):
             candle = df.iloc[i]
+            pattern = None
             if zone_type == 'demand':
                 if candle['low'] <= proximal and candle['low'] >= distal:
                     pattern = self.pattern_detector.detect(df, i, 'demand')
-                    if pattern:
-                        return pattern
             else:
                 if candle['high'] >= proximal and candle['high'] <= distal:
                     pattern = self.pattern_detector.detect(df, i, 'supply')
-                    if pattern:
-                        return pattern
+            if pattern:
+                # completed_bars keeps row labels, so the pattern bar maps back to
+                # its position in the full frame; fall back to the same position.
+                try:
+                    pos = full.index.get_loc(df.index[i])
+                    if not isinstance(pos, (int, np.integer)):
+                        pos = i
+                except (KeyError, TypeError):
+                    pos = i
+                after = full.iloc[int(pos) + 1:]
+                pattern['high_since'] = float(after['high'].max()) if len(after) else None
+                pattern['low_since'] = float(after['low'].min()) if len(after) else None
+                return pattern
         return None
+
+    def _entry_distance_caps(self, income_strategy: str) -> Tuple[float, float]:
+        """(max R, max %) from current price to a new order's entry, per strategy
+        (BP_config.yaml entry_distance). Shared by the trade-zone pick and the gate."""
+        _ed_cfg = self.config.get('entry_distance', {}) or {}
+        _max_r_map   = _ed_cfg.get('max_r_to_entry_pending', {}) or {}
+        _max_pct_map = _ed_cfg.get('max_pct_to_entry', {}) or {}
+        return (float(_max_r_map.get(income_strategy, _ed_cfg.get('default_max_r', 3.0))),
+                float(_max_pct_map.get(income_strategy, _ed_cfg.get('default_max_pct', 15.0))))
+
+    @staticmethod
+    def entry_side_gate(
+        direction: str,
+        order_type: str,
+        entry: float,
+        stop: float,
+        price: float,
+        max_r: float,
+        max_pct: float,
+        max_limit_penetration: float = 0.25,
+        high_since: Optional[float] = None,
+        low_since: Optional[float] = None,
+        legacy: bool = False,
+    ) -> Tuple[bool, str, Dict[str, float]]:
+        """Entry-side gate for a new order (2026-09-27, defects 3, 4, 8).
+
+        Returns (ok, reason, metrics); metrics = r_away / pct_away / penetration.
+
+        The old gate measured abs(close - entry), so a price already PAST the entry
+        -- even past the stop -- looked "close" and passed; the paper trader then
+        booked an immediate fill at an entry the market was no longer at. 6 of the
+        8 losing live setups were opened that way (NZDUSD and NZDCAD were already
+        through the stop when they were "filled"). The rules now:
+
+          * entry/stop/price must be finite (defect 8: a NaN close passed every
+            comparison and created the fake CL=F order);
+          * the stop must be on the loss side of the entry with non-zero risk;
+          * price at or beyond the stop -> the setup has failed, reject;
+          * LIMIT (E1/E2, H&S neckline): price may sit through the entry by at most
+            `max_limit_penetration` of the entry-to-stop distance. Beyond that the
+            zone is being broken, not tested (USDCHF short: 77% -> reject);
+          * STOP (E3b): a long buy-stop is only live while price is BELOW it. Price
+            at/above it, or any bar since the pattern having traded through it,
+            means the entry already triggered: "missed stop entry", never chase;
+          * the R / % distance caps apply only on the APPROACH side (limit: price
+            before the entry; stop: price before the trigger). Penetration is the
+            limit check above; the stop check has no penetration side.
+
+        `legacy=True` (BP_ENTRY_SIDE_GATE=0) restores the old symmetric abs()
+        distance check and nothing else -- for A/B measurement only.
+        """
+        m = {'r_away': 0.0, 'pct_away': 0.0, 'penetration': 0.0}
+        try:
+            entry, stop, price = float(entry), float(stop), float(price)
+        except (TypeError, ValueError):
+            return False, 'entry/stop/price not numeric', m
+        if not (math.isfinite(entry) and math.isfinite(stop) and math.isfinite(price)):
+            return False, 'non-finite entry/stop/price', m
+
+        if legacy:
+            risk_abs = abs(entry - stop)
+            m['r_away'] = abs(price - entry) / risk_abs if risk_abs > 0 else 0.0
+            m['pct_away'] = abs(price - entry) / price * 100 if price else 0.0
+            if (risk_abs > 0 and m['r_away'] > max_r) or m['pct_away'] > max_pct:
+                return False, 'entry too far from price (legacy abs distance)', m
+            return True, 'ok (legacy abs distance)', m
+
+        is_long = direction == 'long'
+        risk = (entry - stop) if is_long else (stop - entry)
+        if not risk > 0:
+            return False, 'stop on the wrong side of the entry or zero risk', m
+        if (is_long and price <= stop) or (not is_long and price >= stop):
+            return False, 'price at or beyond the stop -- setup already failed', m
+
+        # How far price has moved THROUGH the entry toward the stop (<= 0: price is
+        # still on the profit side of the entry).
+        through = (entry - price) if is_long else (price - entry)
+        if order_type == 'stop':
+            if through <= 0:
+                return False, 'missed stop entry -- price already at/through the trigger', m
+            _ext = high_since if is_long else low_since
+            if _ext is not None and math.isfinite(float(_ext)) and (
+                    (is_long and float(_ext) >= entry) or (not is_long and float(_ext) <= entry)):
+                return False, 'missed stop entry -- triggered by a bar after the pattern', m
+            dist = through                      # still to travel up (long) to trigger
+        else:
+            m['penetration'] = through / risk
+            # 1e-9: a price exactly at the 25% line must not flip on float rounding.
+            if m['penetration'] > max_limit_penetration + 1e-9:
+                return False, (f"price is {m['penetration']:.0%} of the way from entry to "
+                               f"stop (limit allows {max_limit_penetration:.0%})"), m
+            dist = max(-through, 0.0)           # still to travel down (long) to fill
+
+        m['r_away'] = dist / risk
+        m['pct_away'] = dist / abs(price) * 100 if price else 0.0
+        if m['r_away'] > max_r or m['pct_away'] > max_pct:
+            return False, 'entry too far from price on the approach side', m
+        return True, 'ok', m
+
+    @staticmethod
+    def _signal_time_utc(ltf_df: pd.DataFrame, today_override: Optional[date]) -> str:
+        """ISO-8601 UTC time the order is placed (the paper trader's placed_at).
+
+        Live: now. Historical runs (today_override set): the END of the last LTF bar
+        the engine saw -- its start plus the median bar spacing, never later than
+        now -- so a replay starts at the bar after the decision, not at wall-clock
+        time years after the data.
+        """
+        now = datetime.now(timezone.utc)
+        if today_override is None:
+            return now.isoformat()
+        try:
+            if 'timestamp' in ltf_df.columns:
+                ts = pd.to_datetime(ltf_df['timestamp'], utc=True)
+            else:
+                ts = pd.Series(pd.to_datetime(ltf_df.index, utc=True))
+            ts = ts.dropna()
+            last = ts.iloc[-1]
+            step = ts.diff().tail(5).median()
+            end = last + step if pd.notna(step) and step > pd.Timedelta(0) else last
+            return min(end.to_pydatetime(), now).isoformat()
+        except Exception:
+            return now.isoformat()
 
     def _calculate_targets(self, entry: float, stop: float, direction: str) -> List[float]:
         """Calculate R-multiple targets."""
@@ -3327,6 +3588,7 @@ class RulesEngine:
                 'entry':      round(proximal, 6),
                 'stop':       round(stop, 6),
                 'direction':  direction,
+                'order_type': 'limit',
                 'fill_prob':  'high',
                 'rr':         round(rr(proximal), 2),
                 'note':       'Limit at proximal. Always fills, deeper drawdown possible.',
@@ -3337,6 +3599,7 @@ class RulesEngine:
                 'entry':      round(midpoint, 6),
                 'stop':       round(stop, 6),
                 'direction':  direction,
+                'order_type': 'limit',
                 'fill_prob':  'medium',
                 'rr':         round(rr(midpoint), 2),
                 'note':       'Limit at 50% of zone. Better R:R, may not fill on shallow retraces.',
@@ -3350,6 +3613,7 @@ class RulesEngine:
                 'entry':      round(pattern_signal['entry_price'], 6),
                 'stop':       round(pattern_signal['stop_price'], 6),
                 'direction':  direction,
+                'order_type': pattern_signal.get('order_type', 'stop'),
                 'fill_prob':  'low',
                 'rr':         round(rr(pattern_signal['entry_price']), 2),
                 'note':       'Wait for candlestick confirmation in zone. Highest confidence.',
@@ -3421,11 +3685,18 @@ class RulesEngine:
             df_tf = ohlcv_by_tf.get(tf)
             if df_tf is None or df_tf.empty:
                 continue
+            # detect_zones drops the still-forming bar itself (R1); a refined zone is
+            # a trade zone, so it uses the R5 leg-out rule like the LTF trade list.
             ltf_zones = self.zone_detector.detect_zones(
                 df_tf, htf_zone['symbol'], tf,
+                legout_adjacent=self.zone_detector.trade_legout_adjacent,
             )
             for z in ltf_zones:
                 if z['zone_type'] != htf_zone['zone_type']:
+                    continue
+                # R4: a refined zone becomes the order, so it must not be a zone
+                # price already penetrated >25% or consumed.
+                if not self.zone_detector.is_trade_usable(z):
                     continue
                 z_lo = min(z['proximal'], z['distal'])
                 z_hi = max(z['proximal'], z['distal'])

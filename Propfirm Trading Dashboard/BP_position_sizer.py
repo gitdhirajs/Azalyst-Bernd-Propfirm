@@ -57,7 +57,9 @@ def _round_to_step(value: float, step: float) -> float:
     the intended risk (rounding up would breach the dollar budget)."""
     if step <= 0:
         return value
-    n = int(value / step)
+    # +1e-9 absorbs binary float error (0.29 / 0.01 = 28.999999999999996,
+    # which truncated to 28 and silently lost a whole volume step).
+    n = int(value / step + 1e-9)
     return round(n * step, 8)
 
 
@@ -88,6 +90,7 @@ def compute_lots(
     usd_per_quote_ccy: Optional[Dict[str, float]] = None,
     force_min_lot: bool = False,
     min_lot_multiplier: float = 1.0,
+    max_risk_usd: Optional[float] = None,
 ) -> SizingResult:
     """Convert a dollar risk into a MatchTrader lot size for one signal.
 
@@ -101,6 +104,10 @@ def compute_lots(
                      min_lot, lot_step, verified.
         usd_per_quote_ccy: map of currency -> USD value of one unit, derived
                      from live FX rates. Required for forex sizing.
+        max_risk_usd: hard ceiling for the min-lot case. When the 1% budget
+                     rounds below the broker's minimum lot, the minimum lot is
+                     used only if its risk stays <= this; otherwise lots = 0
+                     (skip). None keeps the pre-2026-09-27 behaviour.
 
     Returns:
         SizingResult. `lots` is what the trader enters on FundingPips.
@@ -163,6 +170,22 @@ def compute_lots(
         lots = _round_to_step(min_lot * min_lot_multiplier, lot_step)
         note = (f"fixed lot {lots} ({min_lot} x {min_lot_multiplier:g}) "
                 f"(risk ${lots * risk_per_lot:,.2f}, ignoring the 1% budget)")
+    elif max_risk_usd is not None and lots < min_lot:
+        # 2026-09-27 (1% sizing restored, fixed_lot_mode off): the 1% budget
+        # rounds DOWN below the broker's minimum lot -- e.g. gold with a $60
+        # stop on $5k (0.01 lot = $60 = 1.2%). The old branch only fired for
+        # 0 < lots < min_lot, so with min_lot == lot_step such a trade got
+        # lots = 0 and silently disappeared. Take the minimum lot only while
+        # its risk stays under the hard ceiling; above it, skip.
+        min_risk = min_lot * risk_per_lot
+        if min_risk <= max_risk_usd:
+            lots = min_lot
+            note = (f"min lot {min_lot} carries ${min_risk:,.2f} risk > intended "
+                    f"${risk_usd:,.2f} (within the ${max_risk_usd:,.2f} ceiling)")
+        else:
+            lots = 0.0
+            note = (f"min lot {min_lot} would risk ${min_risk:,.2f} > ceiling "
+                    f"${max_risk_usd:,.2f} -- stop too wide for this account; skip")
     elif 0 < lots < min_lot:
         # Smallest tradable size already exceeds the intended risk.
         lots = min_lot
