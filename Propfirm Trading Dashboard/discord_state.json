@@ -1,5 +1,28 @@
 {
-  "signal_ids_seen": [],
+  "state_version": 2,
+  "challenge_started_at": "2026-09-27T13:45:25.355334+00:00",
+  "breached": false,
+  "signal_keys_seen": {
+    "GBPNZD=X|short|2.3494|2.3534": "2026-09-27",
+    "NZDJPY=X|long|88.134|87.242": "2026-09-27",
+    "NZDCHF=X|long|0.46562|0.464": "2026-09-27",
+    "CADCHF=X|short|0.59502|0.59858": "2026-09-27"
+  },
+  "order_ids_seen": [
+    "eb9cb892-2ec"
+  ],
+  "pending_orders_seen": {
+    "eb9cb892-2ec": {
+      "symbol": "NZDCHF=X",
+      "direction": "long",
+      "entry_price": 0.46562,
+      "stop_price": 0.464,
+      "order_type": "limit",
+      "placed_at": "2026-09-27T18:28:50.251264+00:00"
+    }
+  },
   "open_position_ids_seen": [],
-  "last_sent_at": null
+  "closed_ids_seen": [],
+  "last_status_date": null,
+  "last_sent_at": "2026-09-27T18:28:51.491972+00:00"
 }
