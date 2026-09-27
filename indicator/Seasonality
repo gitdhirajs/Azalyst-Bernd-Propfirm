@@ -1,0 +1,207 @@
+// Seasonal-path algorithm from Seasonality_OTC.txt (MPL 2.0, https://mozilla.org/MPL/2.0/)
+// re-fitted to the input surface that "Seasonality Index - v4" exposes.
+
+//@version=5
+indicator("Seasonality Index - v4", shorttitle="Seasonality Index - v4", overlay=true, max_lines_count=500, precision=0)
+
+// Settings dialog read off OTC 2025 Course > Module 3 > Lesson 4 (Seasonality),
+// frame_000384 (Sugar SB1! daily) -- confirmed again at frame_000538 after the
+// Average Years is changed 5 -> 10 ("Let me just change ten now", @8:57).
+//
+//   Average Years ................................ 5   (demoed at 5, then 10)
+//   Project # Bars into Future ................... 45
+//   Align First Future Bar with Close ............ off
+//   Start Future Projection 1 Year Before End .... off
+//   Show Debug Info .............................. off
+//
+// Title renders as:  Seasonality Index - v4  5  45
+//
+// FIDELITY WARNING: this is a RECONSTRUCTION, not a port. The v4 source is not
+// visible in the frames -- only its inputs are. The seasonal maths below is
+// Seasonality_OTC.txt's (average bar-to-bar delta per trading-day-of-year bin,
+// de-trended, scaled to the visible price range). The two behavioural flags are
+// implemented to the plain reading of their labels. Expect the SHAPE to match and
+// the exact path to differ. Seasonality_OTC.txt's extra inputs (trading-day mode,
+// smoothing, offset, colour, width) are absent from the v4 dialog, so they are
+// pinned here at their defaults.
+
+int  _avgYears    = input.int(5,  "Average Years",              minval=1, maxval=30,  group="Seasonality")
+int  _future      = input.int(45, "Project # Bars into Future", minval=0, maxval=252, group="Seasonality")
+bool _alignFirst  = input.bool(false, "Align First Future Bar with Close",         group="Seasonality")
+bool _startBefore = input.bool(false, "Start Future Projection 1 Year Before End", group="Seasonality")
+bool _showDebug   = input.bool(false, "Show Debug Info",                           group="Seasonality")
+
+// Pinned at the Seasonality_OTC defaults (not exposed in the v4 dialog)
+string _stdays = "fixed (252)"
+string _utdays = "minimum"
+color  _color  = #cfcfcf
+int    _width  = 3
+int    _malen  = 1
+int    _offset = 0
+
+// Trading day of month / of year
+var int _tdom = na
+var int _tdoy = na
+if bool(ta.change(year(time_close)))  and timeframe.isdaily and timeframe.multiplier == 1
+    _tdoy := 0
+if bool(ta.change(month(time_close))) and timeframe.isdaily and timeframe.multiplier == 1
+    _tdom := 0
+if not na(_tdoy)
+    _tdoy := _tdoy + 1
+if not na(_tdom)
+    _tdom := _tdom + 1
+
+int _twoy = weekofyear(time_close)
+int _nof_bins = na
+int _slot     = na
+if timeframe.multiplier == 1
+    if timeframe.isdaily
+        _nof_bins := _stdays == "fixed (252)" ? 252 : 366
+        _slot     := _tdoy
+    else if timeframe.isweekly
+        _nof_bins := 52
+        _slot     := _twoy
+    else if timeframe.ismonthly
+        _nof_bins := 12
+        _slot     := month(time_close)
+
+plot(_showDebug and not na(_nof_bins) ? _twoy : na, title="TWOY", color=#000000, display=display.status_line)
+plot(_showDebug and not na(_nof_bins) ? _tdom : na, title="TDOM", color=#000000, display=display.status_line)
+plot(_showDebug and not na(_nof_bins) ? _tdoy : na, title="TDOY", color=#000000, display=display.status_line)
+
+var int _years   = _avgYears
+var int _mindate = time_close
+var int _start   = math.max(_mindate, timenow - _years * 31558464000)
+if barstate.isfirst and (timenow - _start)/31558464000 < _years
+    _years := math.floor((timenow - _start)/31558464000)
+    _start := timenow - _years * 31558464000
+
+var _a_days = array.new_int(0)
+var _a_slot = array.new_int(0)
+var _a_lows = array.new_float(0)
+var _a_high = array.new_float(0)
+var _a_bins = array.new_float(_nof_bins, 0)
+var _a_cntr = array.new_int(_nof_bins, 0)
+var _a_line = array.new_float(_nof_bins, 0)
+var _a_mavg = array.new_float(_nof_bins, 0)
+
+array.push(_a_slot, _slot)
+array.push(_a_lows, low)
+array.push(_a_high, high)
+
+int _bin = na
+if timeframe.isdaily
+    _bin := _tdoy - 1
+else if timeframe.isweekly
+    _bin := weekofyear(time_close) - 1
+else if timeframe.ismonthly
+    _bin := month(time_close) - 1
+
+var float _chg = na
+if time > _start and bar_index > 0 and _bin < array.size(_a_bins)
+    _chg := close - close[1]
+    array.set(_a_bins, _bin, array.get(_a_bins, _bin) + _chg)
+    array.set(_a_cntr, _bin, array.get(_a_cntr, _bin) + 1)
+    if _tdoy < _tdoy[1]
+        array.push(_a_days, _tdoy[1])
+
+var int _bleft  = na
+var int _bright = na
+if time == chart.left_visible_bar_time
+    _bleft := bar_index
+if time >= chart.left_visible_bar_time and time <= chart.right_visible_bar_time
+    _bright := bar_index
+
+var int   _used   = 0
+var int   _bin1   = na
+var int   _bin2   = na
+var float _factor = na
+var float _hhigh  = na
+var float _llow   = na
+var float _top    = na
+var float _bot    = na
+
+yOf(lineArr, usedIdx, binIdx, lowRef, offs, factor, adj) =>
+    lowRef + (array.get(lineArr, math.min(usedIdx, binIdx)) + offs) * factor + adj
+
+if barstate.islast and not na(_nof_bins)
+    if _nof_bins == 366
+        _nof_bins := _utdays == "minimum" ? array.min(_a_days) : _utdays == "maximum" ? array.max(_a_days) : math.floor(array.avg(_a_days))
+        if array.size(_a_bins) > _nof_bins
+            for i = array.size(_a_bins)-1 to _nof_bins
+                array.remove(_a_bins, i)
+                array.remove(_a_cntr, i)
+    for i = 0 to array.size(_a_bins)-1
+        if array.get(_a_cntr, i) > 0
+            _used := i
+            array.set(_a_bins, i, array.get(_a_bins, i)/array.get(_a_cntr, i))
+        if i > 0
+            array.set(_a_line, i, array.get(_a_line, i-1) + array.get(_a_bins, i))
+
+    // de-trend
+    _first = 0
+    _last  = array.get(_a_line, _used) - _first
+    _step  = _last/_used
+    for i = 1 to _used
+        array.set(_a_line, i, array.get(_a_line, i) - _step*i)
+
+    if _malen > 1
+        for i = 1 to _used
+            float _sum = 0
+            for j = 1 to math.min(_malen, math.round(_used/2, 0))
+                _idx  = i-j < 0 ? _used-i-j : i-j == 0 ? _used-1 : i-j
+                _sum := _sum + array.get(_a_line, _idx)
+            array.set(_a_mavg, i, _sum/_malen)
+        for i = 1 to _used
+            array.set(_a_line, i, array.get(_a_mavg, i))
+
+    _binL = math.min(_used, array.get(_a_slot, _bleft ) - 1)
+    _binR = math.min(_used, array.get(_a_slot, _bright) - 1)
+
+    float _offs = 0
+    _binP = _binL
+    for i = _bleft to _bright + (_bright == last_bar_index ? _future-1 : 0)
+        _binP := ((_binP + 1) > _used) ? 0 : (_binP + 1)
+        _top  := (na(_top) or array.get(_a_line, _binP) > _top) ? array.get(_a_line, _binP) : _top
+        _bot  := (na(_bot) or array.get(_a_line, _binP) < _bot) ? array.get(_a_line, _binP) : _bot
+    _offs := -_bot
+    _top  := _top - _bot
+    _bot  := 0
+
+    for i = _bleft to _bright
+        _hhigh := na(_hhigh) or array.get(_a_high, i) > _hhigh ? array.get(_a_high, i) : _hhigh
+        _llow  := na(_llow ) or array.get(_a_lows, i) < _llow  ? array.get(_a_lows, i) : _llow
+    _factor := (_hhigh - _llow)/(_top - _bot)
+
+    // "Align First Future Bar with Close": shift the whole path so the first
+    // projected point starts at the last close instead of floating in the range.
+    float _adj = 0.0
+    if _alignFirst
+        int _b0 = _binR > _used ? 0 : _binR
+        _adj := close - yOf(_a_line, _used, _b0, _llow, _offs, _factor, 0.0)
+
+    // seasonality drawn over the visible past
+    for i = math.max(_bleft+_offset, 1) to math.min(_bright + math.max(0, _offset), last_bar_index)
+        _bin1 := math.min(_used, array.get(_a_slot, i-1))
+        _bin2 := math.min(_used, array.get(_a_slot, i  ))
+        line.new(-_offset+i, yOf(_a_line, _used, _bin1, _llow, _offs, _factor, _adj), -_offset+i+1, yOf(_a_line, _used, _bin2, _llow, _offs, _factor, _adj), xloc=xloc.bar_index, color=_color, width=_width)
+
+    // forward projection. "Start Future Projection 1 Year Before End" moves the
+    // start back one full cycle in x; the bins are cyclic with period _nof_bins,
+    // so only the x anchor moves, not the shape.
+    if _bright == last_bar_index
+        int _bidx = (_startBefore ? last_bar_index - _nof_bins : last_bar_index) - _offset
+        _bin1 := _binR - 1
+        for i = 1 to _future + _offset
+            _bin1 := _bin1 + 1
+            _bin2 := _bin1 + 1
+            if _bin2 > _used
+                _bin2 := 0
+            if _bin1 > _used
+                _bin1 := 0
+                _bin2 := 1
+            line.new(_bidx, yOf(_a_line, _used, _bin1, _llow, _offs, _factor, _adj), _bidx+1, yOf(_a_line, _used, _bin2, _llow, _offs, _factor, _adj), xloc=xloc.bar_index, color=_color, width=_width)
+            _bidx := _bidx + 1
+
+    if _showDebug
+        log.info("bins=" + str.tostring(_nof_bins) + " used=" + str.tostring(_used) + " years=" + str.tostring(_years) + " future=" + str.tostring(_future))

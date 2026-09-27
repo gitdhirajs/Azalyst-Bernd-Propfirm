@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import requests
+import draw_chart
 
 # ── Paths ──────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -680,54 +681,29 @@ def build_status_message(scan: Dict, closed_trades: List[Dict]) -> str:
     return _wrap(body)
 
 
-def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[str]:
-    """New-signals messages, PAGINATED. Returns a LIST of Discord-ready strings
-    so EVERY signal is shown -- no "…N more, see dashboard" truncation (the user
-    has no dashboard). When signals overflow one 2000-char message they continue
-    in the next, labelled "(cont. N)". Splits only on whole-signal boundaries so
-    a block is never cut mid-line."""
+def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[Dict]:
     if not new_signals:
         return []
     ts_line = header_block(scan.get("scan_time")).splitlines()[1]
     take_bar = _load_min_composite()
     header = "\n".join(_signal_verdict_header())
-    blocks = [_format_signal_block(s, take_bar) for s in new_signals]
-
-    messages: List[str] = []
-    idx, part, total = 0, 0, len(blocks)
-    while idx < total:
-        part += 1
-        if part == 1:
-            body = (f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS\n{ts_line}"
-                    + SECTION_SEP + header)
-            first_sep = True
-        else:
-            body = f"AZALYST PROPFIRM SCANNER  —  NEW SIGNALS (cont. {part})\n{ts_line}"
-            first_sep = False
-        placed = 0
-        while idx < total:
-            sep = "\n" if (placed == 0 and first_sep) else "\n\n"
-            candidate = body + sep + blocks[idx]
-            # Once ≥1 block is on this page, roll to the next page before we
-            # overflow -- never drop a signal.
-            if len(candidate) > DISCORD_MSG_LIMIT and placed > 0:
-                break
-            body = candidate
-            placed += 1
-            idx += 1
-        # Single-block overflow. The loop above only rolls to a new page once at
-        # least one block is placed (`placed > 0`), so a SINGLE signal whose own
-        # rendered block exceeds the limit would be appended untruncated and
-        # rejected by Discord -- the scan would post nothing at all for it.
-        # The builder this replaced carried this guard; it is kept here because
-        # HEAD's paginator, which never truncates on multi-block pages, has no
-        # other defence against one pathological block.
-        out = body.strip()
-        if len(out) > DISCORD_MSG_LIMIT:
-            out = out[: DISCORD_MSG_LIMIT - 30] + "\n... (truncated)"
-        messages.append(_wrap(out))
+    messages: List[Dict] = []
+    ohlcv_cache = scan.get("ohlcv_cache", {})
+    total = len(new_signals)
+    for i, s in enumerate(new_signals, 1):
+        block = _format_signal_block(s, take_bar)
+        body = (f"AZALYST PROPFIRM SCANNER  —  NEW SIGNAL {i}/{total}\n{ts_line}"
+                + SECTION_SEP + header + "\n\n" + block).strip()
+        # A single pathological block must never exceed Discord's limit, or the
+        # webhook rejects it and nothing is posted for that signal.
+        wrapped = _wrap(body)
+        if len(wrapped) > DISCORD_MSG_LIMIT:
+            wrapped = _wrap(body[: DISCORD_MSG_LIMIT - 40] + "\n... (truncated)")
+        # One message per signal with its chart attached (None when the chart
+        # cannot be drawn; the message is then sent as text only).
+        img_path = draw_chart.generate_chart(s, ohlcv_cache)
+        messages.append({"content": wrapped, "image_path": img_path})
     return messages
-
 
 
 def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]) -> str:
@@ -783,6 +759,7 @@ def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]
 
 def post_to_discord(webhook_url: str, content: str,
                     user_id: Optional[str] = None,
+                    image_path: Optional[str] = None,
                     attempts: int = 3) -> bool:
     """POST a message to a Discord webhook.
 
@@ -805,7 +782,11 @@ def post_to_discord(webhook_url: str, content: str,
 
     for i in range(1, attempts + 1):
         try:
-            r = requests.post(webhook_url, json=payload, timeout=20)
+            if image_path and os.path.exists(image_path):
+                with open(image_path, 'rb') as f:
+                    r = requests.post(webhook_url, data={'payload_json': json.dumps(payload)}, files={'file': (os.path.basename(image_path), f)}, timeout=30)
+            else:
+                r = requests.post(webhook_url, json=payload, timeout=20)
             if r.status_code in (200, 204):
                 return True
             # 429 = rate-limit; honour Retry-After
@@ -891,7 +872,9 @@ def main() -> int:
         print(status_msg)
         for i, m in enumerate(signals_msgs, 1):
             print(f"\n--- SIGNALS MESSAGE {i}/{len(signals_msgs)} ---\n")
-            print(m)
+            print(m["content"])
+            if m.get("image_path"):
+                print(f"[Chart Image attached: {m['image_path']}]")
         return 0
 
     if not args.webhook_url:
@@ -914,15 +897,20 @@ def main() -> int:
     # only SKIP (below the alert bar) is silent -- those never reach new_signals.
     for i, m in enumerate(signals_msgs):
         ping_user_id = args.user_id if i == 0 else None
-        if not post_to_discord(args.webhook_url, m, user_id=ping_user_id):
-            print(f"[discord] Signals message {i + 1}/{len(signals_msgs)} failed.",
-                  file=sys.stderr)
+        if not post_to_discord(args.webhook_url, m["content"], user_id=ping_user_id, image_path=m.get("image_path")):
+            print(f"[discord] Signals message {i + 1}/{len(signals_msgs)} failed.", file=sys.stderr)
             return 1
+        # Cleanup the image if it was created
+        if m.get("image_path") and os.path.exists(m["image_path"]):
+            try:
+                os.remove(m["image_path"])
+            except OSError:
+                pass
         if i + 1 < len(signals_msgs):
-            time.sleep(0.6)   # gentle spacing to stay under Discord rate limits
+            time.sleep(0.6)
 
     save_state(scan)
-    sent_chars = len(status_msg) + sum(len(m) for m in signals_msgs)
+    sent_chars = len(status_msg) + sum(len(m["content"]) for m in signals_msgs)
     print(f"[discord] Sent {1 + len(signals_msgs)} msg(s), {sent_chars} chars total. "
           f"new_signals={len(new_signals)} ({len(signals_msgs)} page(s))  "
           f"closed={len(closed_trades)}  breached={breached}")

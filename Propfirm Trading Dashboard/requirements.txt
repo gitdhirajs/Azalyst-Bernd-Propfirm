@@ -26,3 +26,8 @@ psutil>=6.0.0
 # Markdown rendering
 markdown-it-py>=3.0.0
 pygments>=2.18.0
+
+# Charting (for Discord webhooks)
+mplfinance>=0.12.10b0
+matplotlib>=3.7.0
+
