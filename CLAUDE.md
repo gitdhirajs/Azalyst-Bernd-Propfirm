@@ -2462,3 +2462,14 @@ DBR_LEGOUT_FIX 48 — the flags do switch on.
 
 Also fixed: `run_scanner._position_from_dict` dropped `close_reason` and `trade_context` on every
 state reload (E-01b silently blank after reload).
+
+
+### 2026-09-27 — live bot rebuilt after the FundingPips paper failures
+
+Full note: `research/SESSION_2026-09-27.md`. The live bot is **gitdhirajs/Azalyst-Bernd-Propfirm main**
+(gitdhirajsv is the contributor account; its scans are disabled). Deployed `d1d3446`: this folder's
+engine plus execution fixes — Yahoo daily FX Close repaired (`BP_FX_CLOSE_REPAIR`), zones on completed
+candles only, no orders once price is past the entry/stop, E3b as stop orders, fills/stops from replayed
+1h candles (`BP_BAR_REPLAY`), setup re-entry dedup, UTC timestamps, hourly schedule.
+User decisions: **1% risk; stop never moves; 100% closes at T2** (`stop_loss.management: fixed`);
+fresh $5k challenge. Goldtest A/B of these fixes has NOT been run yet.
