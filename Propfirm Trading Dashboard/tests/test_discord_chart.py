@@ -63,9 +63,16 @@ def test_no_data_returns_none():
 
 
 def test_missing_mplfinance_does_not_crash(monkeypatch):
+    # The annotated chart (2026-09-27) draws with matplotlib directly, so a
+    # missing mplfinance no longer costs the chart.
     monkeypatch.setitem(sys.modules, "mplfinance", None)   # import -> ImportError
     cache = {"EURUSD=X": {"1d": _rows(40)}}
-    assert draw_chart.generate_chart(_signal(), cache) is None
+    path = draw_chart.generate_chart(_signal(), cache)
+    try:
+        assert path is not None and os.path.exists(path)
+    finally:
+        if path and os.path.exists(path):
+            os.remove(path)
 
 
 def test_chart_written_to_temp_dir():

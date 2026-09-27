@@ -942,6 +942,8 @@ class RulesEngine:
             'trade_context': trade_context,   # standard / counter_trend / anticipatory
             'action_tier': _action_tier,      # best / good / acceptable / reject / None (non-standard context)
             'zone_id': best_zone['id'],
+            # Display-only (Discord chart): the zone the order is built on.
+            'zone': self._zone_payload(best_zone, ltf_df, ltf),
             'income_strategy': income_strategy,
             'risk_amount': round(abs(entry - stop) * position_size, 2),
             'position_size': round(position_size, 4),
@@ -3481,6 +3483,62 @@ class RulesEngine:
         if m['r_away'] > max_r or m['pct_away'] > max_pct:
             return False, 'entry too far from price on the approach side', m
         return True, 'ok', m
+
+    # Formation names from ZoneDetector._score_zone -> the course acronyms.
+    _FORMATION_ACRONYM = {
+        'drop_base_rally': 'DBR', 'rally_base_rally': 'RBR',
+        'rally_base_drop': 'RBD', 'drop_base_drop': 'DBD',
+    }
+
+    @classmethod
+    def _zone_payload(cls, zone: Dict, ltf_df: pd.DataFrame, ltf: str) -> Dict:
+        """The trade zone's bounds and dates, for the Discord chart (2026-09-27).
+
+        Display-only and JSON-serialisable (plain str / float / None). The zone
+        record holds bar POSITIONS in the completed-bar frame the detector scanned
+        (completed_bars + reset_index), so the dates are read from the same frame
+        here; the detector's own timestamp strings are the fallback. Never raises.
+        """
+        def _iso(v) -> Optional[str]:
+            try:
+                t = pd.Timestamp(v)
+            except (TypeError, ValueError):
+                return None
+            return None if pd.isna(t) else t.isoformat()
+
+        def _at(idx, fallback) -> Optional[str]:
+            try:
+                frame = completed_bars(ltf_df)
+                if idx is not None and frame is not None and 0 <= int(idx) < len(frame):
+                    if 'timestamp' in frame.columns:
+                        got = _iso(frame['timestamp'].iloc[int(idx)])
+                    elif isinstance(frame.index, pd.DatetimeIndex):
+                        got = _iso(frame.index[int(idx)])
+                    else:
+                        got = None
+                    if got:
+                        return got
+            except Exception:
+                pass
+            return _iso(fallback) if fallback not in (None, '') else None
+
+        def _num(v) -> Optional[float]:
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                return None
+            return round(f, 6) if math.isfinite(f) else None
+
+        formation = str(zone.get('formation') or '')
+        return {
+            'type': str(zone.get('zone_type') or ''),
+            'proximal': _num(zone.get('proximal')),
+            'distal': _num(zone.get('distal')),
+            'timeframe': str(zone.get('timeframe') or ltf or ''),
+            'formation': cls._FORMATION_ACRONYM.get(formation, formation.upper() or None),
+            'base_start': _at(zone.get('base_start_index'), zone.get('base_start_time')),
+            'leg_out_end': _at(zone.get('origin_index'), zone.get('origin_time')),
+        }
 
     @staticmethod
     def _signal_time_utc(ltf_df: pd.DataFrame, today_override: Optional[date]) -> str:

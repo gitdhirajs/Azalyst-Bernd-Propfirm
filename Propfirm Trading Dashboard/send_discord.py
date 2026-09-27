@@ -127,6 +127,12 @@ ID_MEMORY_MAX = 500
 STATE_VERSION = 2
 # The status continues in follow-up messages instead of being cut (see _paginate).
 MAX_STATUS_PAGES = 3
+# Charts are shown inside embeds (image = attachment://<file>). Discord allows
+# at most 10 embeds and 10 files per webhook message.
+MAX_MESSAGE_IMAGES = 10
+EMBED_LONG = 0x26A69A      # TradingView green: long / winning trade
+EMBED_SHORT = 0xEF5350     # TradingView red:   short / losing trade
+EMBED_NEUTRAL = 0x4E5058   # grey: scratch
 
 
 # ───────────────────────────────────────────────────────────────────────
@@ -1195,17 +1201,70 @@ def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[Dict]:
         wrapped = _wrap(body)
         if len(wrapped) > DISCORD_MSG_LIMIT:
             wrapped = _wrap(body[: DISCORD_MSG_LIMIT - 40] + "\n... (truncated)")
-        # One message per signal with its chart attached (None when the chart
-        # cannot be drawn; the message is then sent as text only).
+        # One message per signal with its chart shown in an embed (None when the
+        # chart cannot be drawn; the message is then sent as text only).
         img_path = None
         if draw_chart is not None:
             try:
-                img_path = draw_chart.generate_chart(s, ohlcv_cache)
+                img_path = draw_chart.generate_chart(s, ohlcv_cache, asof=scan.get("scan_time"))
             except Exception as exc:   # generate_chart should not raise; belt and braces
                 print(f"[discord] chart failed for {s.get('symbol')}: {exc}", file=sys.stderr)
                 img_path = None
-        messages.append({"content": wrapped, "image_path": img_path})
+        images = []
+        if img_path:
+            is_long = str(s.get("direction", "")).lower() == "long"
+            name = s.get("display_name") or s.get("symbol", "?")
+            images.append({
+                "path": img_path,
+                "color": EMBED_LONG if is_long else EMBED_SHORT,
+                "title": f"{name} {'LONG' if is_long else 'SHORT'} · "
+                         f"{order_label(s)} @ {_px(s.get('entry_price'))}",
+            })
+        # image_path kept for older callers; `images` carries the embed spec.
+        messages.append({"content": wrapped, "image_path": img_path, "images": images})
     return messages
+
+
+def build_result_images(scan: Dict, closed_trades: List[Dict],
+                        limit: int = MAX_MESSAGE_IMAGES) -> List[Dict]:
+    """Result charts (fill -> exit, R and $ badge) for the trades reported in
+    this post's CLOSED block, as embed image specs, at most `limit`.
+
+    A closed-trade record from an event list can lack the levels the chart
+    needs (stop / targets / fill time); those are filled in from the matching
+    trade_history record by id. A chart that cannot be drawn is skipped."""
+    if draw_chart is None or not closed_trades:
+        return []
+    cache = scan.get("ohlcv_cache") or {}
+    hist = {h.get("id"): h for h in (scan.get("trade_history") or [])
+            if isinstance(h, dict) and h.get("id")}
+    out: List[Dict] = []
+    for t in closed_trades:
+        if len(out) >= limit:
+            break
+        if not isinstance(t, dict):
+            continue
+        rec = dict(hist.get(t.get("id") or t.get("position_id")) or {})
+        rec.update({k: v for k, v in t.items() if v is not None})
+        try:
+            path = draw_chart.generate_trade_result_chart(rec, cache, timeframe=scan.get("ltf"))
+        except Exception as exc:   # should not raise; belt and braces
+            print(f"[discord] result chart failed for {rec.get('symbol')}: {exc}",
+                  file=sys.stderr)
+            path = None
+        if not path:
+            continue
+        r = _num(rec.get("r_multiple", rec.get("trade_r_multiple")))
+        pnl = _num(rec.get("realized_pnl", rec.get("pnl")))
+        good = pnl if pnl else (r or 0.0)
+        name = rec.get("display_name") or rec.get("symbol", "?")
+        out.append({
+            "path": path,
+            "color": EMBED_LONG if good > 0 else (EMBED_SHORT if good < 0 else EMBED_NEUTRAL),
+            "title": f"{name} {str(rec.get('direction', '?')).upper()} closed  "
+                     f"{_signed_r(r)}  {_signed_money(pnl)}",
+        })
+    return out
 
 
 def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]) -> str:

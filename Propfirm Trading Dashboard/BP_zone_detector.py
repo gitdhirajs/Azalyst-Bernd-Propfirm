@@ -777,6 +777,12 @@ class ZoneDetector:
             'distal': float(distal),
             'origin_index': int(zone['leg_out_end']),
             'origin_time': str(df.iloc[zone['leg_out_end']].get('timestamp', '')),
+            # 2026-09-27 (Discord chart): where the base starts, so the chart can draw
+            # the zone box from its first base candle. Positions are in the
+            # completed-bar frame this method was given, like origin_index.
+            # Read-only: nothing in scoring, ranking or the id uses these.
+            'base_start_index': int(zone['base_start']),
+            'base_start_time': str(df.iloc[zone['base_start']].get('timestamp', '')),
             'is_fresh': is_fresh,
             'is_original': is_original,
             'is_flip': is_flip,
