@@ -95,7 +95,8 @@ def test_gapped_runner_loss_lands_on_its_own_day_net_of_the_partial(july_clock):
     # (-0.0060 x 5,000 = -$30). The broker shows -$30 that day, not -$5.
     t.replay_bars("EURUSD=X", bars("2026-07-31T12:00Z", [(1.0940, 1.0945, 1.0930, 1.0935)]))
     c = hist(t, pid)
-    assert c.close_reason == "breakeven" and c.realized_pnl == pytest.approx(-5.0)
+    # Review round 2: gapped through breakeven -> a truthful close reason.
+    assert c.close_reason == "breakeven_gap" and c.realized_pnl == pytest.approx(-5.0)
     assert t.daily_pnl == pytest.approx(-30.0)
     assert t.balance == pytest.approx(4995.0)
     assert t.losing_trades == 1                              # whole trade lost $5
@@ -155,38 +156,73 @@ def test_real_gap_after_a_quiet_fill_bar_still_gets_gap_credit():
     assert t.positions[pid].partial_price == pytest.approx(1.1070)
 
 
-# --- 11: a gapped stop entry measures +1R from its fill --------------------------
-def test_gapped_buy_stop_measures_l1_from_the_fill_and_never_books_a_loss():
+# --- 11 (revised in review round 2): gapped stop entries ----------------------------
+# L1 stays at the PLANNED level (where order A's take-profit rests) while the
+# fill is short of it; a fill already at/through the planned L1 makes that TP
+# instantly marketable, so the partial is booked at the fill on the fill bar.
+def test_gapped_buy_stop_past_l1_books_the_partial_at_the_fill():
     t = PaperTrader(so_cfg())
     pid = t.submit_signal(signal(order_type="stop", entry=1.1000, stop=1.0950))
-    t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [
+    ev = t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [
         (1.0990, 1.0995, 1.0985, 1.0990),
         (1.1075, 1.1080, 1.1070, 1.1075),     # buy-stop gaps: filled at 1.1075 (+1.5R)
-        (1.1074, 1.1078, 1.1065, 1.1070),     # above planned +1R 1.1050: NOT a partial
     ]))
     p = t.positions[pid]
-    assert p.fill_price == pytest.approx(1.1075) and not p.partial_taken
-    ev = t.replay_bars("EURUSD=X", bars("2026-07-30T14:00Z", [(1.1070, 1.1130, 1.1068, 1.1120)]))
-    p = t.positions[pid]
+    assert p.fill_price == pytest.approx(1.1075) and p.partial_taken
     (e,) = [x for x in ev["partials"] if x["event"] == "partial_close"]
-    assert e["price"] == pytest.approx(1.1125)               # fill + 1R
-    assert e["pnl"] == pytest.approx(25.0) and e["pnl"] > 0
+    assert e["price"] == pytest.approx(1.1075) and e["pnl"] == pytest.approx(0.0)
+    assert e["gap_fill"] is True
+    (f,) = ev["fills"]
+    assert f["gapped_past_l1"] is True and f["l1"] == pytest.approx(1.1050)
     assert p.current_stop == pytest.approx(1.1075)           # breakeven = the fill
+    assert t.balance == pytest.approx(5000.0)                # a $0 partial
 
 
 def test_gapped_sell_stop_mirror():
     t = PaperTrader(so_cfg())
     pid = t.submit_signal(signal(direction="short", order_type="stop", entry=1.1000,
                                  stop=1.1050, targets=(1.0950, 1.0900, 1.0850)))
-    t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [
+    ev = t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [
         (1.1010, 1.1015, 1.1005, 1.1010),
-        (1.0925, 1.0930, 1.0920, 1.0925),     # sell-stop gaps: filled at 1.0925
-        (1.0926, 1.0935, 1.0921, 1.0930),     # below planned +1R 1.0950: NOT a partial
+        (1.0925, 1.0930, 1.0920, 1.0925),     # sell-stop gaps: filled at 1.0925 (past L1 1.0950)
     ]))
-    assert not t.positions[pid].partial_taken
-    ev = t.replay_bars("EURUSD=X", bars("2026-07-30T14:00Z", [(1.0930, 1.0932, 1.0870, 1.0880)]))
+    p = t.positions[pid]
     (e,) = [x for x in ev["partials"] if x["event"] == "partial_close"]
-    assert e["price"] == pytest.approx(1.0875) and e["pnl"] == pytest.approx(25.0)
+    assert e["price"] == pytest.approx(1.0925) and e["pnl"] == pytest.approx(0.0)
+    assert p.current_stop == pytest.approx(1.0925)
+
+
+def test_small_stop_gap_keeps_l1_at_the_planned_level():
+    """Review round 2, major 1: buy-stop 1.1000 gaps to 1.1010 (0.2R). Price
+    reaches the planned +1R 1.1050 (order A's TP) but not fill+1R 1.1060: the
+    paper trade must take the partial there and move the stop to breakeven, as
+    the user's broker order A does."""
+    t = PaperTrader(so_cfg())
+    pid = t.submit_signal(signal(order_type="stop", entry=1.1000, stop=1.0950))
+    ev = t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [
+        (1.0990, 1.0995, 1.0985, 1.0990),
+        (1.1010, 1.1015, 1.1005, 1.1012),
+        (1.1012, 1.1055, 1.1010, 1.1050),
+        (1.1040, 1.1042, 1.0940, 1.0945)]))
+    (e,) = [x for x in ev["partials"] if x["event"] == "partial_close"]
+    assert e["price"] == pytest.approx(1.1050) and e["pnl"] == pytest.approx(20.0)
+    assert not (ev["fills"][0].get("gapped_past_l1"))
+    c = hist(t, pid)
+    assert c.close_price == pytest.approx(1.1010)            # runner at breakeven (the fill)
+    assert c.realized_pnl == pytest.approx(20.0)
+
+
+def test_gap_past_l1_then_stop_on_the_fill_bar():
+    """The instant partial happens at the fill; the runner is still on the
+    ORIGINAL stop for the rest of the fill bar."""
+    t = PaperTrader(so_cfg())
+    pid = t.submit_signal(signal(order_type="stop", entry=1.1000, stop=1.0950))
+    t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [
+        (1.0990, 1.0995, 1.0985, 1.0990),
+        (1.1060, 1.1065, 1.0940, 1.0945)]))
+    c = hist(t, pid)
+    assert c.partial_taken and c.close_reason == "stop"
+    assert c.realized_pnl == pytest.approx((1.0950 - 1.1060) * 5000)
 
 
 # --- 3: runner and new entries ------------------------------------------------------
@@ -351,7 +387,12 @@ def test_partial_and_close_in_one_run_does_not_say_move_the_stop():
     out = sd.compute_events(json.loads(json.dumps(rs.json_safe(scan))), prev)
     assert out["partials"][0]["runner_closed"] is True
     txt = sd.partials_block(out["partials"])
-    assert "runner 50% closed since (see CLOSED)" in txt
+    # Review round 2, major 3: the user never got the breakeven instruction,
+    # so order B is still open on its original stop at the broker.
+    assert "runner 50% closed since: stopped at 1.10000" in txt
+    assert "(breakeven; see CLOSED)" in txt
+    assert "close order B (the runner) at market now" in txt
+    assert "whole position is closed now" not in txt
     assert "move the runner's stop" not in txt and "runner 50% open" not in txt
 
 
@@ -373,7 +414,8 @@ def test_signal_block_tells_how_to_split_the_order():
     assert "A 0.06 lots, TP +1R 2.34538" in txt
     assert "B 0.06 lots, no take-profit (runner)" in txt
     s2 = dict(s, lot_size=0.01)
-    assert "Lot too small to split" in sd._format_signal_block(s2, 7.0, fx.SCALE_OUT)
+    t2 = sd._format_signal_block(s2, 7.0, fx.SCALE_OUT)
+    assert "PLACE AS 1 ORDER: TP +1R 2.34538" in t2 and "PLACE AS 2" not in t2
     tgt = dict(fx.SCALE_OUT, runner_target_r=3.0)
     assert "B 0.06 lots, TP +3R 2.33736" in sd._format_signal_block(s, 7.0, tgt)
     # fixed / ladder text unchanged

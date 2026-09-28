@@ -7,6 +7,9 @@
 #   * prop_firm.enabled: false        -> no challenge gating
 #   * risk: unlimited positions/caps  -> take EVERY qualifying signal
 #   * active_strategy: weekly         -> matches the TradingView Ideas default
+#   * stop_loss.management: fixed     -> pinned 2026-09-28: the tracker's series
+#                                        keeps the bracket it started under (the
+#                                        base config moved to scale_out)
 #   * watchlist_extra: [...]          -> validated global expansion appended
 #                                        to the base ~170-symbol watchlist
 # All Phase 1-46 methodology settings (zones, COT, valuation, seasonality,
@@ -22,6 +25,8 @@ risk:
   max_daily_loss_pct: 1000000.0
   max_total_loss_pct: 1000000.0
 active_strategy: weekly
+stop_loss:
+  management: fixed
 watchlist_extra:
 - symbol: TRX-USD
   name: TRXUSD

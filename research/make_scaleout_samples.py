@@ -191,6 +191,96 @@ def main() -> int:
     _post(scan4, prev4, datetime(2026, 9, 28, 12, 5, tzinfo=UTC), out,
           "4) FIRST RUN AFTER DEPLOY: management notice (live NZDCHF order)")
 
+    # 5) Review round 2: the runner closes in the SAME post that first reports
+    #    its +1R partial (the partial's post was missed): the user never moved
+    #    order B's stop, so the alert says close B at market.
+    bpt.utcnow = lambda: day(79).to_pydatetime()
+    t5 = bpt.PaperTrader(copy.deepcopy(live))
+    t5.challenge_started_at = "2026-08-19T00:00:00+00:00"
+    t5.submit_signal(dict(fx.signal(), signal_time=str(day(79))))
+    state = {"prev": {}}
+
+    def run_on(tr, lo, hi, label):
+        bpt.utcnow = lambda: (day(hi) + pd.Timedelta(hours=23)).to_pydatetime()
+        ev = tr.replay_bars_multi({"GBPNZD=X": _day_bars(lo, hi)}, bar_interval=one_day)
+        now = (day(hi + 1) + pd.Timedelta(minutes=5)).to_pydatetime()
+        scan_ = _results(tr, ev, float(fx.daily_rows()[hi]["close"]), now.isoformat())
+        state["prev"], _ = _post(scan_, state["prev"], now, out, label)
+
+    out += ["", "(section 5: real PaperTrader; the post for the +1R bar never went out)"]
+    run_on(t5, 80, 82, "5a) FILL")
+    run_on(t5, 83, 89, "5b) +1R PARTIAL AND BREAKEVEN CLOSE REPORTED IN ONE POST")
+
+    # 6) Review round 2: a lot too small to split (0.01): ONE order, TP +1R,
+    #    and the paper trader closes 100% there.
+    sig6 = dict(fx.signal(), lot_size=0.01, units=1000, risk_usd_actual=4.01,
+                risk_usd_target=50.0, scale_out_unsplittable=True)
+    scan6 = {"scan_time": "2026-09-28T12:05:00+00:00", "management": fx.SCALE_OUT,
+             "ohlcv_cache": fx.cache(), "ltf": "1d"}
+    msgs6 = sd.build_signals_messages(scan6, [sig6])
+    out += ["", "=" * 70, "6a) NEW SIGNAL, minimum lot (cannot split into 2 orders)", "=" * 70,
+            msgs6[0]["content"]]
+    if msgs6[0].get("image_path"):
+        shutil.move(msgs6[0]["image_path"], OUT_DIR / "signal_gbpnzd_short_min_lot_single.png")
+    bpt.utcnow = lambda: day(79).to_pydatetime()
+    t6 = bpt.PaperTrader(copy.deepcopy(live))
+    t6.challenge_started_at = "2026-08-19T00:00:00+00:00"
+    t6.submit_signal(dict(sig6, signal_time=str(day(79)), position_size=fx.SIZE / 12,
+                          risk_amount=50.0 / 12))
+    state["prev"] = {}
+    run_on(t6, 80, 82, "6b) FILL (single order)")
+    run_on(t6, 83, 86, "6c) +1R: the single order closes 100%")
+    real6 = dict(t6.get_trade_history()[-1], display_name="GBPNZD")
+    p = draw_chart.generate_trade_result_chart(json.loads(json.dumps(rs.json_safe(real6))),
+                                               fx.cache(), timeframe="1d")
+    if p:
+        shutil.move(p, OUT_DIR / "closed_gbpnzd_short_min_lot_single.png")
+    # A runner that gapped THROUGH its +1R lock to below the entry: the badge
+    # must show the runner's real (negative) R, not "+0.5R lock".
+    gap = fx.closed_trade("trail")
+    gap.update(current_stop=fx.L1, trail_stop_level=fx.L1,
+               close_price=fx.ENTRY + 0.5 * fx.RISK, realized_pnl=12.5, pnl=12.5,
+               r_multiple=0.25)
+    p = draw_chart.generate_trade_result_chart(gap, fx.cache(), timeframe="1d",
+                                               management=fx.SCALE_OUT)
+    if p:
+        shutil.move(p, OUT_DIR / "closed_gbpnzd_short_gap_through_lock.png")
+
+    # 7) Review round 2: gapped E3b buy-stops (EURUSD, 1h bars).
+    #    7a: the fill gaps THROUGH the planned +1R -> partial at the fill.
+    #    7b: a small gap (0.2R) -> the partial stays at the planned +1R.
+    from test_paper_trader_replay import bars as hbars, signal as hsignal
+    cases7 = (("7a) GAPPED BUY-STOP: fill 1.10750 is past the planned +1R 1.10500",
+               [(1.0990, 1.0995, 1.0985, 1.0990), (1.1075, 1.1080, 1.1070, 1.1075)]),
+              ("7b) SMALL GAP: fill 1.10100 (+0.2R); +1R stays 1.10500 (order A's TP)",
+               [(1.0990, 1.0995, 1.0985, 1.0990), (1.1010, 1.1015, 1.1005, 1.1012),
+                (1.1012, 1.1055, 1.1010, 1.1050)]))
+    for tag, rows in cases7:
+        bpt.utcnow = lambda: datetime(2026, 7, 30, 10, 0, tzinfo=UTC)
+        t7 = bpt.PaperTrader(copy.deepcopy(live))
+        t7.challenge_started_at = "2026-07-29T00:00:00+00:00"
+        pid7 = t7.submit_signal(hsignal(order_type="stop", entry_type="E3b",
+                                        entry=1.1000, stop=1.0950))
+        ev7 = t7.replay_bars("EURUSD=X", hbars("2026-07-30T11:00Z", rows))
+        now7 = datetime(2026, 7, 30, 11 + len(rows), 5, tzinfo=UTC)
+        op7 = t7.get_open_positions()
+        for o in op7:
+            o["display_name"] = "EURUSD"
+            o["current_price"] = rows[-1][3]
+            mv = rows[-1][3] - float(o["fill_price"])
+            o["unrealized_pnl"] = round(mv * float(o["position_size"]), 2)
+            o["r_multiple_open"] = round(mv / 0.0050, 2)
+        scan7 = json.loads(json.dumps(rs.json_safe({
+            "scan_time": now7.isoformat(), "account": t7.get_account_summary(),
+            "positions": op7, "pending_orders": [], "trade_history": [], "signals": [],
+            "fills": ev7["fills"], "partials_this_run": ev7["partials"],
+            "management": t7.management, "watchlist_scanned": 41, "errors": []})))
+        prev7 = {"challenge_started_at": t7.challenge_started_at, "open_position_ids_seen": [],
+                 "pending_orders_seen": {pid7: {}}, "order_ids_seen": [pid7],
+                 "closed_ids_seen": [], "partial_events_seen": [], "runner_stops_seen": {},
+                 "last_status_date": "2026-07-30", "management_mode": t7.mode}
+        _post(scan7, prev7, now7, out, tag)
+
     OUT_TXT.write_text("\n".join(out) + "\n", encoding="utf-8")
     print(f"wrote {OUT_TXT} and {sorted(x.name for x in OUT_DIR.glob('*.png'))}")
     return 0

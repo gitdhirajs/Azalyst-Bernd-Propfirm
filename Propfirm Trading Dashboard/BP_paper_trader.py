@@ -191,6 +191,11 @@ class Position:
     booked_pnl: float = 0.0
     fill_bar_extreme: Optional[float] = None
     management_mode: str = ""
+    # scale_out_single: the signal's lot could not be split into two broker
+    #   orders (minimum lot, or scale_out_fraction >= 1): the alert tells the
+    #   user to place ONE order with its take-profit at +1R, and the paper
+    #   trader manages THIS position the same way -- 100% closes at +1R.
+    scale_out_single: bool = False
 
 
 @dataclass
@@ -660,6 +665,7 @@ class PaperTrader:
             placed_at=_placed_at,
             order_type=_order_type,
             setup_key=_setup_key,
+            scale_out_single=bool(signal.get('scale_out_unsplittable')),
         )
         if not is_pending:
             # Legacy immediate fill (BP_BAR_REPLAY=0 only).
@@ -866,7 +872,7 @@ class PaperTrader:
                 _when = utcnow()
                 _exit = self._stop_exit_px(pos, _o, current_high, current_low)
                 if _exit is not None:
-                    self._close_at(pos, _exit, _when, self._stop_close_reason(pos), _ev)
+                    self._close_at(pos, _exit, _when, self._stop_close_reason(pos, _exit), _ev)
                 else:
                     self._scale_out_manage(pos, _when, _o, current_high, current_low,
                                            current_price, _ev)
@@ -1064,8 +1070,12 @@ class PaperTrader:
         return closed_events
 
     @staticmethod
-    def _stop_close_reason(pos: 'Position') -> str:
-        """Classify a stop-out: trailing exit, breakeven scratch, or a real stop."""
+    def _stop_close_reason(pos: 'Position', exit_px: Optional[float] = None) -> str:
+        """Classify a stop-out: trailing exit, breakeven scratch, or a real stop.
+
+        exit_px (scale_out only): a breakeven stop that was gapped through and
+        exited more than 0.05R worse than breakeven is 'breakeven_gap', not
+        'breakeven' -- the runner lost money."""
         if pos.trail_stop_level is not None and pos.current_stop == pos.trail_stop_level:
             return "trail"
         if pos.breakeven_triggered:
@@ -1074,6 +1084,13 @@ class PaperTrader:
             if pos.fill_price is not None:
                 _be_levels.append(pos.fill_price)
             if any(abs(pos.current_stop - lvl) <= _tol for lvl in _be_levels):
+                if exit_px is not None:
+                    risk = abs(float(pos.entry_price) - float(pos.stop_price))
+                    worse = ((pos.current_stop - exit_px)
+                             if pos.direction == TradeDirection.LONG
+                             else (exit_px - pos.current_stop))
+                    if risk > 0 and worse / risk > 0.05:
+                        return "breakeven_gap"
                 return "breakeven"
         return "stop"
 
@@ -1268,9 +1285,18 @@ class PaperTrader:
             # the stop came AFTER the fill. If the bar opened beyond the stop the
             # fill itself was at the open, and the stop exits there too.
             stop = float(pos.current_stop)
+            # scale_out: a stop entry that gapped to/through the planned +1R
+            # makes order A's take-profit instantly marketable -- it closes at
+            # the fill, before anything else on this bar can happen.
+            be = self._scale_out_gap_fill(pos, start, events)
+            if pos.status != TradeStatus.ACTIVE:
+                return
             if (l <= stop) if is_long else (h >= stop):
                 exit_px = min(stop, fill_px) if is_long else max(stop, fill_px)
                 self._close_at(pos, exit_px, start, 'stop', events)
+                return
+            if be is not None:
+                pos.current_stop = be          # breakeven from the next bar
             return
 
         # --- not filled: directional drift (E-05) ---------------------------
@@ -1323,7 +1349,9 @@ class PaperTrader:
         #    unknown, so assume the worse one).
         exit_px = self._stop_exit_px(pos, o, h, l)
         if exit_px is not None:
-            self._close_at(pos, exit_px, start, self._stop_close_reason(pos), events)
+            self._close_at(pos, exit_px, start,
+                           self._stop_close_reason(pos, exit_px if self.scale_out else None),
+                           events)
             return
 
         # Scale-out (default since 2026-09-28): +1R partial, breakeven, runner.
@@ -1485,50 +1513,25 @@ class PaperTrader:
         at = when.isoformat() if hasattr(when, 'isoformat') else str(when)
         new_stop: Optional[float] = None
 
-        # 2) The +1R partial. Measured from the WORSE of the planned entry and
-        #    the fill: a stop entry that gapped past the planned entry must not
-        #    "take profit" below its own fill (it would book a loss and put the
-        #    breakeven stop above the market). A better (limit gap) fill keeps
-        #    the planned level.
+        # 2) The +1R partial, at the PLANNED level L1 = entry +/- at_r * risk:
+        #    that is where order A's take-profit rests at the broker. A stop
+        #    entry that gapped past the planned entry but short of L1 still
+        #    books at L1 (a smaller profit from its worse fill); one that gapped
+        #    to/through L1 was handled on its fill bar (_scale_out_gap_fill).
         if not pos.partial_taken:
-            base = max(entry, fill) if is_long else min(entry, fill)
-            l1 = base + sign * self.scale_out_at_r * risk_unit
+            l1 = entry + sign * self.scale_out_at_r * risk_unit
             if not reached(l1):
                 return
             px = tp_px(l1)
             orig = float(pos.position_size)
-            if self.scale_out_fraction >= 1.0:
+            frac = 1.0 if pos.scale_out_single else self.scale_out_fraction
+            if frac >= 1.0:
+                # One order with its take-profit at +1R (minimum lot or
+                # scale_out_fraction >= 1): the whole position closes here.
                 self._close_at(pos, px, when, 'scale_out', events)
                 return
-            qty = orig * self.scale_out_fraction
-            pnl = (px - fill) * sign * qty
-            pos.realized_pnl += pnl
-            pos.partial_taken = True
-            pos.partial_qty = qty
-            pos.partial_price = px
-            pos.partial_time = to_utc(when)
-            pos.position_size = orig - qty
-            pos.breakeven_triggered = True
-            pos.management_mode = 'scale_out'
+            self._take_partial(pos, px, when, events, frac)
             new_stop = better(new_stop, fill)
-            # Booked to the account NOW, as the broker realises a partial close
-            # when it happens (balance, daily P&L, progress to target).
-            # _close_position then books only the runner (realized - booked).
-            pos.booked_pnl += pnl
-            self._book_to_account(pnl)
-            events.setdefault('partials', []).append({
-                'event': 'partial_close', 'position_id': pos.id, 'symbol': pos.symbol,
-                'direction': pos.direction.value, 'price': px,
-                'fraction': self.scale_out_fraction, 'pnl': pnl,
-                'r_booked': pnl / (orig * risk_unit) if orig > 0 else 0.0,
-                'at_r': self.scale_out_at_r,
-                'new_stop': fill, 'new_stop_r': r_of(fill), 'at': at,
-                'entry_price': entry, 'stop_price': float(pos.stop_price),
-                'fill_price': fill, 'runner_fraction': 1.0 - self.scale_out_fraction,
-            })
-            logger.info(f"[{pos.symbol}] Scale-out: {self.scale_out_fraction:.0%} closed at "
-                        f"{px:.5f} (+{self.scale_out_at_r:g}R), PnL={pnl:.2f}; stop -> "
-                        f"breakeven {fill:.5f} from next bar")
 
         # 3) The runner.
         if self.runner_target_r:
@@ -1562,6 +1565,86 @@ class PaperTrader:
         if new_stop is not None:
             if (new_stop > pos.current_stop) if is_long else (new_stop < pos.current_stop):
                 pos.current_stop = new_stop
+
+    def _take_partial(self, pos: 'Position', px: float, when: datetime,
+                      events: Dict[str, List[Dict]], frac: float,
+                      gap_fill: bool = False) -> float:
+        """Close `frac` of the ORIGINAL size at `px`, book it to the account now
+        and mark the position partialled. Returns the breakeven stop (the fill);
+        the caller applies it (from the next bar)."""
+        is_long = pos.direction == TradeDirection.LONG
+        sign = 1.0 if is_long else -1.0
+        entry = float(pos.entry_price)
+        fill = pos.fill_price if pos.fill_price is not None else entry
+        risk_unit = abs(entry - float(pos.stop_price))
+        orig = float(pos.position_size)
+        qty = orig * frac
+        pnl = (px - fill) * sign * qty
+        pos.realized_pnl += pnl
+        pos.partial_taken = True
+        pos.partial_qty = qty
+        pos.partial_price = px
+        pos.partial_time = to_utc(when)
+        pos.position_size = orig - qty
+        pos.breakeven_triggered = True
+        pos.management_mode = 'scale_out'
+        # Booked to the account NOW, as the broker realises a partial close
+        # when it happens (balance, daily P&L, progress to target).
+        # _close_position then books only the runner (realized - booked).
+        pos.booked_pnl += pnl
+        self._book_to_account(pnl)
+        at = when.isoformat() if hasattr(when, 'isoformat') else str(when)
+        l1 = entry + sign * self.scale_out_at_r * risk_unit
+        ev = {
+            'event': 'partial_close', 'position_id': pos.id, 'symbol': pos.symbol,
+            'direction': pos.direction.value, 'price': px,
+            'fraction': frac, 'pnl': pnl,
+            'r_booked': pnl / (orig * risk_unit) if orig > 0 and risk_unit > 0 else 0.0,
+            'at_r': self.scale_out_at_r, 'l1': l1,
+            'new_stop': fill,
+            'new_stop_r': (fill - entry) * sign / risk_unit if risk_unit > 0 else 0.0,
+            'at': at,
+            'entry_price': entry, 'stop_price': float(pos.stop_price),
+            'fill_price': fill, 'runner_fraction': 1.0 - frac,
+        }
+        if gap_fill:
+            ev['gap_fill'] = True
+        events.setdefault('partials', []).append(ev)
+        logger.info(f"[{pos.symbol}] Scale-out: {frac:.0%} closed at {px:.5f} "
+                    f"(+{self.scale_out_at_r:g}R{' gap fill' if gap_fill else ''}), "
+                    f"PnL={pnl:.2f}; stop -> breakeven {fill:.5f} from next bar")
+        return fill
+
+    def _scale_out_gap_fill(self, pos: 'Position', when: datetime,
+                            events: Dict[str, List[Dict]]) -> Optional[float]:
+        """On the FILL bar of a scale_out order whose fill is already at or
+        through the planned +1R (a stop entry that gapped): order A's
+        take-profit (planned +1R) is instantly marketable, so the broker closes
+        it at the fill. Book the partial there ($0) -- or, for a single-order
+        position, close everything there. Returns the breakeven stop to apply
+        after the fill bar's stop check, else None. Tags the fill event."""
+        if not self.scale_out or pos.partial_taken:
+            return None
+        entry = float(pos.entry_price)
+        risk_unit = abs(entry - float(pos.stop_price))
+        fill = pos.fill_price
+        if fill is None or not risk_unit > 0:
+            return None
+        is_long = pos.direction == TradeDirection.LONG
+        sign = 1.0 if is_long else -1.0
+        l1 = entry + sign * self.scale_out_at_r * risk_unit
+        if not ((fill >= l1) if is_long else (fill <= l1)):
+            return None
+        for f in reversed(events.get('fills') or []):
+            if f.get('position_id') == pos.id:
+                f['gapped_past_l1'] = True
+                f['l1'] = l1
+                break
+        frac = 1.0 if pos.scale_out_single else self.scale_out_fraction
+        if frac >= 1.0:
+            self._close_at(pos, fill, when, 'scale_out', events)
+            return None
+        return self._take_partial(pos, fill, when, events, frac, gap_fill=True)
 
     def _close_at(self, pos: 'Position', exit_px: float, when: datetime, reason: str,
                   events: Dict[str, List[Dict]]) -> None:

@@ -196,6 +196,16 @@ def replay_config(be_half: bool) -> Dict:
     }
 
 
+def replay_management_mode(be_half: bool = True) -> str:
+    """The stop_loss.management mode the replay simulates. It is inherited from
+    the live BP_config.yaml (scale_out since 2026-09-28; fixed 2026-09-27;
+    ladder before), so R/PnL from runs on either side of a switch are NOT
+    comparable -- every summary row records the mode. be_half is a
+    ladder-only setting (inert in fixed / scale_out)."""
+    from BP_management import management_settings
+    return management_settings(replay_config(be_half))["mode"]
+
+
 # ------------------------------------------------------------------- signals
 @dataclass
 class Signal:
@@ -367,6 +377,7 @@ def summarise(rows: List[Dict], label: str) -> Dict:
     filled = closed + [r for r in rows if r["outcome"] == "STILL_OPEN"]
     return {
         "arm": label,
+        "management": replay_management_mode(),
         "signals": len(rows),
         "degenerate": sum(r["outcome"] == "DEGENERATE" for r in rows),
         "no_data": sum(r["outcome"] == "NO_DATA" for r in rows),
@@ -428,7 +439,13 @@ def main() -> None:
     else:
         sigs = signals_from_goldtest(a.from_goldtest)
 
-    print("%d signals loaded from %s\n" % (len(sigs), a.signals_file or a.from_goldtest))
+    print("%d signals loaded from %s" % (len(sigs), a.signals_file or a.from_goldtest))
+    _mode = replay_management_mode()
+    print("management mode simulated: %s (BP_config.yaml stop_loss.management)" % _mode)
+    if _mode != "ladder" and (a.ab or a.arm):
+        print("  note: be_half only changes the ladder mode; in %s both arms are identical"
+              % _mode)
+    print()
     if not sigs:
         sys.exit("no signals -- nothing to replay")
 
@@ -451,7 +468,7 @@ def main() -> None:
         print()
 
     print("=== summary ===")
-    keys = ["arm", "signals", "degenerate", "no_data", "no_fill", "cancelled",
+    keys = ["arm", "management", "signals", "degenerate", "no_data", "no_fill", "cancelled",
             "still_open", "closed", "wins", "losses", "scratches", "reached_1r",
             "path_ambiguous", "total_r", "total_pnl"]
     print(" | ".join(keys))

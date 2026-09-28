@@ -432,7 +432,12 @@ stop_loss:
   #   books +0.50R (a win).
   # fixed (2026-09-27): set-and-forget. The stop never moves and the whole
   #   position closes at take_profit_target (2 = T2 = 2R). REVERT to this with
-  #   `management: fixed`.
+  #   `management: fixed` (config only). Do NOT revert the scale-out CODE while
+  #   an open position has a booked partial (booked_pnl > 0): older code books
+  #   the partial a second time. Run research/unbook_partials.py first.
+  # An unknown `management` value or nonsense scale_out numbers (fraction or
+  #   at_r <= 0, fraction > 1, runner_target_r <= scale_out_at_r) fall back to
+  #   `fixed` with an ERROR in the log and a [!] CONFIG line in the Discord footer.
   # ladder (pre-2026-09-27): breakeven (settings below), 50% at T2, trail, T3.
   management: scale_out
   scale_out_at_r: 1.0          # scale_out: partial trigger in R from the planned entry

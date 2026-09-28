@@ -59,11 +59,12 @@ logger = logging.getLogger(__name__)
 
 try:   # the ONE management reader (shared with BP_paper_trader / send_discord)
     from BP_management import (resolve_management, scale_out_levels, fmt_r as _fmt_r,
-                               trade_management)
+                               trade_management, for_trade)
 except Exception:  # pragma: no cover - broken checkout: fall back to fixed drawing
     resolve_management = None
     scale_out_levels = None
     trade_management = None
+    for_trade = None
 
     def _fmt_r(r):
         return f"{r:g}"
@@ -213,6 +214,20 @@ def _money(v: Optional[float], sign: bool = True) -> str:
 def _r_text(r: float) -> str:
     rr = abs(r)
     return f"{int(round(rr))}" if abs(rr - round(rr)) < 0.05 else f"{rr:.1f}"
+
+
+def _sr_text(r: float) -> str:
+    """Signed R: '+1', '-0.5' (the sign is kept, unlike _r_text)."""
+    return ("-" if r < -1e-9 else "+") + _r_text(r)
+
+
+def _runner_phrase(mg: Dict) -> str:
+    """How the runner is managed, for the signal chart's subtitle."""
+    if mg.get("runner_target_r"):
+        return f"runner to +{_fmt_r(float(mg['runner_target_r']))}R"
+    if mg.get("runner_trail") == "r_steps":
+        return "runner trails"
+    return "runner stop at BE"
 
 
 def _to_utc(value) -> Optional[pd.Timestamp]:
@@ -730,12 +745,14 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None,
         is_long = _dir_is_long(signal.get("direction"))
         # scale_out: the take is at +1R (50%), the runner extends beyond it.
         mg = _management(signal, management)
+        if for_trade is not None:
+            mg = for_trade(mg, signal)          # min lot: one order, 100% at +1R
         lv = (scale_out_levels(entry, stop, is_long, mg)
               if mg.get("mode") == "scale_out" and scale_out_levels is not None else None)
         runner_top = None
         if lv:
             target = lv["l1"]
-            runner_top = lv["runner_top"]
+            runner_top = None if lv.get("single") else lv["runner_top"]
         if target is not None and (target > entry) != is_long:
             target = None                       # nonsense level: do not draw it
 
@@ -754,6 +771,7 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None,
                       if lv else "Target")
             tags.append((f"{t_name} {_fmt_px(target, dec)}", target, UP, "white"))
         tags.append((f"Now {_fmt_px(now, dec)}", now, NOW, CHIP_TEXT_DARK))
+        x_right_pad = RIGHT_PAD_BARS_SCALE_OUT if lv else RIGHT_PAD_BARS
 
         try:
             cv = _Canvas([t[0] for t in tags])
@@ -770,7 +788,7 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None,
             ys += [_finite(zone.get("proximal")), _finite(zone.get("distal"))]
         y0, y1 = _y_limits(ys, levels=[entry, stop, target, now, runner_top],
                            axes_px=ax.bbox.height, headroom_px=52)
-        x_right = x_last + (RIGHT_PAD_BARS_SCALE_OUT if lv else RIGHT_PAD_BARS) + 0.5
+        x_right = x_last + x_right_pad + 0.5
         ax.set_xlim(-0.8, x_right)
         ax.set_ylim(y0, y1)
         min_body = (y1 - y0) * 0.0015
@@ -817,7 +835,11 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None,
         rr = abs(target - entry) / abs(entry - stop) if target is not None else None
         stop_txt = "Stop" + (f"  {_money(-risk_usd)}" if risk_usd else "") + "  (-1R)"
         lab = [(stop_txt, stop, DOWN)]
-        if target is not None and lv:
+        if target is not None and lv and lv.get("single"):
+            booked = f" ({_money(risk_usd * lv['l1_r'])})" if risk_usd else ""
+            lab.append((f"+{_fmt_r(lv['l1_r'])}R: close 100%{booked}",
+                        target, UP))
+        elif target is not None and lv:
             frac = lv["fraction"]
             booked = f" ({_money(risk_usd * lv['l1_r'] * frac)})" if risk_usd else ""
             lab.append((f"+{_fmt_r(lv['l1_r'])}R: close {_frac_txt(frac)}{booked} - stop to BE",
@@ -887,8 +909,11 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None,
                  f"setup on the {_tf_name(ltf)} chart"]
         if str(signal.get("trade_context") or "") == "counter_trend":
             parts.append("counter-trend, half size")
-        if lv:
-            parts.append(f"{_frac_txt(lv['fraction'])} off at +{_fmt_r(lv['l1_r'])}R, runner trails")
+        if lv and lv.get("single"):
+            parts.append(f"100% off at +{_fmt_r(lv['l1_r'])}R (one order)")
+        elif lv:
+            parts.append(f"{_frac_txt(lv['fraction'])} off at +{_fmt_r(lv['l1_r'])}R, "
+                         f"{_runner_phrase(mg)}")
         when = _fmt_when(asof or signal.get("signal_time") or signal.get("placed_at")
                          or signal.get("timestamp"))
         if when:
@@ -927,6 +952,9 @@ def _reason_label(reason, r: Optional[float]) -> str:
     if re.match(r"^t\d", low) or low in ("target", "tp", "take_profit"):
         return "Target"
     names = {"stop": "Stop", "sl": "Stop", "breakeven": "Breakeven", "trail": "Trail stop",
+             # scale_out-only reasons
+             "scale_out": "+1R TP (100%)", "breakeven_gap": "Breakeven (gapped)",
+             "runner_target": "Runner TP",
              "expired": "Expired", "drifted": "Cancelled", "cancelled": "Cancelled"}
     if low in names:
         return names[low]
@@ -972,6 +1000,8 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         target = _finite(tl[1]) if len(tl) > 1 else None
         is_long = _dir_is_long(trade.get("direction"))
         mg = _trade_management(trade, management)
+        if for_trade is not None:
+            mg = for_trade(mg, trade)            # a single-order trade: 100% at +1R
         lv = (scale_out_levels(entry, stop, is_long, mg)
               if mg.get("mode") == "scale_out" and scale_out_levels is not None else None)
         if lv:
@@ -1023,13 +1053,20 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
             # Blended scale-out result, e.g. "50% at +1R, runner BE".
             rs_ = str(trade.get("close_reason") or "").lower()
             xr = ((close - entry) if is_long else (entry - close)) / abs(entry - stop)
-            runner = {"breakeven": "runner BE", "trail": f"runner +{_r_text(xr)}R lock",
-                      "runner_target": f"runner target +{_r_text(xr)}R"}.get(
+            lock_px = _finite(trade.get("current_stop"))
+            lock_r = (((lock_px - entry) if is_long else (entry - lock_px)) / abs(entry - stop)
+                      if lock_px is not None else None)
+            at_lock = lock_r is not None and abs(xr - lock_r) <= 0.05
+            runner = {"breakeven": "runner BE",
+                      "breakeven_gap": f"runner gapped BE {_sr_text(xr)}R",
+                      "trail": (f"runner {_sr_text(xr)}R lock" if at_lock
+                                else f"runner gapped lock {_sr_text(xr)}R"),
+                      "runner_target": f"runner target {_sr_text(xr)}R"}.get(
                 rs_, f"runner {xr:+.1f}R")
             pr = ((p_px - entry) if is_long else (entry - p_px)) / abs(entry - stop)
             pq, rem = _finite(trade.get("partial_qty")) or 0.0, _finite(trade.get("position_size")) or 0.0
             frac = pq / (pq + rem) if pq + rem > 0 else (lv["fraction"] if lv else 0.5)
-            reason = f"{_frac_txt(frac)} at +{_r_text(pr)}R, {runner}"
+            reason = f"{_frac_txt(frac)} at {_sr_text(pr)}R, {runner}"
 
         tags = [(f"Entry {_fmt_px(entry, dec)}", entry, ENTRY, "white"),
                 (f"Stop {_fmt_px(stop, dec)}", stop, DOWN, "white")]

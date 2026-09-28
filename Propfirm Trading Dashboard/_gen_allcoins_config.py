@@ -44,6 +44,9 @@ header = """# ============================================================
 #   * prop_firm.enabled: false        -> no challenge gating
 #   * risk: unlimited positions/caps  -> take EVERY qualifying signal
 #   * active_strategy: weekly         -> matches the TradingView Ideas default
+#   * stop_loss.management: fixed     -> pinned 2026-09-28: the tracker's series
+#                                        keeps the bracket it started under (the
+#                                        base config moved to scale_out)
 #   * watchlist_extra: [...]          -> validated global expansion appended
 #                                        to the base ~170-symbol watchlist
 # All Phase 1-46 methodology settings (zones, COT, valuation, seasonality,
@@ -62,6 +65,11 @@ doc = {
         "max_total_loss_pct": 1000000.0,
     },
     "active_strategy": "weekly",
+    # Pinned 2026-09-28: the base config switched to scale_out (50% at +1R,
+    # runner). A +1R partial + breakeven exit would count as a WIN and redefine
+    # this tracker's win rate mid-series, so it keeps the 'fixed' bracket it ran
+    # under before the change.
+    "stop_loss": {"management": "fixed"},
     "watchlist_extra": extra,
 }
 

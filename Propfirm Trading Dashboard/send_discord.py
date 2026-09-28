@@ -63,15 +63,23 @@ except Exception as _chart_exc:  # pragma: no cover - depends on environment
 # guards a broken checkout.
 try:
     from BP_management import (resolve_management, scale_out_levels, fmt_r as _fmt_r,
-                               trade_management, trade_mode)
+                               trade_management, trade_mode, split_lots as _bm_split_lots,
+                               for_trade as _for_trade, is_single_order as _is_single)
 except Exception as _mg_exc:  # pragma: no cover - depends on environment
     print(f"[discord] management settings unavailable: {_mg_exc}", file=sys.stderr)
     resolve_management = None
     scale_out_levels = None
     trade_management = None
+    _bm_split_lots = None
 
     def trade_mode(_t):
         return None
+
+    def _for_trade(m, _o):
+        return dict(m or {})
+
+    def _is_single(_o):
+        return False
 
     def _fmt_r(r):
         return f"{r:g}"
@@ -322,8 +330,15 @@ def _order_fill_rule(label: str) -> str:
     }.get(label, "")
 
 
+# Close reasons that only the scale_out path produces, spelled out (the
+# fixed / ladder reasons print unchanged).
+_REASON_TEXT = {"scale_out": "+1R TP (100%)", "breakeven_gap": "breakeven (gapped)",
+                "runner_target": "runner TP"}
+
+
 def _reason(p: Dict) -> str:
-    return str(p.get("close_reason") or "").strip() or MISSING
+    r = str(p.get("close_reason") or "").strip()
+    return _REASON_TEXT.get(r, r) or MISSING
 
 
 def _targets3(p: Dict) -> Tuple:
@@ -334,10 +349,47 @@ def _targets3(p: Dict) -> Tuple:
     return t[0], t[1], t[2]
 
 
-def _levels_line(p: Dict) -> str:
-    t1, t2, t3 = _targets3(p)
+def _levels_line(p: Dict, m: Optional[Dict] = None) -> Optional[str]:
+    """The level line of an order/position in the mode it trades under.
+    fixed / ladder (or no settings): SL + T1/T2/T3, unchanged. scale_out: SL,
+    the +1R take and what the runner does -- there is no T2/T3 take-profit.
+    None for a partialled scale_out runner (its Booked / Runner lines say it)."""
     sl = p.get("current_stop", p.get("stop_price"))
+    if _is_scale_out(m):
+        if p.get("partial_taken"):
+            return None
+        mm = _for_trade(dict(_mgmt(), **m) if "runner_trail" not in m else m, p)
+        lv = None
+        e, st = _num(p.get("entry_price")), _num(p.get("stop_price"))
+        if scale_out_levels is not None and e is not None and st is not None:
+            lv = scale_out_levels(e, st, _is_long(p), mm)
+        if lv:
+            r1 = _fmt_r(lv["l1_r"])
+            if lv.get("single"):
+                return f"         SL:{_px(sl)}  TP +{r1}R (100%):{_px(lv['l1'])}"
+            return (f"         SL:{_px(sl)}  +{r1}R({_frac_txt(lv['fraction'])}):"
+                    f"{_px(lv['l1'])}  {_runner_short(lv, mm)}")
+    t1, t2, t3 = _targets3(p)
     return f"         SL:{_px(sl)}   T1:{_px(t1)}  T2:{_px(t2)}  T3:{_px(t3)}"
+
+
+def _runner_short(lv: Dict, m: Dict) -> str:
+    """'runner: no TP, 1R trail' / 'runner TP +3R:<px>' / 'runner: no TP, at BE'."""
+    if lv.get("runner_target") is not None:
+        return f"runner TP +{_fmt_r(lv['runner_target_r'])}R:{_px(lv['runner_target'])}"
+    if (m or {}).get("runner_trail") == "r_steps":
+        return "runner: no TP, 1R trail"
+    return "runner: no TP, stop at BE"
+
+
+def _row_mode(p: Dict, m: Optional[Dict]) -> Dict:
+    """Settings for one filled position: the mode it ran under (stamped at
+    fill), else the scan's."""
+    mm = dict(m) if m else dict(_mgmt())
+    tm = trade_mode(p)
+    if tm and tm != mm.get("mode"):
+        mm["mode"] = tm
+    return mm
 
 
 # ── trade management (2026-09-28) ─────────────────────────────────────────
@@ -379,11 +431,13 @@ def _r_of(p: Dict, price) -> Optional[float]:
 
 
 def _stop_r_label(p: Dict, stop) -> str:
-    """'breakeven' / '+1R locked' / '+0.37R' for a runner stop."""
+    """'breakeven' / '+1R locked' / '+0.37R' for a runner stop. Breakeven is
+    the FILL (a gapped stop entry's breakeven is not the planned entry)."""
     r = _r_of(p, stop)
     if r is None:
         return MISSING
-    if abs(r) < 0.05:
+    fr = _r_of(p, p.get("fill_price"))
+    if abs(r) < 0.05 or (fr is not None and abs(r - fr) < 0.02):
         return "breakeven"
     if abs(r - round(r)) < 0.02:
         return f"{round(r):+d}R locked"
@@ -391,8 +445,10 @@ def _stop_r_label(p: Dict, stop) -> str:
 
 
 def _scale_out_booked(p: Dict) -> Optional[Tuple[float, float, float]]:
-    """(fraction closed, $ booked, R booked) of a partialled position/trade."""
-    if not p.get("partial_taken"):
+    """(fraction closed, $ booked, R booked) of a partialled SCALE-OUT
+    position/trade; None for anything else (a ladder T2 partial keeps its
+    unchanged text)."""
+    if not p.get("partial_taken") or trade_mode(p) != "scale_out":
         return None
     pq, rem = _num(p.get("partial_qty")) or 0.0, _num(p.get("position_size")) or 0.0
     orig = pq + rem
@@ -409,15 +465,29 @@ def _scale_out_booked(p: Dict) -> Optional[Tuple[float, float, float]]:
     return pq / orig, usd, usd / (orig * abs(e - st))
 
 
+def _r_txt(r: Optional[float]) -> str:
+    """+1R / +1.5R / -0.25R: 2 decimals at most, no rounding to whole R."""
+    if r is None:
+        return MISSING
+    return f"{round(r, 2):+g}R"
+
+
 def _runner_exit_text(p: Dict) -> str:
     reason = str(p.get("close_reason") or "").strip().lower()
     xr = _r_of(p, p.get("close_price"))
     if reason == "breakeven":
         return "runner breakeven"
+    if reason == "breakeven_gap":
+        return (f"runner gapped through breakeven, out at {_px(p.get('close_price'))} "
+                f"({_r_txt(xr)})")
     if reason == "trail":
+        lock = _r_of(p, p.get("current_stop"))
+        if xr is not None and lock is not None and abs(xr - lock) > 0.05:
+            return (f"runner gapped through the {_stop_r_label(p, p.get('current_stop'))}"
+                    f" stop, out at {_px(p.get('close_price'))} ({_r_txt(xr)})")
         return f"runner stopped at {_stop_r_label(p, p.get('close_price'))}"
     if reason == "runner_target":
-        return f"runner target {xr:+.0f}R" if xr is not None else "runner target"
+        return f"runner target {_r_txt(xr)}" if xr is not None else "runner target"
     if xr is not None:
         return f"runner {reason or 'closed'} {xr:+.2f}R"
     return f"runner {reason or 'closed'}"
@@ -666,7 +736,17 @@ def _format_signal_block(s: Dict, take_bar: float, mgmt: Optional[Dict] = None) 
     _now = _num(s.get("current_price"))
     if _now is not None:
         out.append(f"    Price now      : {fmt_price(_now, 12)}")
-    m = _mgmt(s=s, mgmt=mgmt)
+    m = _for_trade(_mgmt(s=s, mgmt=mgmt), s)      # single-order: 100% at +1R
+    if _is_scale_out(m) and not _is_single(s) and _bm_split_lots is not None \
+            and _num(s.get("lot_size")) and (_num(m.get("scale_out_fraction")) or 0) < 1 \
+            and _bm_split_lots(s.get("lot_size"), m.get("scale_out_fraction")) is None:
+        # Normally run_scanner flags this (scale_out_unsplittable) and the paper
+        # trader follows the flag; an unflagged minimum lot still cannot be
+        # placed as 2 orders, so never print an impossible instruction.
+        m = _for_trade(m, {"scale_out_unsplittable": True})
+        m["_unsplittable"] = True
+    elif _is_scale_out(m) and _is_single(s):
+        m["_unsplittable"] = True
     lv = None
     if _is_scale_out(m) and scale_out_levels is not None and entry is not None \
             and stop is not None:
@@ -677,14 +757,18 @@ def _format_signal_block(s: Dict, take_bar: float, mgmt: Optional[Dict] = None) 
         # scale_out (2026-09-28): the engine's 1R/2R/3R targets are not
         # take-profits any more. Show what the paper trader will actually do.
         r1 = _fmt_r(lv["l1_r"])
-        lab = f"+{r1}R close {_frac_txt(lv['fraction'])}"
-        out.append(f"    {lab:15s}: {fmt_price(lv['l1'], 12)}  stop -> BE")
+        if lv.get("single"):
+            _l = "+" + r1 + "R close 100%"
+            out.append(f"    {_lab(_l)}{fmt_price(lv['l1'], 12)}  trade done")
+        else:
+            _l = "+" + r1 + "R close " + _frac_txt(lv["fraction"])
+            out.append(f"    {_lab(_l)}{fmt_price(lv['l1'], 12)}  stop -> BE")
         for peak_r, peak_px, lock_r, _lock_px in lv["locks"]:
-            lab = f"+{_fmt_r(peak_r)}R runner"
-            out.append(f"    {lab:15s}: {fmt_price(peak_px, 12)}  stop -> +{_fmt_r(lock_r)}R")
+            _l = "+" + _fmt_r(peak_r) + "R runner"
+            out.append(f"    {_lab(_l)}{fmt_price(peak_px, 12)}  stop -> +{_fmt_r(lock_r)}R")
         if lv["runner_target"] is not None:
-            lab = f"+{_fmt_r(lv['runner_target_r'])}R runner TP"
-            out.append(f"    {lab:15s}: {fmt_price(lv['runner_target'], 12)}  close the rest")
+            _tl = "+" + _fmt_r(lv["runner_target_r"]) + "R runner TP"
+            out.append(f"    {_lab(_tl)}{fmt_price(lv['runner_target'], 12)}  close the rest")
     else:
         for i, t in enumerate(targets[:3], 1):
             out.append(f"    Target {i} ({i}R)  : {fmt_price(t, 12)}")
@@ -718,17 +802,43 @@ def _format_signal_block(s: Dict, take_bar: float, mgmt: Optional[Dict] = None) 
         out.extend(_scale_out_management_lines(lv, m, lot_size))
     else:
         out.append(f"    R:R (to T2)    : " + (f"1:{rr_t2:>5.2f}" if rr_t2 is not None else MISSING))
-        out.append("    >> MANAGEMENT  : stop never moves; close 100% at Target 2")
+        if (m or {}).get("mode") == "ladder":
+            out.extend(_ladder_lines(m))
+        else:
+            out.append("    >> MANAGEMENT  : stop never moves; close 100% at Target 2")
     if composite:
         out.append(f"    Composite      : {float(composite):>5.2f} / 10")
     return "\n".join(out)
 
 
+def _lab(label: str) -> str:
+    """'label          : ' -- padded to the signal block's column; a label
+    of 15+ characters keeps a space before the colon."""
+    return f"{label:15s}: " if len(label) < 15 else f"{label} : "
+
+
+# ladder (pre-2026-09-27 path, BP_paper_trader): breakeven at half of T1
+# (breakeven_at_half_target, default) or T1, 50% at T2, the rest trails 1R
+# behind price and closes at T3.
+def _ladder_be(m: Optional[Dict]) -> str:
+    return "half-way to T1" if (m or {}).get("ladder_be_at_half", True) else "T1"
+
+
+def _ladder_lines(m: Optional[Dict]) -> List[str]:
+    return ["    >> MANAGEMENT  (ladder):",
+            f"       stop to breakeven at {_ladder_be(m)};",
+            "       close 50% at T2, trail the rest 1R",
+            "       behind price, close it at T3"]
+
+
 def _split_lots(lot, frac) -> Optional[Tuple[float, float]]:
     """(lots of order A, lots of order B) for a scale-out split, in 0.01 lot
-    steps; None when the lot is unknown or too small to split."""
+    steps; None when the lot is unknown or too small to split (same helper
+    run_scanner uses to flag the signal scale_out_unsplittable)."""
+    if _bm_split_lots is not None:
+        return _bm_split_lots(lot, frac)
     lot, frac = _num(lot), _num(frac)
-    if lot is None or frac is None or lot <= 0:
+    if lot is None or frac is None or lot <= 0 or frac >= 1:
         return None
     a = round(round(lot * frac / 0.01) * 0.01, 2)
     b = round(lot - a, 2)
@@ -740,8 +850,17 @@ def _split_lots(lot, frac) -> Optional[Tuple[float, float]]:
 def _scale_out_management_lines(lv: Dict, m: Dict, lot=None) -> List[str]:
     """The truthful R:R + management lines of a scale_out signal, and how to
     place it at a broker that allows ONE take-profit per order (MT5): split it
-    into two orders on the same entry and stop."""
+    into two orders on the same entry and stop. A lot that cannot be split
+    (minimum lot, or scale_out_fraction >= 1) is ONE order with its TP at +1R
+    -- the paper trader manages that trade the same way."""
     r1 = _fmt_r(lv["l1_r"])
+    if lv.get("single"):
+        why = ("Minimum lot: cannot split into 2 orders" if m.get("_unsplittable")
+               else "Scale-out fraction is 100%")
+        return [f"    First take     : +{r1}R on 100% (no runner)",
+                f"    >> PLACE AS 1 ORDER: TP +{r1}R {_px(lv['l1'])}",
+                f"       {why}: the bot closes",
+                f"       100% at +{r1}R; stop never moves."]
     frac, rest = _frac_txt(lv["fraction"]), _frac_txt(1.0 - lv["fraction"])
     runner = ("runner open" if lv["runner_target"] is None
               else f"runner to +{_fmt_r(lv['runner_target_r'])}R")
@@ -753,9 +872,6 @@ def _scale_out_management_lines(lv: Dict, m: Dict, lot=None) -> List[str]:
     if split:
         out += [f"       A {fmt_qty(split[0], min_dp=2)} lots, TP +{r1}R {_px(lv['l1'])}",
                 f"       B {fmt_qty(split[1], min_dp=2)} lots, {b_tp}"]
-    elif lot:
-        out += ["       Lot too small to split: place ONE order",
-                f"       with no TP; close {frac} by hand at +{r1}R"]
     else:
         out += [f"       A {frac} of the size, TP +{r1}R {_px(lv['l1'])}",
                 f"       B {rest} of the size, {b_tp}"]
@@ -763,9 +879,11 @@ def _scale_out_management_lines(lv: Dict, m: Dict, lot=None) -> List[str]:
             f"       At +{r1}R: {_px(lv['l1'])} close {frac} + stop to breakeven"]
     if m.get("runner_trail") == "r_steps":
         steps = ", ".join(f"+{_fmt_r(a)}R -> stop +{_fmt_r(c)}R" for a, _b, c, _d in lv["locks"])
-        out.append(f"       Runner {rest} trails in 1R steps:")
         if steps:
+            out.append(f"       Runner {rest} trails in 1R steps:")
             out.append(f"       {steps}, ...")
+        else:
+            out.append(f"       Runner {rest} stays at breakeven until its TP")
     else:
         out.append(f"       Runner {rest} stays at breakeven (no trail)")
     if lv["runner_target"] is None:
@@ -808,13 +926,18 @@ def below_bar_block(scan: Dict) -> str:
     return "\n".join(out)
 
 
-def open_positions_block(positions: List[Dict]) -> str:
+def open_positions_block(positions: List[Dict], mgmt: Optional[Dict] = None) -> str:
     """Open paper positions, 2 lines each so Entry/SL/T1/T2/T3 all fit even on
     mobile. Line 1 = live status (entry, now, PnL, R); line 2 = the levels so
-    you can still manage/place the trade if you missed the original alert."""
+    you can still manage/place the trade if you missed the original alert.
+    `mgmt` = the scan's settings: rows are drawn in the mode each position
+    trades under (scale_out has no T2/T3 take-profit)."""
     if not positions:
         return "OPEN POSITIONS\n  (none)"
-    out = ["OPEN POSITIONS   (E=entry  Now=live  SL=stop  T1/T2/T3=targets)"]
+    so = _is_scale_out(mgmt) or any(trade_mode(p) == "scale_out" for p in positions
+                                    if isinstance(p, dict))
+    out = ["OPEN POSITIONS   (E=entry  Now=live  SL=stop  "
+           + ("+1R=first take)" if so else "T1/T2/T3=targets)")]
     for i, p in enumerate(positions[:6], 1):   # cap rows for message length
         sym  = (p.get("display_name") or p.get("symbol", "?"))[:10]
         dir_ = str(p.get("direction", "?")).upper()
@@ -824,31 +947,60 @@ def open_positions_block(positions: List[Dict]) -> str:
         now   = p.get("current_price")
         pnl   = p.get("unrealized_pnl", p.get("realized_pnl"))
         r_mult = p.get("r_multiple_open", p.get("trade_r_multiple"))
-        out.append(
-            f"  T{i:04d} {sym:10s} {dir_:5s} E:{_px(entry)}  Now:{_px(now)}  "
-            f"{_signed_money(pnl)}  {_signed_r(r_mult)}"
-        )
-        out.append(_levels_line(p))
         booked = _scale_out_booked(p)
+        if booked:
+            # A runner: the $ is the runner only (the partial is already in
+            # the balance); the whole trade's R is on its own line below.
+            out.append(
+                f"  T{i:04d} {sym:10s} {dir_:5s} E:{_px(entry)}  Now:{_px(now)}  "
+                f"runner {_signed_money(pnl)}")
+        else:
+            out.append(
+                f"  T{i:04d} {sym:10s} {dir_:5s} E:{_px(entry)}  Now:{_px(now)}  "
+                f"{_signed_money(pnl)}  {_signed_r(r_mult)}"
+            )
+        lvl = _levels_line(p, _row_mode(p, mgmt))
+        if lvl:
+            out.append(lvl)
         if booked:
             frac, usd, rb = booked
             out.append(f"         Booked {_frac_txt(frac)} at {_px(p.get('partial_price'))}: "
                        f"{_signed_money(usd)} ({_signed_r(rb)})")
             out.append(f"         Runner {_frac_txt(1.0 - frac)} open, stop "
                        f"{_px(p.get('current_stop'))} = {_stop_r_label(p, p.get('current_stop'))}")
+            blend = _blended_open(p, booked)
+            if blend is not None:
+                out.append(f"         Whole trade now: {_signed_r(blend[1])} "
+                           f"({_signed_money(blend[0])} incl. booked)")
     if len(positions) > 6:
         out.append(f"  ... and {len(positions) - 6} more open")
     return "\n".join(out)
 
 
-def pending_orders_block(pending: List[Dict]) -> str:
+def _blended_open(p: Dict, booked) -> Optional[Tuple[float, float]]:
+    """($, R) of a partialled position as a whole: the booked partial plus the
+    runner's open P&L, R over the ORIGINAL size and planned risk."""
+    runner_usd = _num(p.get("unrealized_pnl"))
+    pq, rem = _num(p.get("partial_qty")) or 0.0, _num(p.get("position_size")) or 0.0
+    e, st = _num(p.get("entry_price")), _num(p.get("stop_price"))
+    if runner_usd is None or e is None or st is None or e == st or pq + rem <= 0:
+        return None
+    usd = booked[1] + runner_usd
+    return usd, usd / ((pq + rem) * abs(e - st))
+
+
+def pending_orders_block(pending: List[Dict], mgmt: Optional[Dict] = None) -> str:
     """Resting PENDING orders (not filled yet). Shown with the order type and
-    full Entry/SL/T1/T2/T3 so a missed signal can still be placed on
+    the bracket to place, so a missed signal can still be placed on
     FundingPips. These are NOT open trades and carry no risk until price
-    trades to the entry (down/up to a limit, through a stop)."""
+    trades to the entry (down/up to a limit, through a stop). In scale_out a
+    pending order is placed as 2 orders (A: TP at +1R, B: runner), or as ONE
+    order with its TP at +1R when the lot cannot be split."""
     if not pending:
         return ""
-    out = ["PENDING ORDERS   (not filled yet -- place as shown)"]
+    so = _is_scale_out(mgmt)
+    out = ["PENDING ORDERS   (not filled yet -- "
+           + ("place as below)" if so else "place as shown)")]
     for p in pending[:8]:
         sym  = (p.get("display_name") or p.get("symbol", "?"))[:10]
         label = order_label(p)
@@ -856,13 +1008,50 @@ def pending_orders_block(pending: List[Dict]) -> str:
         dist = _num(p.get("distance_pct"))
         dist_s = f"  ({dist:.2f}% away)" if dist is not None else ""
         out.append(f"  {sym:10s} {label:10s} E:{_px(entry)}{dist_s}")
-        out.append(_levels_line(p))
+        lvl = _levels_line(p, mgmt)
+        if lvl:
+            out.append(lvl)
+        if so:
+            out.extend(_pending_split_lines(p, mgmt))
     if len(pending) > 8:
         out.append(f"  ... and {len(pending) - 8} more pending")
     return "\n".join(out)
 
 
-def fills_block(fills: List[Dict]) -> str:
+def _pending_split_lines(p: Dict, m: Dict) -> List[str]:
+    """How to place a pending scale_out order at the broker."""
+    mm = _for_trade(m, p)
+    e, st = _num(p.get("entry_price")), _num(p.get("stop_price"))
+    lv = (scale_out_levels(e, st, _is_long(p), mm)
+          if scale_out_levels is not None and e is not None and st is not None else None)
+    if not lv:
+        return []
+    r1 = _fmt_r(lv["l1_r"])
+    if lv.get("single"):
+        return [f"         ONE order, TP +{r1}R: it closes 100% there"]
+    b_tp = ("no TP" if lv["runner_target"] is None
+            else f"TP +{_fmt_r(lv['runner_target_r'])}R")
+    return [f"         2 orders: A {_frac_txt(lv['fraction'])} TP +{r1}R / "
+            f"B {_frac_txt(1.0 - lv['fraction'])} {b_tp}"]
+
+
+def _gapped_past_l1(p: Dict, m: Optional[Dict]) -> Optional[float]:
+    """Planned +1R of a scale_out fill that was already at/through it (a stop
+    order that gapped), else None."""
+    if not _is_scale_out(m):
+        return None
+    e, st, f = _num(p.get("entry_price")), _num(p.get("stop_price")), _num(p.get("fill_price"))
+    if e is None or st is None or f is None or e == st:
+        return None
+    at_r = _num((m or {}).get("scale_out_at_r")) or 1.0
+    sign = 1.0 if _is_long(p) else -1.0
+    l1 = e + sign * at_r * abs(e - st)
+    if p.get("gapped_past_l1") or (f - l1) * sign >= 0:
+        return _num(p.get("l1")) or l1
+    return None
+
+
+def fills_block(fills: List[Dict], mgmt: Optional[Dict] = None) -> str:
     """Resting orders that FILLED since the last post (pending -> open trade)."""
     if not fills:
         return ""
@@ -874,7 +1063,26 @@ def fills_block(fills: List[Dict]) -> str:
         when = p.get("filled_at") or p.get("fill_time") or p.get("entry_time")
         out.append(f"  {sym:10s} {dir_:5s} {order_label(p):10s} "
                    f"@ {_px(price)}  {fmt_when(when)}")
-        out.append(_levels_line(p))
+        rm = _row_mode(p, mgmt)
+        # The bracket as placed: in scale_out the ORIGINAL stop (a gapped
+        # fill's partial may already have moved it; the lines below say so).
+        row = (dict(p, partial_taken=False, current_stop=p.get("stop_price"))
+               if _is_scale_out(rm) else p)
+        lvl = _levels_line(row, rm)
+        if lvl:
+            out.append(lvl)
+        gap_l1 = _gapped_past_l1(p, rm)
+        if gap_l1 is not None:
+            single = _is_single(p) or (_num(rm.get("scale_out_fraction")) or 0) >= 1
+            out.append(f"    [!] stop order filled past +1R {_px(gap_l1)}: the +1R TP")
+            if single:
+                out.append(f"        was already hit; the bot closed 100% at the fill {_px(price)}")
+                out.append("    >> Broker: close the order at market now")
+            else:
+                out.append(f"        was already hit; the bot closed "
+                           f"{_frac_txt(rm.get('scale_out_fraction'))} at the fill {_px(price)}")
+                out.append("    >> Broker: if order A's TP did not fill, close A at")
+                out.append(f"       market; set the runner's stop to breakeven {_px(price)}")
     if len(fills) > 6:
         out.append(f"  ... and {len(fills) - 6} more filled")
     return "\n".join(out)
@@ -883,10 +1091,34 @@ def fills_block(fills: List[Dict]) -> str:
 def partials_block(partials: List[Dict]) -> str:
     """Scale-out partial closes at +1R and runner stop moves since the last
     post (2026-09-28). The user mirrors the paper trades by hand, so every stop
-    move has to be repeated at the broker."""
+    move has to be repeated at the broker.
+
+    Every event here is reported for the FIRST time. When the runner has also
+    closed since (runner_closed), the user was never told to move order B's
+    stop to that level, so B is still open at the broker and must be closed
+    at market -- unless the runner closed at its own take-profit, which order
+    B carries too."""
     if not partials:
         return ""
     out = ["PARTIAL CLOSES / STOP MOVES   (repeat at the broker)"]
+    told_close = set()
+
+    def _close_runner_lines(e: Dict, rest: str) -> List[str]:
+        pid = str(e.get("position_id") or e.get("id") or "")
+        reason = str(e.get("close_reason") or "").strip().lower()
+        xp = _px(e.get("close_price")) if e.get("close_price") is not None else MISSING
+        if pid in told_close:
+            return [f"    runner closed since (see CLOSED)"]
+        told_close.add(pid)
+        if reason == "runner_target":
+            return [f"    runner {rest} closed since at its TP {xp} (see CLOSED)",
+                    "    >> Broker: order B's TP closed it; nothing left open"]
+        why = _REASON_TEXT.get(reason, reason) or "stop"
+        return [f"    runner {rest} closed since: stopped at {xp}",
+                f"    ({why}; see CLOSED)",
+                "    >> Broker: order B's stop was never moved there --",
+                "       close order B (the runner) at market now"]
+
     for e in partials[:8]:
         sym = (e.get("display_name") or e.get("symbol", "?"))[:10]
         dir_ = str(e.get("direction", "?")).upper()
@@ -905,11 +1137,13 @@ def partials_block(partials: List[Dict]) -> str:
                        f"at {_px(e.get('price'))}")
             out.append(f"    {_signed_money(e.get('pnl'))}, {_signed_r(e.get('r_booked'))} booked"
                        f"  {fmt_when(e.get('at'))}")
+            if e.get("gap_fill"):
+                out.append(f"    (stop order filled past {r_txt}: order A's TP was")
+                out.append("     instantly marketable, so it closed at the fill)")
             rest = _frac_txt(1.0 - frac) if frac is not None else "rest"
             be = _num(e.get("new_stop"))
             if closed:
-                out.append(f"    runner {rest} closed since (see CLOSED)")
-                out.append("    >> Broker: whole position is closed now")
+                out.extend(_close_runner_lines(e, rest))
                 continue
             stop = be
             if cur is not None and be is not None and \
@@ -928,10 +1162,15 @@ def partials_block(partials: List[Dict]) -> str:
             nr = _num(e.get("new_stop_r"))
             lock = (f"{nr:+.0f}R locked" if nr is not None and abs(nr - round(nr)) < 0.02
                     else (f"{nr:+.2f}R" if nr is not None else MISSING))
-            out.append(f"  {sym:10s} {dir_:5s}  runner stop -> {_px(e.get('new_stop'))} ({lock})")
+            when = fmt_when(e.get("at")) if e.get("at") else ""
+            out.append(f"  {sym:10s} {dir_:5s}  runner stop -> {_px(e.get('new_stop'))} "
+                       f"({lock})")
+            if when and when != MISSING:
+                out.append(f"    {when}")
             if closed:
-                out.append("    runner closed since (see CLOSED)")
+                out.extend(_close_runner_lines(e, "the rest"))
             else:
+                out.append(f"    >> Broker: move the runner's stop to {_px(e.get('new_stop'))}")
                 out.extend(_through_stop_line(is_long, _num(e.get("new_stop")), now))
     if len(partials) > 8:
         out.append(f"  ... and {len(partials) - 8} more")
@@ -944,7 +1183,7 @@ def _through_stop_line(is_long: bool, stop, now) -> List[str]:
     at the next bar's open anyway."""
     if stop is None or now is None:
         return []
-    if (now <= stop) if is_long else (now >= stop):
+    if (now < stop) if is_long else (now > stop):
         return [f"    [!] price {_px(now)} is already past it:",
                 "        close the runner at market"]
     return []
@@ -976,9 +1215,13 @@ def mode_change_block(info: Optional[Dict]) -> str:
             lv = None
             e, st = _num(o.get("entry_price")), _num(o.get("stop_price"))
             if scale_out_levels is not None and e is not None and st is not None:
-                lv = scale_out_levels(e, st, _is_long(o), m)
+                lv = scale_out_levels(e, st, _is_long(o), _for_trade(m, o))
             r1 = _fmt_r((lv or {}).get("l1_r") or 1.0)
             l1 = _px(lv["l1"]) if lv else MISSING
+            if lv and lv.get("single"):
+                out.append(f"    move its take-profit to +{r1}R {l1}:")
+                out.append("    the whole order closes there (lot too small to split)")
+                continue
             frac = _frac_txt((lv or {}).get("fraction", 0.5))
             out.append(f"    remove its old take-profit; at +{r1}R {l1}")
             out.append(f"    close {frac} + stop to breakeven; the rest")
@@ -986,7 +1229,8 @@ def mode_change_block(info: Optional[Dict]) -> str:
         elif new == "fixed":
             out.append("    stop never moves; take-profit 100% at Target 2")
         else:
-            out.append("    managed by the ladder (see each update)")
+            out.append(f"    ladder: breakeven at {_ladder_be(m)}, 50% at T2,")
+            out.append("    trail the rest 1R behind price, close it at T3")
     if len(info.get("orders") or []) > 8:
         out.append(f"  ... and {len(info['orders']) - 8} more")
     return "\n".join(out)
@@ -1035,6 +1279,10 @@ def closed_block(closed_this_scan: List[Dict]) -> str:
             pr = _r_of(p, p.get("partial_price"))
             pr_s = f"{pr:+.0f}R" if pr is not None and abs(pr - round(pr)) < 0.02 else (
                 f"{pr:+.2f}R" if pr is not None else MISSING)
+            fl, pp = _num(p.get("fill_price")), _num(p.get("partial_price"))
+            if fl is not None and pp is not None and abs(pp - fl) < 1e-12 \
+                    and pr is not None and pr > 0:
+                pr_s = "the fill (gapped past +1R)"
             tot = f"{r_mult:+.2f}R" if r_mult is not None else MISSING
             out.append(f"      = {tot}: {_frac_txt(booked[0])} at {pr_s}, {_runner_exit_text(p)}")
     return "\n".join(out)
@@ -1044,9 +1292,22 @@ def track_record_block(history: List[Dict], mgmt: Optional[Dict] = None) -> str:
     if not history:
         m = _mgmt(mgmt=mgmt)
         if _is_scale_out(m):
-            how = (f"  {_frac_txt(m.get('scale_out_fraction'))} closes at "
-                   f"+{_fmt_r(m.get('scale_out_at_r') or 1.0)}R (stop to breakeven);\n"
-                   "  the runner exits on its stop (trails in 1R steps).")
+            at = _fmt_r(m.get("scale_out_at_r") or 1.0)
+            if (_num(m.get("scale_out_fraction")) or 0) >= 1:
+                how = f"  Each position closes 100% at +{at}R or at its stop (stop never moves)."
+            else:
+                if m.get("runner_target_r"):
+                    run = (f"the runner closes at +{_fmt_r(m['runner_target_r'])}R or on its "
+                           "stop")
+                else:
+                    run = "the runner has no TP and exits on its stop"
+                trail = ("trails in 1R steps" if m.get("runner_trail") == "r_steps"
+                         else "stop stays at breakeven")
+                how = (f"  {_frac_txt(m.get('scale_out_fraction'))} closes at +{at}R "
+                       f"(stop to breakeven);\n  {run} ({trail}).")
+        elif (m or {}).get("mode") == "ladder":
+            how = (f"  Ladder: breakeven at {_ladder_be(m)}, 50% at T2, the rest trails\n"
+                   "  1R behind price and closes at T3 (or on its stop).")
         else:
             how = "  Each position closes at its stop or 100% at Target 2 (stop never moves)."
         return (
@@ -1085,6 +1346,12 @@ def footer_block(scan: Dict) -> str:
     if below:
         base += (f"\n{len(below)} setup(s) below your quality bar "
                  f"(composite < {minc:g}) were not alerted.")
+    # A rejected stop_loss setting (unknown mode, nonsense scale_out numbers)
+    # falls back to 'fixed'; say so loudly, a bad revert must be visible.
+    errs = (scan.get("management") or {}).get("errors") if isinstance(
+        scan.get("management"), dict) else None
+    for e in (errs or [])[:3]:
+        base += f"\n[!] CONFIG: {str(e)[:150]}"
     return base
 
 
@@ -1284,6 +1551,11 @@ def compute_events(scan: Dict, prev: Dict) -> Dict:
         pid = str(e.get("position_id") or e.get("id") or "")
         if pid in closed_ids or (pid in hist_by_id and pid not in pos_by_id):
             e["runner_closed"] = True
+            h = hist_by_id.get(pid) or next((c for c in closed if str(c.get("id")) == pid), {})
+            for k in ("close_price", "close_reason"):
+                if h.get(k) is not None:
+                    e[k] = h.get(k)
+    new_ids = {str(s.get("paper_trade_id")) for s in new_signals if s.get("paper_trade_id")}
 
     return {
         "new_signals": new_signals,
@@ -1291,7 +1563,8 @@ def compute_events(scan: Dict, prev: Dict) -> Dict:
         "closed": closed,
         "cancelled": cancelled,
         "partials": partials,
-        "mode_change": None if reset else _mode_change(scan, prev, positions, pending),
+        "mode_change": None if reset else _mode_change(scan, prev, positions, pending,
+                                                       new_ids),
         "reset": reset,
     }
 
@@ -1306,23 +1579,34 @@ def _scan_mode(scan: Dict) -> Optional[str]:
 
 
 def _mode_change(scan: Dict, prev: Dict, positions: List[Dict],
-                 pending: List[Dict]) -> Optional[Dict]:
+                 pending: List[Dict], new_ids=None) -> Optional[Dict]:
     """Notice data when the management mode differs from the one the last
     SAVED Discord state was posted under, and orders or open positions exist
     that were announced under the old text. A state from before this field
-    existed was written by the 'fixed' bot (2026-09-27) or earlier."""
+    existed was written by the 'fixed' bot (2026-09-27) or earlier.
+
+    Only ids ANNOUNCED BEFORE this run count (order_ids_seen,
+    pending_orders_seen, open_position_ids_seen of the saved state), never an
+    order a NEW SIGNAL in this same post announces under the new text."""
     cur = _scan_mode(scan)
     if not prev or cur is None:
         return None
     old = prev.get("management_mode")
     if old == cur:
         return None
-    orders = [dict(p) for p in pending if isinstance(p, dict)]
+    announced = set(str(x) for x in (prev.get("order_ids_seen") or []) if x)
+    announced |= set(str(x) for x in _pending_seen(prev))
+    announced |= set(str(x) for x in (prev.get("open_position_ids_seen") or []) if x)
+    announced -= set(new_ids or ())
+
+    def _old(p) -> bool:
+        return isinstance(p, dict) and str(p.get("id")) in announced
+
+    orders = [dict(p) for p in pending if _old(p)]
     # Open positions still on their original bracket (a scale-out partial has
     # already been reported with its own instructions).
     orders += [dict(p) for p in positions
-               if isinstance(p, dict) and not (p.get("partial_taken")
-                                               and trade_mode(p) == cur)]
+               if _old(p) and not (p.get("partial_taken") and trade_mode(p) == cur)]
     if not orders:
         return None
     return {"old": old or "earlier alerts", "new": cur, "orders": orders,
@@ -1391,11 +1675,18 @@ def _partial_events(scan: Dict, prev: Dict, pos_by_id: Dict, hist_by_id: Dict) -
                   "price": p.get("partial_price"), "fraction": booked[0], "pnl": booked[1],
                   "r_booked": booked[2], "new_stop": p.get("fill_price") or p.get("entry_price"),
                   "at": p.get("partial_time")})
+        # Backstop stop moves: scale-out runners only (a ladder runner trails
+        # continuously and never posted its trail moves), and only whole-R
+        # lock levels (+1R, +2R, ...), the only moves scale_out makes.
+        if trade_mode(p) != "scale_out":
+            continue
         prev_stop, cur = _num(runner_prev.get(pid)), _num(p.get("current_stop"))
         if prev_stop is None or cur is None:
             continue
         tighter = cur > prev_stop if _is_long(p) else cur < prev_stop
-        if tighter:
+        lock_r = _r_of(p, cur)
+        whole = lock_r is not None and lock_r >= 1.0 - 0.02 and abs(lock_r - round(lock_r)) < 0.02
+        if tighter and whole:
             _add({"event": "stop_moved", "position_id": pid, "symbol": p.get("symbol"),
                   "display_name": p.get("display_name"), "direction": p.get("direction"),
                   "entry_price": p.get("entry_price"), "stop_price": p.get("stop_price"),
@@ -1504,7 +1795,8 @@ def build_state(scan: Dict, prev: Dict, events: Dict, now_utc: datetime,
     partial_keys = [] if events.get("reset") else list(prev.get("partial_events_seen") or [])
     partial_keys += [e.get("_key") or _partial_key(e) for e in (events.get("partials") or [])]
     runner_stops = {p["id"]: p.get("current_stop") for p in positions
-                    if isinstance(p, dict) and p.get("id") and p.get("partial_taken")}
+                    if isinstance(p, dict) and p.get("id") and p.get("partial_taken")
+                    and trade_mode(p) == "scale_out"}
 
     last_status_date = prev.get("last_status_date")
     if posted and now_utc >= _daily_due_at(now_utc):
@@ -1626,7 +1918,7 @@ def build_status_messages(scan: Dict, closed_trades: List[Dict],
     message exists, so they must never be the part cut for length."""
     blocks: List[str] = [header_block(scan.get("scan_time"), title)]
     blocks.append(mode_change_block(mode_change))
-    blocks.append(fills_block(fills or []))
+    blocks.append(fills_block(fills or [], _mgmt(scan)))
     blocks.append(partials_block(partials or []))
     blocks.append(closed_block(closed_trades or []))
     blocks.append(cancelled_block(cancelled or []))
@@ -1636,8 +1928,8 @@ def build_status_messages(scan: Dict, closed_trades: List[Dict],
         scan.get("positions") or [],
         scan.get("trade_history") or [],
     ))
-    blocks.append(open_positions_block(scan.get("positions") or []))
-    blocks.append(pending_orders_block(scan.get("pending_orders") or []))
+    blocks.append(open_positions_block(scan.get("positions") or [], _mgmt(scan)))
+    blocks.append(pending_orders_block(scan.get("pending_orders") or [], _mgmt(scan)))
     blocks.append(track_record_block(scan.get("trade_history") or [], _mgmt(scan)))
     blocks.append(below_bar_block(scan))
     blocks.append(footer_block(scan))
@@ -1753,8 +2045,8 @@ def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]
         scan.get("trade_history") or [],
     ))
     blocks.append(closed_block(closed_trades or []))
-    blocks.append(open_positions_block(scan.get("positions") or []))
-    blocks.append(pending_orders_block(scan.get("pending_orders") or []))
+    blocks.append(open_positions_block(scan.get("positions") or [], _mgmt(scan)))
+    blocks.append(pending_orders_block(scan.get("pending_orders") or [], _mgmt(scan)))
     blocks.append(track_record_block(scan.get("trade_history") or [], _mgmt(scan)))
     blocks.append(new_signals_block(new_signals, _mgmt(scan)))
     blocks.append(below_bar_block(scan))

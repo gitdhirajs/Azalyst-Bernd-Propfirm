@@ -39,6 +39,8 @@ from typing import Dict
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 
 def fresh_paper_state(config: Dict, now: datetime) -> Dict:
@@ -73,13 +75,43 @@ def fresh_paper_state(config: Dict, now: datetime) -> Dict:
     }
 
 
-def fresh_discord_state(now: datetime) -> Dict:
-    """Initial discord_state.json (the shape send_discord.load_state defaults to)."""
+def fresh_discord_state(now: datetime, config: Dict = None) -> Dict:
+    """Initial discord_state.json (the shape send_discord.load_state defaults to).
+
+    management_mode records the stop_loss.management the fresh account is
+    announced under, so the first post after a reset is never read as a
+    management CHANGE (send_discord posts a one-time notice when the scan's
+    mode differs from the saved one). `config` = the profile's config; default
+    BP_config.yaml next to this file."""
+    from BP_management import live_management, management_settings
+    mode = (management_settings(config) if config is not None else live_management())["mode"]
     return {
         "signal_ids_seen":        [],
         "open_position_ids_seen": [],
         "last_sent_at":           None,
+        "management_mode":        mode,
     }
+
+
+def _profile_config(config: Dict, suffix: str, state_dir: Path) -> Dict:
+    """Config the profile's scan runs under: a suffix like _allcoins
+    deep-merges BP_config<suffix>.yaml over the base config (run_scanner does
+    the same), so its stop_loss override (the allcoins tracker pins 'fixed')
+    is what the fresh Discord state records."""
+    if not suffix:
+        return config
+    ov_path = SCRIPT_DIR / f"BP_config{suffix}.yaml"
+    if not ov_path.exists():
+        return config
+    with open(ov_path, "r", encoding="utf-8") as f:
+        ov = yaml.safe_load(f) or {}
+
+    def merge(a, b):
+        out = dict(a)
+        for k, v in (b or {}).items():
+            out[k] = merge(out[k], v) if isinstance(out.get(k), dict) and isinstance(v, dict) else v
+        return out
+    return merge(config, ov)
 
 
 def main(argv=None) -> int:
@@ -104,7 +136,8 @@ def main(argv=None) -> int:
     now = datetime.now(timezone.utc)
     outputs = {
         state_dir / f"paper_trader_state{args.suffix}.json": fresh_paper_state(config, now),
-        state_dir / f"discord_state{args.suffix}.json":      fresh_discord_state(now),
+        state_dir / f"discord_state{args.suffix}.json":      fresh_discord_state(
+            now, _profile_config(config, args.suffix, state_dir)),
         state_dir / f"scan_history{args.suffix}.json":       [],
     }
 

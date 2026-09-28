@@ -68,6 +68,7 @@ _load_secrets_from_bat()
 
 from BP_data_fetcher import DataFetcher, get_cftc_code
 from BP_rules_engine import RulesEngine
+from BP_management import scale_out_unsplittable as BP_scale_out_unsplittable
 from BP_paper_trader import PaperTrader, to_utc, bar_replay_enabled, new_events
 from BP_position_sizer import compute_lots, build_usd_quote_table
 
@@ -1345,6 +1346,11 @@ def scan_all_markets(
             usd_per_point = sz.lots * sz.usd_per_point_per_lot
             s["position_size"] = round(usd_per_point, 6)
             s["risk_amount"]   = sz.risk_usd_actual
+            # scale_out: a lot that cannot be split into order A (+1R TP) and
+            # order B (runner) in 0.01-lot steps is placed as ONE order with its
+            # TP at +1R, and the paper trader manages it that way too.
+            if BP_scale_out_unsplittable(sz.lots, trader.management):
+                s["scale_out_unsplittable"] = True
         except Exception as exc:
             s["lot_size"] = None
             s["sizing_note"] = f"sizing error: {exc}"

@@ -243,3 +243,152 @@ Section 4 is the first-run notice for the live NZDCHF order. Charts are regenera
 - The same fill-bar quirk remains in fixed mode's T2 (left unchanged by the spec).
 - The ladder's T2 partial is still credited to the account only at close (left unchanged by the
   spec).
+
+---
+
+# Round 2 — 2026-09-28 (second review)
+
+Nine major findings (two pairs were duplicates: 4 = 8, 5 = 9) and the listed minor ones. Every
+one was reproduced first with the reviewer's script in `research/review_tmp/` (not committed).
+Decisions were given with the task (gapped entries, unsplittable lots, rollback, mode notice,
+backstop). Regression tests: `tests/test_scale_out_review_round2.py` (32 tests, 29 fail on
+bb9ce54) and the rewritten gapped-entry tests in `tests/test_scale_out_review_fixes.py`.
+Full suite: 240 passed + 2 xfailed → **274 passed + 2 xfailed**. `fixed_text_parity.py`: the
+fixed-mode signal and status text is still byte-identical to gitdhirajs/main.
+
+| # | Finding | Reproduced | Fix |
+|---|---|---|---|
+| M1 | Gapped stop entry: L1 from the worse of entry/fill, but order A's TP rests at the planned L1 | yes (`stopgap.py`: paper −$60, broker −$10) | fixed |
+| M2 | Ladder revert: backstop posts every trailing move (hourly `news`) | yes (`rv_ladder.py`) | fixed |
+| M3 | Partial first reported with the runner's close: "whole position is closed now" although order B is still open at the broker | yes (`rv_cases.py` be / lock2) | fixed |
+| M4 = M8 | Mode-change notice lists orders announced in the same post; fires after every reset | yes (`rv_mode.py`) | fixed |
+| M5 = M9 | Pending / filled / open blocks print T1/T2/T3 and "place as shown" in scale_out | yes (`flow_default.txt`, `discord_e2e.py`) | fixed |
+| M6 | 0.01 lot: "close 50% by hand" is impossible, paper still books 50% | yes (`rv_signal.py`) | fixed |
+| M7 | Code rollback double-books a partial | yes (`code_rollback.py`: 5046.94 vs 5035.20) | documented + migration script |
+
+## M1 — gapped stop entry
+
+`_scale_out_manage` measures L1 from the **planned** entry again (`entry ± at_r × risk`), which is
+where order A's take-profit rests. A fill short of L1 (a 0.2R gap) books the partial at L1 from the
+worse fill: +$20 in the repro, and the stop goes to breakeven = the fill, as order A does at the
+broker. A fill already at/through the planned L1 is handled on the fill bar by the new
+`_scale_out_gap_fill`: order A's TP is instantly marketable, so the partial is booked **at the fill**
+($0), before the fill bar's stop check (the runner keeps the original stop for the rest of that
+bar), and breakeven applies from the next bar. The fill event carries `gapped_past_l1` / `l1`, the
+partial event `gap_fill`; the FILLED block prints `[!] stop order filled past +1R <L1>: ... the bot
+closed 50% at the fill <px>` and `>> Broker: if order A's TP did not fill, close A at market; set the
+runner's stop to breakeven <px>`. The partial booking moved to `_take_partial` (one code path for
+both cases). Tests: small gap, gap past L1 (long and short), gap past L1 then stop on the fill bar,
+the FILLED text; the round-1 "L1 from the fill" tests were replaced.
+
+## M2 — backstop stop moves only for scale-out runners
+
+`_partial_events` reports a backstop `stop_moved` only when `trade_mode(p) == 'scale_out'` and the
+new stop is a whole-R lock (+1R, +2R, … within 0.02R). `build_state` stores `runner_stops_seen`
+only for scale-out positions. Repro after the fix: run1..run5 give `reason=None` in ladder mode.
+Tests: ladder cadence (trail-only runs never post, nothing stored), whole-R filter, ladder position
+ignored.
+
+## M3 — runner closed in the post that first reports its partial
+
+Every event in the PARTIAL block is a first report, so when the runner has closed since, the user
+never moved order B's stop there. `compute_events` copies the close price and reason onto the event,
+and `partials_block` prints `runner 50% closed since: stopped at <px>` / `(breakeven; see CLOSED)` /
+`>> Broker: order B's stop was never moved there -- close order B (the runner) at market now`, once
+per position. A runner closed at its own take-profit says `order B's TP closed it; nothing left
+open`. Tests: partial + breakeven close, stop move + trail close, runner target, line width.
+
+## M4 / M8 — management notice
+
+`_mode_change` lists only ids announced **before** this run (`order_ids_seen`,
+`pending_orders_seen`, `open_position_ids_seen` of the saved state), minus the `paper_trade_id` of
+every NEW SIGNAL in the same post. `reset_challenge.fresh_discord_state` writes `management_mode`
+(the profile's mode: `_allcoins` merges its override and records `fixed`), so a reset never looks
+like a change. Tests: same-post order excluded, earlier order kept, reset state gives no notice.
+
+## M5 / M9 — mode-aware level lines
+
+`_levels_line(p, m)` is mode-aware. fixed/ladder: unchanged. scale_out: `SL:<stop>  +1R(50%):<L1>
+runner: no TP, 1R trail` (or `runner TP +3R:<px>` / `runner: no TP, stop at BE`), `SL  TP +1R (100%)`
+for a single-order trade, and no level line for a partialled runner (its Booked / Runner lines
+remain). PENDING ORDERS in scale_out: header `place as below` and `2 orders: A 50% TP +1R / B 50% no
+TP` (or `ONE order, TP +1R`). OPEN POSITIONS header `+1R=first take`; rows use the mode stamped on
+the position (`_row_mode`), so a fixed-stamped position keeps its T-levels. FILLED shows the bracket
+as placed (the original stop). The status builders pass `_mgmt(scan)`. Tests: pending, open, filled,
+fixed-stamped row, fixed text unchanged.
+
+## M6 — unsplittable lot
+
+`BP_management.split_lots` (shared by run_scanner and send_discord) and `scale_out_unsplittable`.
+run_scanner sets `s["scale_out_unsplittable"] = True` right after sizing when the lot cannot be split
+in 0.01 steps (or the fraction is >= 1). `submit_signal` copies it to `Position.scale_out_single`
+(round-trips through the state file); `_scale_out_manage` closes 100% at +1R for such a position
+(`close_reason = scale_out`). Text: `PLACE AS 1 ORDER: TP +1R <px>` / `Minimum lot: cannot split
+into 2 orders: the bot closes 100% at +1R; stop never moves.`; the signal chart shows `+1R: close
+100%` and no runner box, the result chart badge `+1R TP (100%)`. `scale_out_fraction >= 1` renders
+the same single take-profit text (`Scale-out fraction is 100%`), no more "Runner 0%". An unflagged
+minimum lot (older scan) also gets the single-order text, never an impossible split. Tests: flag,
+paper close at +1R, text, fraction 1.0, round trip, unflagged lot.
+
+## M7 — code rollback
+
+Documented in `SESSION_2026-09-28.md` next to **Revert** and in `BP_config.yaml`: the revert is
+config-only (`management: fixed`) while any open position has booked partials. New
+`research/unbook_partials.py` (dry run by default, `--apply` writes with a `.bak`) implements the
+migration for a code revert. Demo on the reviewer's rollback state: after the migration the old
+engine closes the runner at T2 with balance **5035.20** (was 5046.94). Tests: old-code close
+double counts without the migration and books once with it, idempotent, daily P&L adjusted only for
+a same-day partial, CLI dry run writes nothing.
+
+## Minor fixes
+
+- **Gapped breakeven exit**: `_stop_close_reason(pos, exit_px)` returns `breakeven_gap` when the
+  breakeven stop was gapped through by more than 0.05R (scale_out only; ladder keeps `breakeven`).
+  Text: `runner gapped through breakeven, out at <px> (-0.6R)`, reason label `breakeven (gapped)`.
+  A trail exit away from its lock reads `runner gapped through the +1R locked stop, out at ...`.
+- **Result chart runner label**: signed R (`runner gapped lock -0.5R`); "lock" only at the lock.
+  Reason labels `scale_out` → `+1R TP (100%)`, `breakeven_gap`, `runner_target`.
+- **`_runner_exit_text` rounding**: `runner target +1.5R` (2 decimals, `:g`), not `+1R`.
+- **Config validation**: unknown `management` value, `scale_out_at_r` / `scale_out_fraction` <= 0 or
+  unparseable, fraction > 1, `runner_target_r <= scale_out_at_r` → mode `fixed`, `logger.error`,
+  `errors` in the settings, `[!] CONFIG:` line in the Discord footer. A missing key still means
+  scale_out (documented in the session note).
+- **`_scale_out_booked`** returns None unless the trade is scale_out: ladder T2 partials get no
+  blended / Booked / Runner lines again.
+- **Subtitle / track record** follow `runner_trail` and `runner_target_r` (`runner trails` /
+  `runner stop at BE` / `runner to +3R`); the dangling `Runner 50% trails in 1R steps:` line is gone
+  when there are no locks; the `+1.5R runner TP : ` label keeps its space.
+- **stop_moved line**: timestamp on its own line and `>> Broker: move the runner's stop to <px>`.
+- **OPEN POSITIONS runner row**: `runner +$x` on line 1 and `Whole trade now: +1.50R (+$75.00 incl.
+  booked)`.
+- **Allcoins tracker** pinned to `stop_loss: {management: fixed}` in `BP_config_allcoins.yaml` and
+  `_gen_allcoins_config.py`.
+- **`goldtest/replay_trades.py`** prints `management mode simulated: <mode>`, notes that `be_half`
+  only matters in ladder, and every summary row has a `management` column (default unchanged).
+- **Ladder text**: NEW SIGNAL `>> MANAGEMENT (ladder): stop to breakeven at <half-way to T1 | T1>;
+  close 50% at T2, trail the rest 1R behind price, close it at T3`; the empty TRACK RECORD and the
+  mode notice say the same. The breakeven point follows `breakeven_at_half_target` (the live yaml
+  has `false` = T1), carried as `ladder_be_at_half` in the settings. Fixed text is byte-identical.
+- Found while regenerating samples: a gapped fill's breakeven stop printed as `+0.20R` / `+1.50R`
+  (R from the planned entry); `_stop_r_label` now calls a stop at the fill `breakeven`. The
+  "already past it" warning is strict (price exactly at the stop is not past it). The closed line of
+  a partial taken at a gapped fill reads `50% at the fill (gapped past +1R)`.
+
+## Left alone (as instructed)
+
+- Fixed mode's T2 fill-bar quirk (a T2 reached on the fill bar is priced at the next open).
+- Result images: `build_result_images` is still not called from `send_discord.main()` (not a
+  regression; noted in the session note).
+- Not in this round's list and not changed: the fill bar still gets no partial credit even if order
+  A's resting TP would have filled on it (needs a user decision); the legacy path
+  (`BP_BAR_REPLAY=0`) has no `open` key; overlapping captions when fill, partial and exit share one
+  daily bar; `management_mode` is not re-stamped after a mode revert.
+
+## Samples
+
+`python research/make_scaleout_samples.py` now also writes: 4) the pending-orders block in scale_out
+(first run after deploy, live NZDCHF), 5) the runner closed in the same post as its first partial
+report (real PaperTrader), 6) a minimum-lot single order (signal, fill, +1R close), 7a) an E3b
+buy-stop gapped past +1R and 7b) a 0.2R gap. New charts: `signal_gbpnzd_short_min_lot_single.png`,
+`closed_gbpnzd_short_min_lot_single.png`, `closed_gbpnzd_short_gap_through_lock.png` (badge
+`runner gapped lock -0.5R`). All regenerated charts were checked visually.

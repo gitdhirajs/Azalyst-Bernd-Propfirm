@@ -86,7 +86,7 @@ def test_live_config_is_scale_out_by_default():
     m = bm.management_settings(live)
     assert m == {"mode": "scale_out", "scale_out_at_r": 1.0, "scale_out_fraction": 0.5,
                  "runner_trail": "r_steps", "runner_target_r": None, "take_profit_target": 2,
-                 "runner_blocks_new_entries": True}
+                 "runner_blocks_new_entries": True, "ladder_be_at_half": False}
     t = PaperTrader(live)
     assert t.scale_out and not t.fixed_bracket and not t.ladder
 
@@ -94,10 +94,14 @@ def test_live_config_is_scale_out_by_default():
 def test_settings_reader_defaults_and_bad_values():
     assert bm.management_settings({})["mode"] == "scale_out"
     assert bm.management_settings({"stop_loss": {"management": "FIXED"}})["mode"] == "fixed"
+    # 2026-09-28 review round 2: an unknown mode or a nonsense scale_out block
+    # falls back to 'fixed' (the conservative bracket) with an error listed.
     m = bm.management_settings({"stop_loss": {"management": "bogus", "scale_out_fraction": 7,
                                               "runner_trail": "zones", "runner_target_r": "x"}})
-    assert m["mode"] == "scale_out" and m["scale_out_fraction"] == 1.0
+    assert m["mode"] == "fixed" and m["errors"]
     assert m["runner_trail"] == "r_steps" and m["runner_target_r"] is None
+    m = bm.management_settings({"stop_loss": {"management": "scale_out", "scale_out_fraction": 7}})
+    assert m["mode"] == "fixed" and "scale_out_fraction" in m["errors"][0]
     assert bm.management_settings(bm.management_settings({"stop_loss": {"management": "ladder"}}))[
         "mode"] == "ladder"
 
@@ -530,9 +534,14 @@ def test_signal_block_text_is_unchanged_for_fixed_and_ladder():
     for mode in ("fixed", "ladder"):
         txt = sd._format_signal_block(s, 7.0, {"mode": mode})
         assert "R:R (to T2)    : 1: 2.00" in txt
-        assert ">> MANAGEMENT  : stop never moves; close 100% at Target 2" in txt
         assert "Target 2 (2R)  :      2.34137" in txt
         assert "+1R close" not in txt
+        if mode == "fixed":
+            assert ">> MANAGEMENT  : stop never moves; close 100% at Target 2" in txt
+        else:
+            # Review round 2: ladder describes the ladder, not the fixed bracket.
+            assert "stop never moves" not in txt
+            assert ">> MANAGEMENT  (ladder):" in txt and "close 50% at T2" in txt
 
 
 def test_signal_messages_use_the_scan_management(monkeypatch):
