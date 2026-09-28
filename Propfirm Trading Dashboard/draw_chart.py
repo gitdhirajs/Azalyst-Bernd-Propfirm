@@ -58,10 +58,12 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 try:   # the ONE management reader (shared with BP_paper_trader / send_discord)
-    from BP_management import resolve_management, scale_out_levels, fmt_r as _fmt_r
+    from BP_management import (resolve_management, scale_out_levels, fmt_r as _fmt_r,
+                               trade_management)
 except Exception:  # pragma: no cover - broken checkout: fall back to fixed drawing
     resolve_management = None
     scale_out_levels = None
+    trade_management = None
 
     def _fmt_r(r):
         return f"{r:g}"
@@ -272,6 +274,19 @@ def _management(obj: Optional[Dict], explicit: Optional[Dict]) -> Dict:
         return resolve_management(explicit, (obj or {}).get("management"))
     except Exception:
         return {"mode": "fixed"}
+
+
+def _trade_management(trade: Optional[Dict], explicit: Optional[Dict]) -> Dict:
+    """Management to draw a CLOSED trade with: the mode the trade actually ran
+    under (stamped at fill / inferred from scale-out fields), with the explicit
+    or configured settings for everything else. A trade that does not say is
+    drawn in the explicit / configured mode."""
+    if trade_management is None:
+        return _management(trade, explicit)
+    try:
+        return trade_management(trade, explicit, (trade or {}).get("management"))
+    except Exception:
+        return _management(trade, explicit)
 
 
 def _frac_txt(f) -> str:
@@ -956,7 +971,7 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         tl = list(trade.get("targets") or [])
         target = _finite(tl[1]) if len(tl) > 1 else None
         is_long = _dir_is_long(trade.get("direction"))
-        mg = _management(trade, management)
+        mg = _trade_management(trade, management)
         lv = (scale_out_levels(entry, stop, is_long, mg)
               if mg.get("mode") == "scale_out" and scale_out_levels is not None else None)
         if lv:

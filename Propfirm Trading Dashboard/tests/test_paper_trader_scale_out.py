@@ -85,7 +85,8 @@ def test_live_config_is_scale_out_by_default():
     live = yaml.safe_load((HERE / "BP_config.yaml").read_text(encoding="utf-8"))
     m = bm.management_settings(live)
     assert m == {"mode": "scale_out", "scale_out_at_r": 1.0, "scale_out_fraction": 0.5,
-                 "runner_trail": "r_steps", "runner_target_r": None, "take_profit_target": 2}
+                 "runner_trail": "r_steps", "runner_target_r": None, "take_profit_target": 2,
+                 "runner_blocks_new_entries": True}
     t = PaperTrader(live)
     assert t.scale_out and not t.fixed_bracket and not t.ladder
 

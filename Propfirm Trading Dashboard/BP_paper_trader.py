@@ -175,6 +175,22 @@ class Position:
     # partial_time: start of the bar on which the partial was taken.
     runner_peak_r: float = 0.0
     partial_time: Optional[datetime] = None
+    # booked_pnl: the part of realized_pnl already credited to the ACCOUNT
+    #   (balance / closed_pnl_total / daily_pnl). A scale-out partial is booked
+    #   when it happens, as the broker does; _close_position books only the
+    #   rest. realized_pnl stays the whole-trade total (R, win/loss).
+    # fill_bar_extreme: favourable extreme (long: high, short: low) of the bar
+    #   the order filled on. That bar gets no partial credit, but a resting
+    #   take-profit would have filled AT its level there, so the next bar must
+    #   not credit a level the fill bar already traded through at a "gapped"
+    #   open (on continuous 1h data that open is just the fill bar's close).
+    #   Cleared after the first managed bar.
+    # management_mode: the stop_loss.management mode that managed the position,
+    #   stamped at fill ('' = unknown / legacy record). Result charts and the
+    #   Discord text describe a trade by the mode it ran under.
+    booked_pnl: float = 0.0
+    fill_bar_extreme: Optional[float] = None
+    management_mode: str = ""
 
 
 @dataclass
@@ -280,6 +296,10 @@ class PaperTrader:
         self.scale_out_fraction = float(self.management['scale_out_fraction'])
         self.runner_trail = self.management['runner_trail']
         self.runner_target_r = self.management['runner_target_r']
+        # A de-risked runner (partial off, stop at/beyond breakeven) still
+        # counts toward max_open_positions and as a correlation peer unless
+        # stop_loss.runner_blocks_new_entries: false (default true = unchanged).
+        self.runner_blocks_new_entries = bool(self.management.get('runner_blocks_new_entries', True))
 
         # Read once per trader so a run cannot mix the two pricing models.
         self.bar_replay = bar_replay_enabled()
@@ -395,7 +415,15 @@ class PaperTrader:
             p for p in self.positions.values()
             if p.status == TradeStatus.ACTIVE and p.id != exclude_id
         ]
-        if len(active_positions) >= self.max_positions:
+        counted = active_positions
+        if not self.runner_blocks_new_entries:
+            counted = [p for p in active_positions if not self._is_derisked_runner(p)]
+        if len(counted) >= self.max_positions:
+            _runners = [p.symbol for p in counted if self._is_derisked_runner(p)]
+            if _runners:
+                logger.info(f"[{symbol}] max_positions reached partly by de-risked runner(s) "
+                            f"{_runners}; set stop_loss.runner_blocks_new_entries: false to "
+                            f"stop runners blocking new entries")
             return False, f"max_positions ({self.max_positions}) reached"
 
         open_risk = sum(
@@ -420,13 +448,47 @@ class PaperTrader:
                 p for p in self.positions.values()
                 if p.status in peer_statuses and p.id != exclude_id
             ]
+            if not self.runner_blocks_new_entries:
+                peers = [p for p in peers if not self._is_derisked_runner(p)]
             offenders = RulesEngine.is_correlated_to_open(
                 symbol, [p.symbol for p in peers], self.config,
             )
             if offenders:
+                _runner_syms = {p.symbol for p in peers if self._is_derisked_runner(p)}
+                if set(offenders) <= _runner_syms:
+                    logger.info(f"[{symbol}] blocked only by de-risked runner(s) {offenders} "
+                                f"(stop at/beyond breakeven); set "
+                                f"stop_loss.runner_blocks_new_entries: false to allow")
                 return False, f"correlated with open position(s): {offenders}"
 
         return True, "OK"
+
+    @staticmethod
+    def _is_derisked_runner(p: 'Position') -> bool:
+        """An ACTIVE position whose partial is off and whose stop sits at or
+        beyond its breakeven (the fill), i.e. it can no longer lose money
+        except by a gap."""
+        if p.status != TradeStatus.ACTIVE or not p.partial_taken:
+            return False
+        be = p.fill_price if p.fill_price is not None else float(p.entry_price)
+        tol = 1e-9 * max(1.0, abs(be))
+        if p.direction == TradeDirection.LONG:
+            return float(p.current_stop) >= be - tol
+        return float(p.current_stop) <= be + tol
+
+    def _book_to_account(self, pnl: float) -> None:
+        """Credit realised P&L to the account NOW (balance, closed total, daily
+        P&L, peak / drawdown). Used for a scale-out partial, which the broker
+        realises when it happens, not when the runner closes."""
+        self.closed_pnl_total += pnl
+        self.balance = self.initial_balance + self.closed_pnl_total
+        self.daily_pnl += pnl
+        if self.balance > self.peak_balance:
+            self.peak_balance = self.balance
+        if self.peak_balance > 0:
+            dd = (self.peak_balance - self.balance) / self.peak_balance * 100
+            if dd > self.max_drawdown_pct:
+                self.max_drawdown_pct = dd
 
     def submit_signal(self, signal: Dict) -> Optional[str]:
         """
@@ -603,6 +665,7 @@ class PaperTrader:
             # Legacy immediate fill (BP_BAR_REPLAY=0 only).
             position.filled_at = _placed_at
             position.fill_price = float(signal['entry_price'])
+            position.management_mode = self.mode
 
         self.positions[pos_id] = position
         if is_pending:
@@ -736,6 +799,11 @@ class PaperTrader:
             pos.entry_time = utcnow()
             pos.filled_at = pos.entry_time
             pos.fill_price = entry
+            pos.management_mode = self.mode
+            # The fill bar gets no partial credit; remember how far it went so
+            # the next bar does not credit those levels at a better "gap" open.
+            _fx = high if pos.direction == TradeDirection.LONG else low
+            pos.fill_bar_extreme = float(_fx) if _finite(_fx) else None
             filled.append(pos.id)
             logger.info(f"[{pos.symbol}] PENDING limit FILLED at {entry:.5f} -> ACTIVE")
         return filled
@@ -1185,6 +1253,8 @@ class PaperTrader:
             pos.fill_price = fill_px
             pos.filled_at = start
             pos.entry_time = start
+            pos.management_mode = self.mode
+            pos.fill_bar_extreme = h if is_long else l
             events['fills'].append({
                 'event': 'order_filled', 'position_id': pos.id, 'symbol': pos.symbol,
                 'direction': pos.direction.value, 'order_type': otype,
@@ -1384,9 +1454,19 @@ class PaperTrader:
         def reached(level: float) -> bool:
             return (h >= level) if is_long else (l <= level)
 
+        # The fill bar's favourable extreme; only the first managed bar after
+        # the fill uses it (see Position.fill_bar_extreme).
+        fbx = pos.fill_bar_extreme
+        pos.fill_bar_extreme = None
+
         def tp_px(level: float) -> float:
-            # A resting take-profit fills at its level, or at a better gapped open.
+            # A resting take-profit fills at its level, or at a better gapped
+            # open -- but not when the fill bar already traded through the
+            # level: a take-profit placed at the fill would have filled AT the
+            # level there, and this bar's open is only the fill bar's close.
             if o is None:
+                return level
+            if fbx is not None and ((fbx >= level) if is_long else (fbx <= level)):
                 return level
             return max(level, o) if is_long else min(level, o)
 
@@ -1405,9 +1485,14 @@ class PaperTrader:
         at = when.isoformat() if hasattr(when, 'isoformat') else str(when)
         new_stop: Optional[float] = None
 
-        # 2) The +1R partial.
+        # 2) The +1R partial. Measured from the WORSE of the planned entry and
+        #    the fill: a stop entry that gapped past the planned entry must not
+        #    "take profit" below its own fill (it would book a loss and put the
+        #    breakeven stop above the market). A better (limit gap) fill keeps
+        #    the planned level.
         if not pos.partial_taken:
-            l1 = entry + sign * self.scale_out_at_r * risk_unit
+            base = max(entry, fill) if is_long else min(entry, fill)
+            l1 = base + sign * self.scale_out_at_r * risk_unit
             if not reached(l1):
                 return
             px = tp_px(l1)
@@ -1424,9 +1509,13 @@ class PaperTrader:
             pos.partial_time = to_utc(when)
             pos.position_size = orig - qty
             pos.breakeven_triggered = True
+            pos.management_mode = 'scale_out'
             new_stop = better(new_stop, fill)
-            # Not added to closed_pnl_total here: it is booked once, with the
-            # rest of realized_pnl, in _close_position (same as the ladder T2).
+            # Booked to the account NOW, as the broker realises a partial close
+            # when it happens (balance, daily P&L, progress to target).
+            # _close_position then books only the runner (realized - booked).
+            pos.booked_pnl += pnl
+            self._book_to_account(pnl)
             events.setdefault('partials', []).append({
                 'event': 'partial_close', 'position_id': pos.id, 'symbol': pos.symbol,
                 'direction': pos.direction.value, 'price': px,
@@ -1435,7 +1524,7 @@ class PaperTrader:
                 'at_r': self.scale_out_at_r,
                 'new_stop': fill, 'new_stop_r': r_of(fill), 'at': at,
                 'entry_price': entry, 'stop_price': float(pos.stop_price),
-                'runner_fraction': 1.0 - self.scale_out_fraction,
+                'fill_price': fill, 'runner_fraction': 1.0 - self.scale_out_fraction,
             })
             logger.info(f"[{pos.symbol}] Scale-out: {self.scale_out_fraction:.0%} closed at "
                         f"{px:.5f} (+{self.scale_out_at_r:g}R), PnL={pnl:.2f}; stop -> "
@@ -1463,6 +1552,7 @@ class PaperTrader:
                         'new_stop': lock, 'new_stop_r': float(k),
                         'peak_r': pos.runner_peak_r, 'at': at,
                         'entry_price': entry, 'stop_price': float(pos.stop_price),
+                        'fill_price': fill,
                     })
                     logger.info(f"[{pos.symbol}] Runner peak +{pos.runner_peak_r:.2f}R: stop -> "
                                 f"{lock:.5f} (+{k}R locked) from next bar")
@@ -1559,9 +1649,14 @@ class PaperTrader:
             # a loss. The strategy moves to BE early, so scratches are common.
             self.scratch_trades += 1
 
-        self.closed_pnl_total += pos.realized_pnl
+        # A scale-out partial was already credited to the account when it
+        # happened (pos.booked_pnl); book only what is left. Ladder / fixed
+        # trades never pre-book, so this is their whole realized_pnl.
+        unbooked = pos.realized_pnl - (pos.booked_pnl or 0.0)
+        pos.booked_pnl = pos.realized_pnl
+        self.closed_pnl_total += unbooked
         self.balance = self.initial_balance + self.closed_pnl_total
-        self.daily_pnl += pos.realized_pnl
+        self.daily_pnl += unbooked
         self.daily_trades += 1
 
         if self.balance > self.peak_balance:
@@ -1682,7 +1777,8 @@ class PaperTrader:
             d = asdict(p)
             # Dashboard reads 'unrealized_pnl' but Position only tracks realized;
             # leave None so the UI shows '--' until prices drive an update.
-            d['unrealized_pnl'] = d.get('realized_pnl') or 0.0
+            # A booked scale-out partial is already in the balance, not open P&L.
+            d['unrealized_pnl'] = (d.get('realized_pnl') or 0.0) - (d.get('booked_pnl') or 0.0)
             out.append(d)
         return out
 

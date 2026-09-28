@@ -439,6 +439,11 @@ stop_loss:
   scale_out_fraction: 0.5      # scale_out: fraction of the ORIGINAL size closed at the trigger
   runner_trail: r_steps        # scale_out: r_steps | none
   runner_target_r: null        # scale_out: optional hard runner take-profit in R; null = no cap
+  # scale_out: does a de-risked runner (50% off, stop at/beyond breakeven)
+  # still count toward risk.max_open_positions and as a correlation peer?
+  # true (default, unchanged) = yes, e.g. a EURUSD runner blocks GBPUSD until it
+  # closes. false = a runner no longer blocks new entries. USER DECISION PENDING.
+  runner_blocks_new_entries: true
   take_profit_target: 2        # fixed only: the one take-profit (T2 = 2R)
   breakeven_at_r: 1.0                # ladder only: BE at T1 (textbook)
   breakeven_at_half_target: false    # ladder only: BE at half-way to T1 (Bernd's live)

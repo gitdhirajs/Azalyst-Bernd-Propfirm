@@ -62,11 +62,16 @@ except Exception as _chart_exc:  # pragma: no cover - depends on environment
 # what the paper trader actually does. Pure python + yaml; the fallback only
 # guards a broken checkout.
 try:
-    from BP_management import resolve_management, scale_out_levels, fmt_r as _fmt_r
+    from BP_management import (resolve_management, scale_out_levels, fmt_r as _fmt_r,
+                               trade_management, trade_mode)
 except Exception as _mg_exc:  # pragma: no cover - depends on environment
     print(f"[discord] management settings unavailable: {_mg_exc}", file=sys.stderr)
     resolve_management = None
     scale_out_levels = None
+    trade_management = None
+
+    def trade_mode(_t):
+        return None
 
     def _fmt_r(r):
         return f"{r:g}"
@@ -710,7 +715,7 @@ def _format_signal_block(s: Dict, take_bar: float, mgmt: Optional[Dict] = None) 
         if note:
             out.append(f"        {str(note)[:48]}")
     if lv:
-        out.extend(_scale_out_management_lines(lv, m))
+        out.extend(_scale_out_management_lines(lv, m, lot_size))
     else:
         out.append(f"    R:R (to T2)    : " + (f"1:{rr_t2:>5.2f}" if rr_t2 is not None else MISSING))
         out.append("    >> MANAGEMENT  : stop never moves; close 100% at Target 2")
@@ -719,15 +724,43 @@ def _format_signal_block(s: Dict, take_bar: float, mgmt: Optional[Dict] = None) 
     return "\n".join(out)
 
 
-def _scale_out_management_lines(lv: Dict, m: Dict) -> List[str]:
-    """The truthful R:R + management lines of a scale_out signal."""
+def _split_lots(lot, frac) -> Optional[Tuple[float, float]]:
+    """(lots of order A, lots of order B) for a scale-out split, in 0.01 lot
+    steps; None when the lot is unknown or too small to split."""
+    lot, frac = _num(lot), _num(frac)
+    if lot is None or frac is None or lot <= 0:
+        return None
+    a = round(round(lot * frac / 0.01) * 0.01, 2)
+    b = round(lot - a, 2)
+    if a < 0.01 or b < 0.01:
+        return None
+    return a, b
+
+
+def _scale_out_management_lines(lv: Dict, m: Dict, lot=None) -> List[str]:
+    """The truthful R:R + management lines of a scale_out signal, and how to
+    place it at a broker that allows ONE take-profit per order (MT5): split it
+    into two orders on the same entry and stop."""
     r1 = _fmt_r(lv["l1_r"])
     frac, rest = _frac_txt(lv["fraction"]), _frac_txt(1.0 - lv["fraction"])
     runner = ("runner open" if lv["runner_target"] is None
               else f"runner to +{_fmt_r(lv['runner_target_r'])}R")
+    b_tp = ("no take-profit (runner)" if lv["runner_target"] is None
+            else f"TP +{_fmt_r(lv['runner_target_r'])}R {_px(lv['runner_target'])}")
+    split = _split_lots(lot, lv["fraction"])
     out = [f"    First take     : +{r1}R on {frac}; {runner}",
-           "    >> MANAGEMENT  (scale-out):",
-           f"       At +{r1}R: {_px(lv['l1'])} close {frac} + stop to breakeven"]
+           "    >> PLACE AS 2 ORDERS (same entry + stop):"]
+    if split:
+        out += [f"       A {fmt_qty(split[0], min_dp=2)} lots, TP +{r1}R {_px(lv['l1'])}",
+                f"       B {fmt_qty(split[1], min_dp=2)} lots, {b_tp}"]
+    elif lot:
+        out += ["       Lot too small to split: place ONE order",
+                f"       with no TP; close {frac} by hand at +{r1}R"]
+    else:
+        out += [f"       A {frac} of the size, TP +{r1}R {_px(lv['l1'])}",
+                f"       B {rest} of the size, {b_tp}"]
+    out += ["    >> MANAGEMENT  (scale-out):",
+            f"       At +{r1}R: {_px(lv['l1'])} close {frac} + stop to breakeven"]
     if m.get("runner_trail") == "r_steps":
         steps = ", ".join(f"+{_fmt_r(a)}R -> stop +{_fmt_r(c)}R" for a, _b, c, _d in lv["locks"])
         out.append(f"       Runner {rest} trails in 1R steps:")
@@ -853,29 +886,109 @@ def partials_block(partials: List[Dict]) -> str:
     move has to be repeated at the broker."""
     if not partials:
         return ""
-    out = ["PARTIAL CLOSES / STOP MOVES   (move the stop at the broker)"]
+    out = ["PARTIAL CLOSES / STOP MOVES   (repeat at the broker)"]
     for e in partials[:8]:
         sym = (e.get("display_name") or e.get("symbol", "?"))[:10]
         dir_ = str(e.get("direction", "?")).upper()
+        is_long = dir_ == "LONG"
+        closed = bool(e.get("runner_closed"))
+        cur = _num(e.get("current_stop"))
+        now = _num(e.get("current_price"))
         if e.get("event") == "partial_close":
             at_r = _num(e.get("at_r"))
             if at_r is None:
                 at_r = _r_of(e, e.get("price"))
             r_txt = f"+{_fmt_r(round(at_r, 2))}R" if at_r is not None else "Target"
             frac = _num(e.get("fraction"))
-            out.append(f"  {sym:10s} {dir_:5s}  {r_txt} reached: closed {_frac_txt(frac)} "
+            ftxt = _frac_txt(frac)
+            out.append(f"  {sym:10s} {dir_:5s}  {r_txt} reached: closed {ftxt} "
                        f"at {_px(e.get('price'))}")
             out.append(f"    {_signed_money(e.get('pnl'))}, {_signed_r(e.get('r_booked'))} booked"
                        f"  {fmt_when(e.get('at'))}")
             rest = _frac_txt(1.0 - frac) if frac is not None else "rest"
-            out.append(f"    stop to breakeven {_px(e.get('new_stop'))}, runner {rest} open")
+            be = _num(e.get("new_stop"))
+            if closed:
+                out.append(f"    runner {rest} closed since (see CLOSED)")
+                out.append("    >> Broker: whole position is closed now")
+                continue
+            stop = be
+            if cur is not None and be is not None and \
+                    ((cur > be + 1e-12) if is_long else (cur < be - 1e-12)):
+                # Reported late (a failed post): the runner's stop has moved
+                # on since. Never tell the user to loosen it back to breakeven.
+                stop = cur
+                out.append(f"    stop since moved to {_px(cur)} "
+                           f"({_stop_r_label(e, cur)}), runner {rest} open")
+            else:
+                out.append(f"    stop to breakeven {_px(be)}, runner {rest} open")
+            out.append(f"    >> Broker: close {ftxt} unless order A's TP filled;")
+            out.append(f"       move the runner's stop to {_px(stop)}")
+            out.extend(_through_stop_line(is_long, stop, now))
         else:
             nr = _num(e.get("new_stop_r"))
             lock = (f"{nr:+.0f}R locked" if nr is not None and abs(nr - round(nr)) < 0.02
                     else (f"{nr:+.2f}R" if nr is not None else MISSING))
             out.append(f"  {sym:10s} {dir_:5s}  runner stop -> {_px(e.get('new_stop'))} ({lock})")
+            if closed:
+                out.append("    runner closed since (see CLOSED)")
+            else:
+                out.extend(_through_stop_line(is_long, _num(e.get("new_stop")), now))
     if len(partials) > 8:
         out.append(f"  ... and {len(partials) - 8} more")
+    return "\n".join(out)
+
+
+def _through_stop_line(is_long: bool, stop, now) -> List[str]:
+    """A warning when the live price is already beyond the stop the user is
+    told to set: a broker rejects such a stop, and the bot closes the runner
+    at the next bar's open anyway."""
+    if stop is None or now is None:
+        return []
+    if (now <= stop) if is_long else (now >= stop):
+        return [f"    [!] price {_px(now)} is already past it:",
+                "        close the runner at market"]
+    return []
+
+
+def mode_change_block(info: Optional[Dict]) -> str:
+    """One-time notice when the trade management changed since the last post:
+    orders / positions announced under the old text are now managed under the
+    new mode, and the broker side must be changed by hand."""
+    if not info:
+        return ""
+    old = info.get("old") or "an earlier setting"
+    new = info.get("new") or "?"
+    names = {"scale_out": "scale-out", "fixed": "fixed bracket", "ladder": "ladder"}
+    out = [f"MANAGEMENT CHANGED: {names.get(old, old)} -> {names.get(new, new)}",
+           "  Orders/positions below were announced under the old",
+           "  text and are now managed the new way."]
+    m = info.get("settings") or {}
+    for o in (info.get("orders") or [])[:8]:
+        sym = (o.get("display_name") or o.get("symbol", "?"))[:10]
+        lab = (order_label(o) if _status(o) != "active"
+               else f"{str(o.get('direction', '?')).upper()} open")
+        out.append(f"  {sym:10s} {lab:10s} E:{_px(o.get('entry_price'))}"
+                   f"  SL:{_px(o.get('current_stop', o.get('stop_price')))}")
+        if new == "scale_out" and o.get("partial_taken"):
+            out.append(f"    partial already taken; the rest is now a runner,")
+            out.append(f"    stop {_px(o.get('current_stop'))} (trails in 1R steps)")
+        elif new == "scale_out":
+            lv = None
+            e, st = _num(o.get("entry_price")), _num(o.get("stop_price"))
+            if scale_out_levels is not None and e is not None and st is not None:
+                lv = scale_out_levels(e, st, _is_long(o), m)
+            r1 = _fmt_r((lv or {}).get("l1_r") or 1.0)
+            l1 = _px(lv["l1"]) if lv else MISSING
+            frac = _frac_txt((lv or {}).get("fraction", 0.5))
+            out.append(f"    remove its old take-profit; at +{r1}R {l1}")
+            out.append(f"    close {frac} + stop to breakeven; the rest")
+            out.append("    runs (the bot posts every stop move)")
+        elif new == "fixed":
+            out.append("    stop never moves; take-profit 100% at Target 2")
+        else:
+            out.append("    managed by the ladder (see each update)")
+    if len(info.get("orders") or []) > 8:
+        out.append(f"  ... and {len(info['orders']) - 8} more")
     return "\n".join(out)
 
 
@@ -1163,6 +1276,14 @@ def compute_events(scan: Dict, prev: Dict) -> Dict:
         cancelled.append(rec)
 
     partials = _partial_events(scan, ids_prev, pos_by_id, hist_by_id)
+    # A partial and the runner's close in the same run (or before a failed
+    # post was retried): the partial line must not tell the user to move the
+    # stop of a runner the CLOSED block reports as closed.
+    closed_ids = {str(h.get("id")) for h in closed if h.get("id")}
+    for e in partials:
+        pid = str(e.get("position_id") or e.get("id") or "")
+        if pid in closed_ids or (pid in hist_by_id and pid not in pos_by_id):
+            e["runner_closed"] = True
 
     return {
         "new_signals": new_signals,
@@ -1170,8 +1291,42 @@ def compute_events(scan: Dict, prev: Dict) -> Dict:
         "closed": closed,
         "cancelled": cancelled,
         "partials": partials,
+        "mode_change": None if reset else _mode_change(scan, prev, positions, pending),
         "reset": reset,
     }
+
+
+def _scan_mode(scan: Dict) -> Optional[str]:
+    """Management mode the scan was produced under (results['management']),
+    None for an older scan file that does not carry it."""
+    m = scan.get("management") if isinstance(scan, dict) else None
+    if not isinstance(m, dict) or not m:
+        return None
+    return _mgmt(mgmt=m).get("mode")
+
+
+def _mode_change(scan: Dict, prev: Dict, positions: List[Dict],
+                 pending: List[Dict]) -> Optional[Dict]:
+    """Notice data when the management mode differs from the one the last
+    SAVED Discord state was posted under, and orders or open positions exist
+    that were announced under the old text. A state from before this field
+    existed was written by the 'fixed' bot (2026-09-27) or earlier."""
+    cur = _scan_mode(scan)
+    if not prev or cur is None:
+        return None
+    old = prev.get("management_mode")
+    if old == cur:
+        return None
+    orders = [dict(p) for p in pending if isinstance(p, dict)]
+    # Open positions still on their original bracket (a scale-out partial has
+    # already been reported with its own instructions).
+    orders += [dict(p) for p in positions
+               if isinstance(p, dict) and not (p.get("partial_taken")
+                                               and trade_mode(p) == cur)]
+    if not orders:
+        return None
+    return {"old": old or "earlier alerts", "new": cur, "orders": orders,
+            "settings": _mgmt(scan)}
 
 
 def _partial_key(e: Dict) -> str:
@@ -1190,8 +1345,10 @@ def _partial_events(scan: Dict, prev: Dict, pos_by_id: Dict, hist_by_id: Dict) -
     runner_stops_seen), so a partial or a lock is still reported when the run
     that produced it failed to post. Each event carries '_key' for build_state."""
     seen = set(prev.get("partial_events_seen") or [])
+    upgraded = "runner_stops_seen" not in prev    # first run after the scale-out deploy
     runner_prev = prev.get("runner_stops_seen")
     runner_prev = runner_prev if isinstance(runner_prev, dict) else {}
+    last_sent = parse_utc(prev.get("last_sent_at"))
     out: List[Dict] = []
     keys = set()
 
@@ -1217,10 +1374,20 @@ def _partial_events(scan: Dict, prev: Dict, pos_by_id: Dict, hist_by_id: Dict) -
         if not p.get("partial_taken"):
             continue
         booked = _scale_out_booked(p)
-        if pid not in runner_prev and f"{pid}|partial" not in seen and booked:
+        # Backstop partial only for a SCALE-OUT partial (a ladder-era T2
+        # partial is not a "+1R reached" event), and on the first run after
+        # the upgrade only when it happened after the last successful post.
+        ptime = parse_utc(p.get("partial_time"))
+        report = (booked and trade_mode(p) == "scale_out" and p.get("partial_time")
+                  and pid not in runner_prev and f"{pid}|partial" not in seen)
+        if report and upgraded and last_sent is not None and ptime is not None \
+                and ptime <= last_sent:
+            report = False
+        if report:
             _add({"event": "partial_close", "position_id": pid, "symbol": p.get("symbol"),
                   "display_name": p.get("display_name"), "direction": p.get("direction"),
                   "entry_price": p.get("entry_price"), "stop_price": p.get("stop_price"),
+                  "fill_price": p.get("fill_price"),
                   "price": p.get("partial_price"), "fraction": booked[0], "pnl": booked[1],
                   "r_booked": booked[2], "new_stop": p.get("fill_price") or p.get("entry_price"),
                   "at": p.get("partial_time")})
@@ -1233,6 +1400,25 @@ def _partial_events(scan: Dict, prev: Dict, pos_by_id: Dict, hist_by_id: Dict) -
                   "display_name": p.get("display_name"), "direction": p.get("direction"),
                   "entry_price": p.get("entry_price"), "stop_price": p.get("stop_price"),
                   "price": cur, "new_stop": cur, "new_stop_r": _r_of(p, cur)})
+
+    # The live runner stop and price, so a late partial line never tells the
+    # user to loosen a stop that has moved on, and a stop already through the
+    # market is flagged.
+    for e in out:
+        p = pos_by_id.get(e.get("position_id") or e.get("id"))
+        if p:
+            if _num(p.get("current_stop")) is not None:
+                e["current_stop"] = p.get("current_stop")
+            if _num(p.get("current_price")) is not None:
+                e["current_price"] = p.get("current_price")
+    # Chronological, the partial before a stop move of the same bar, so the
+    # LAST instruction the user reads is the current (tightest) stop.
+    far = datetime.max.replace(tzinfo=timezone.utc)
+
+    def _order(e: Dict):
+        at = parse_utc(e.get("at")) or far
+        return (at, 0 if e.get("event") == "partial_close" else 1)
+    out.sort(key=_order)
     return out
 
 
@@ -1257,7 +1443,7 @@ def decide_post(scan: Dict, prev: Dict, events: Dict, now_utc: datetime,
         return "reset"
     shown, _ = split_shown_signals(events.get("new_signals") or [])
     if (shown or events.get("fills") or events.get("closed") or events.get("cancelled")
-            or events.get("partials")):
+            or events.get("partials") or events.get("mode_change")):
         return "news"
     breached = bool(((scan.get("account") or {}).get("prop_firm") or {}).get("breached"))
     if breached and not prev.get("breached"):
@@ -1337,6 +1523,11 @@ def build_state(scan: Dict, prev: Dict, events: Dict, now_utc: datetime,
         "closed_ids_seen": _dedupe_tail(closed_ids, ID_MEMORY_MAX),
         "partial_events_seen": _dedupe_tail(partial_keys, ID_MEMORY_MAX),
         "runner_stops_seen": runner_stops,
+        # The management mode this state was posted under (one-time notice in
+        # compute_events when it changes). Kept from prev when the scan does
+        # not say, and only advanced by a post that actually went out.
+        "management_mode": ((_scan_mode(scan) or prev.get("management_mode")) if posted
+                            else prev.get("management_mode")),
         "last_status_date": last_status_date,
         "last_sent_at": now_utc.isoformat() if posted else prev.get("last_sent_at"),
     }
@@ -1426,13 +1617,15 @@ def build_status_messages(scan: Dict, closed_trades: List[Dict],
                           cancelled: Optional[List[Dict]] = None,
                           title: str = "STATUS",
                           now_utc: Optional[datetime] = None,
-                          partials: Optional[List[Dict]] = None) -> List[str]:
+                          partials: Optional[List[Dict]] = None,
+                          mode_change: Optional[Dict] = None) -> List[str]:
     """Portfolio status: header + what changed (FILLED / CLOSED / CANCELLED)
     + account + stats + OPEN + PENDING + TRACK RECORD, as 1..3 messages.
 
     The change blocks come right after the header: they are the reason this
     message exists, so they must never be the part cut for length."""
     blocks: List[str] = [header_block(scan.get("scan_time"), title)]
+    blocks.append(mode_change_block(mode_change))
     blocks.append(fills_block(fills or []))
     blocks.append(partials_block(partials or []))
     blocks.append(closed_block(closed_trades or []))
@@ -1522,8 +1715,11 @@ def build_result_images(scan: Dict, closed_trades: List[Dict],
         rec = dict(hist.get(t.get("id") or t.get("position_id")) or {})
         rec.update({k: v for k, v in t.items() if v is not None})
         try:
+            # Drawn in the mode the TRADE ran under, not today's config.
+            mg = (trade_management(rec, _mgmt(scan)) if trade_management is not None
+                  else _mgmt(scan))
             path = draw_chart.generate_trade_result_chart(rec, cache, timeframe=scan.get("ltf"),
-                                                          management=_mgmt(scan))
+                                                          management=mg)
         except Exception as exc:   # should not raise; belt and braces
             print(f"[discord] result chart failed for {rec.get('symbol')}: {exc}",
                   file=sys.stderr)
@@ -1688,7 +1884,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     status_msgs = build_status_messages(
         scan, events["closed"], fills=events["fills"], cancelled=events["cancelled"],
         title=_TITLES.get(reason, "STATUS"), now_utc=now_utc,
-        partials=events.get("partials"))
+        partials=events.get("partials"), mode_change=events.get("mode_change"))
     signals_msgs = build_signals_messages(scan, new_signals) if new_signals else []
 
     if args.dry_run:

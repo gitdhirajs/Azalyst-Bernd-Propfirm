@@ -2483,3 +2483,9 @@ at +1R close 50% and move the stop to breakeven from the next bar; the runner lo
 +2R at +3R, ... and exits only on its stop. 50% at +1R + breakeven runner = +0.50R (a win).
 One reader (`BP_management.py`) feeds the paper trader, Discord text and charts. `fixed`/`ladder`
 unchanged when configured. **Revert: `stop_loss.management: fixed`.** Branch `feat/scale-out-runner`, not pushed.
+Review fixes (`research/scaleout_fix_log.md`): the partial is credited to balance/daily P&L when it
+happens (`Position.booked_pnl`); a fill bar that ran through +1R books the partial AT +1R; a gapped stop
+entry measures +1R from its fill; Discord tells the user to place 2 orders (A with TP at +1R, B the
+runner), orders partial/stop lines chronologically, never reports ladder-era partials, and posts a
+one-time MANAGEMENT CHANGED notice for orders announced under the old mode. Open user decision:
+`stop_loss.runner_blocks_new_entries` (default true = a breakeven runner still blocks correlated entries).

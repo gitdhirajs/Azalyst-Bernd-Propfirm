@@ -82,6 +82,9 @@ def management_settings(config: Optional[Dict]) -> Dict:
         tp_target = max(1, int(sl.get("take_profit_target", 2)))
     except (TypeError, ValueError):
         tp_target = 2
+    rb = sl.get("runner_blocks_new_entries", True)
+    if isinstance(rb, str):
+        rb = rb.strip().lower() not in ("false", "0", "no", "off")
     return {
         "mode": mode,
         "scale_out_at_r": _pos_float(sl.get("scale_out_at_r"), 1.0),
@@ -89,6 +92,10 @@ def management_settings(config: Optional[Dict]) -> Dict:
         "runner_trail": trail,
         "runner_target_r": target_r,
         "take_profit_target": tp_target,
+        # scale_out: does a de-risked runner (partial off, stop at or beyond
+        # breakeven) still count toward max_open_positions and as a
+        # correlation peer? true = unchanged behaviour (it does).
+        "runner_blocks_new_entries": bool(rb),
     }
 
 
@@ -118,6 +125,42 @@ def resolve_management(*candidates) -> Dict:
         if isinstance(c, dict) and c:
             return management_settings(c)
     return live_management()
+
+
+def trade_mode(trade: Optional[Dict]) -> Optional[str]:
+    """The management mode a TRADE actually ran under, or None when the record
+    does not say. Order: the mode stamped on the position at fill
+    (`management_mode`), else inferred from scale-out-only fields
+    (partial_time / runner_peak_r are only ever set by the scale-out path),
+    else a partial without them is a ladder T2 partial."""
+    t = trade or {}
+    if not isinstance(t, dict):
+        return None
+    m = str(t.get("management_mode") or "").strip().lower()
+    if m in MODES:
+        return m
+    try:
+        peak = float(t.get("runner_peak_r") or 0.0)
+    except (TypeError, ValueError):
+        peak = 0.0
+    if t.get("partial_time") or peak > 0:
+        return "scale_out"
+    if t.get("partial_taken"):
+        return "ladder"
+    return None
+
+
+def trade_management(trade: Optional[Dict], *fallbacks) -> Dict:
+    """Settings to DESCRIBE a trade with (result charts, closed/partial text):
+    the configured settings (first usable fallback, else BP_config.yaml) with
+    the mode replaced by the one the trade actually ran under (trade_mode), so
+    reverting the config does not redraw an old trade in the new mode."""
+    base = resolve_management(*fallbacks)
+    m = trade_mode(trade)
+    if m and m != base.get("mode"):
+        base = dict(base)
+        base["mode"] = m
+    return base
 
 
 def fmt_r(r: float) -> str:
