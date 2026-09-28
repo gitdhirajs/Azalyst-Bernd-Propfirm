@@ -6,23 +6,34 @@
     "GBPNZD=X|short|2.3494|2.3534": "2026-09-28",
     "NZDJPY=X|long|88.134|87.242": "2026-09-28",
     "NZDCHF=X|long|0.46562|0.464": "2026-09-27",
-    "CADCHF=X|short|0.59502|0.59858": "2026-09-28"
+    "CADCHF=X|short|0.59502|0.59858": "2026-09-28",
+    "EURNZD=X|short|2.0189|2.0236": "2026-09-28"
   },
   "order_ids_seen": [
-    "eb9cb892-2ec"
+    "eb9cb892-2ec",
+    "ecd20a74-0ea",
+    "08744f7e-63b"
   ],
   "pending_orders_seen": {
-    "eb9cb892-2ec": {
-      "symbol": "NZDCHF=X",
+    "ecd20a74-0ea": {
+      "symbol": "NZDJPY=X",
       "direction": "long",
-      "entry_price": 0.46562,
-      "stop_price": 0.464,
+      "entry_price": 88.134003,
+      "stop_price": 87.241997,
       "order_type": "limit",
-      "placed_at": "2026-09-27T18:28:50.251264+00:00"
+      "placed_at": "2026-09-28T06:57:21.337775+00:00"
+    },
+    "08744f7e-63b": {
+      "symbol": "CADCHF=X",
+      "direction": "short",
+      "entry_price": 0.59502,
+      "stop_price": 0.59858,
+      "order_type": "limit",
+      "placed_at": "2026-09-28T06:57:21.338224+00:00"
     }
   },
   "open_position_ids_seen": [],
   "closed_ids_seen": [],
   "last_status_date": "2026-09-27",
-  "last_sent_at": "2026-09-27T22:15:21.366344+00:00"
+  "last_sent_at": "2026-09-28T06:57:22.140368+00:00"
 }
