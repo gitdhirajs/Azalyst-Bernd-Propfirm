@@ -48,12 +48,12 @@
       "trade_context": "counter_trend",
       "placed_at": "2026-09-27T18:28:50.251264+00:00",
       "filled_at": null,
-      "last_priced_ts": null,
+      "last_priced_ts": "2026-09-28T00:00:00+00:00",
       "order_type": "limit",
       "setup_key": "NZDCHF=X|long|0.46562|0.464",
       "fill_price": null
     }
   ],
   "trade_history": [],
-  "saved_at": "2026-09-27T22:15:20.458797+00:00"
+  "saved_at": "2026-09-28T00:49:40.911644+00:00"
 }
