@@ -15,10 +15,17 @@ long/short position:
     if any, hollow and labelled "live";
   * the zone as a shaded box from its first base candle to the right edge;
   * a position tool from the last bar to the right edge: red box entry->stop,
-    green box entry->target. Trade management is "stop never moves, 100% closes
-    at Target 2", so ONE take-profit is drawn: targets[1];
-  * right-axis price tags (Entry / Stop / Target / Now) nudged apart so they
-    never overlap, and in-plot $ / R labels next to the boxes;
+    green box entry->target. What the green part shows follows the configured
+    trade management (stop_loss.management, read through BP_management -- the
+    same reader the paper trader uses):
+      - scale_out (default, 2026-09-28): green box entry -> +1R labelled
+        "+1R: close 50% (+$X) - stop to BE", then a lighter dashed runner
+        extension +1R -> +3R (or the runner target) "Runner 50% - trails in
+        1R steps"; the result chart marks the partial exit and the runner exit
+        and shows the blended R;
+      - fixed / ladder: ONE take-profit, targets[1] (T2), as before;
+  * right-axis price tags (Entry / Stop / Target or "+1R (50%)" / Now) nudged
+    apart so they never overlap, and in-plot $ / R labels next to the boxes;
   * footer chips with the bias reads (Location, Valuation, COT, Seasonality,
     Trend) and a small watermark.
 
@@ -50,12 +57,23 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+try:   # the ONE management reader (shared with BP_paper_trader / send_discord)
+    from BP_management import resolve_management, scale_out_levels, fmt_r as _fmt_r
+except Exception:  # pragma: no cover - broken checkout: fall back to fixed drawing
+    resolve_management = None
+    scale_out_levels = None
+
+    def _fmt_r(r):
+        return f"{r:g}"
+
 # Fewer bars than this cannot show a zone in context; send the text alone.
 MIN_BARS = 10
 # Completed bars drawn on a signal chart (the tail of the series).
 MAX_BARS = 80
 # Empty bars on the right of a signal chart for the position tool and labels.
 RIGHT_PAD_BARS = 22
+# Scale-out labels are longer ("+1R: close 50% (+$25.00) - stop to BE").
+RIGHT_PAD_BARS_SCALE_OUT = 34
 # Result chart window: bars before the fill / after the exit, and empty room.
 RESULT_BARS_BEFORE = 40
 RESULT_BARS_AFTER = 5
@@ -75,6 +93,7 @@ DOWN = "#EF5350"                # TradingView down / stop / short
 ENTRY = "#5865F2"               # Discord blurple
 NOW = "#949BA4"
 NEUTRAL = "#4E5058"
+RUNNER = "#80CBC4"              # lighter green: the scale-out runner
 CHIP_TEXT_DARK = "#1E1F22"
 
 # Figure-fraction layout. The axes' right edge is computed from the widest
@@ -242,6 +261,24 @@ def _order_word(p: Dict) -> str:
     if ot not in ("limit", "stop"):
         ot = "stop" if str(p.get("entry_type") or "").upper() == "E3B" else "limit"
     return f"{'Buy' if _dir_is_long(p.get('direction')) else 'Sell'}-{ot}"
+
+
+def _management(obj: Optional[Dict], explicit: Optional[Dict]) -> Dict:
+    """Management settings for a chart: explicit dict, else the one carried by
+    the signal/trade, else BP_config.yaml. {'mode': 'fixed'} without the helper."""
+    if resolve_management is None:
+        return {"mode": "fixed"}
+    try:
+        return resolve_management(explicit, (obj or {}).get("management"))
+    except Exception:
+        return {"mode": "fixed"}
+
+
+def _frac_txt(f) -> str:
+    try:
+        return f"{float(f) * 100:g}%"
+    except (TypeError, ValueError):
+        return "50%"
 
 
 def _bias_colour(v: str) -> str:
@@ -651,11 +688,13 @@ def _fit_font(cv: _Canvas, texts: Sequence[str], max_px: float, fs: float,
 
 # ── Signal chart ──────────────────────────────────────────────────────────
 
-def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
+def generate_chart(signal: dict, ohlcv_cache: dict, asof=None,
+                   management: Optional[Dict] = None) -> Optional[str]:
     """Draw a NEW SIGNAL's chart and return the PNG path, or None when it cannot
     be drawn (no data, too few completed bars, charting library missing, or any
     plotting error). Never raises. `asof` (e.g. the scan time) is the time shown
-    in the header; default: the signal's own time."""
+    in the header; default: the signal's own time. `management` = settings from
+    BP_management (default: the signal's own, else BP_config.yaml)."""
     cv = None
     try:
         sym = (signal or {}).get("symbol")
@@ -674,6 +713,14 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
         tl = list(signal.get("targets") or [])
         target = _finite(tl[1]) if len(tl) > 1 else None
         is_long = _dir_is_long(signal.get("direction"))
+        # scale_out: the take is at +1R (50%), the runner extends beyond it.
+        mg = _management(signal, management)
+        lv = (scale_out_levels(entry, stop, is_long, mg)
+              if mg.get("mode") == "scale_out" and scale_out_levels is not None else None)
+        runner_top = None
+        if lv:
+            target = lv["l1"]
+            runner_top = lv["runner_top"]
         if target is not None and (target > entry) != is_long:
             target = None                       # nonsense level: do not draw it
 
@@ -688,7 +735,9 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
         tags = [(f"Entry {_fmt_px(entry, dec)}", entry, ENTRY, "white"),
                 (f"Stop {_fmt_px(stop, dec)}", stop, DOWN, "white")]
         if target is not None:
-            tags.append((f"Target {_fmt_px(target, dec)}", target, UP, "white"))
+            t_name = (f"+{_fmt_r(lv['l1_r'])}R ({_frac_txt(lv['fraction'])})"
+                      if lv else "Target")
+            tags.append((f"{t_name} {_fmt_px(target, dec)}", target, UP, "white"))
         tags.append((f"Now {_fmt_px(now, dec)}", now, NOW, CHIP_TEXT_DARK))
 
         try:
@@ -699,14 +748,14 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
         ax = cv.ax
 
         # Y range: visible candles + every level drawn, 6% padding.
-        ys = list(comp["low"]) + list(comp["high"]) + [entry, stop, target, now]
+        ys = list(comp["low"]) + list(comp["high"]) + [entry, stop, target, now, runner_top]
         if live is not None:
             ys += [float(live["low"]), float(live["high"])]
         if zone:
             ys += [_finite(zone.get("proximal")), _finite(zone.get("distal"))]
-        y0, y1 = _y_limits(ys, levels=[entry, stop, target, now],
+        y0, y1 = _y_limits(ys, levels=[entry, stop, target, now, runner_top],
                            axes_px=ax.bbox.height, headroom_px=52)
-        x_right = x_last + RIGHT_PAD_BARS + 0.5
+        x_right = x_last + (RIGHT_PAD_BARS_SCALE_OUT if lv else RIGHT_PAD_BARS) + 0.5
         ax.set_xlim(-0.8, x_right)
         ax.set_ylim(y0, y1)
         min_body = (y1 - y0) * 0.0015
@@ -725,6 +774,17 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
         if target is not None:
             ax.add_patch(Rectangle((xs, min(entry, target)), x_right - xs, abs(target - entry),
                                    facecolor=_rgba(UP, 0.24), edgecolor="none", zorder=2))
+        if lv and target is not None and runner_top is not None:
+            # Runner extension: lighter, dashed outline -- it has no take-profit
+            # (unless runner_target_r is set), it trails in whole-R steps.
+            ax.add_patch(Rectangle((xs, min(target, runner_top)), x_right - xs,
+                                   abs(runner_top - target), facecolor=_rgba(UP, 0.08),
+                                   edgecolor=_rgba(RUNNER, 0.75), linewidth=1.1,
+                                   linestyle=(0, (5, 3)), zorder=2))
+            for _pk, pk_px, _lr, _lp in lv["locks"]:
+                if (pk_px - runner_top) * (1 if is_long else -1) < 0:
+                    ax.hlines(pk_px, xs, x_right, colors=RUNNER, linewidth=0.9,
+                              linestyles=(0, (2, 3)), alpha=0.7, zorder=6)
         # Levels: faint over the history, strong across the position tool.
         levels = [(entry, ENTRY, 1.7), (stop, DOWN, 1.7)]
         if target is not None:
@@ -732,6 +792,9 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
         for y, colr, lw in levels:
             ax.hlines(y, -0.8, xs, colors=colr, linewidth=1.0, alpha=0.45, zorder=3)
             ax.hlines(y, xs, x_right, colors=colr, linewidth=lw, zorder=7)
+        if lv and runner_top is not None:
+            ax.hlines(runner_top, xs, x_right, colors=RUNNER, linewidth=1.6,
+                      linestyles=(0, (5, 3)), zorder=7)
         ax.axhline(now, color=NOW, linewidth=1.2, linestyle=(0, (2, 3)), zorder=6)
 
         # In-plot labels next to the boxes.
@@ -739,7 +802,20 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
         rr = abs(target - entry) / abs(entry - stop) if target is not None else None
         stop_txt = "Stop" + (f"  {_money(-risk_usd)}" if risk_usd else "") + "  (-1R)"
         lab = [(stop_txt, stop, DOWN)]
-        if target is not None:
+        if target is not None and lv:
+            frac = lv["fraction"]
+            booked = f" ({_money(risk_usd * lv['l1_r'] * frac)})" if risk_usd else ""
+            lab.append((f"+{_fmt_r(lv['l1_r'])}R: close {_frac_txt(frac)}{booked} - stop to BE",
+                        target, UP))
+            rest = _frac_txt(1.0 - frac)
+            if lv["runner_target"] is not None:
+                r_txt = f"Runner {rest} - target +{_fmt_r(lv['runner_target_r'])}R"
+            elif mg.get("runner_trail") == "r_steps":
+                r_txt = f"Runner {rest} - trails in 1R steps"
+            else:
+                r_txt = f"Runner {rest} - stop stays at BE"
+            lab.append((r_txt, runner_top, RUNNER))
+        elif target is not None:
             tgt_txt = "Target" + (f"  {_money(risk_usd * rr)}" if risk_usd else "") + \
                 f"  (+{_r_text(rr)}R)"
             lab.append((tgt_txt, target, UP))
@@ -796,6 +872,8 @@ def generate_chart(signal: dict, ohlcv_cache: dict, asof=None) -> Optional[str]:
                  f"setup on the {_tf_name(ltf)} chart"]
         if str(signal.get("trade_context") or "") == "counter_trend":
             parts.append("counter-trend, half size")
+        if lv:
+            parts.append(f"{_frac_txt(lv['fraction'])} off at +{_fmt_r(lv['l1_r'])}R, runner trails")
         when = _fmt_when(asof or signal.get("signal_time") or signal.get("placed_at")
                          or signal.get("timestamp"))
         if when:
@@ -845,10 +923,13 @@ def _reason_label(reason, r: Optional[float]) -> str:
 
 
 def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
-                                timeframe: Optional[str] = None) -> Optional[str]:
+                                timeframe: Optional[str] = None,
+                                management: Optional[Dict] = None) -> Optional[str]:
     """Draw a CLOSED trade (fill -> exit) and return the PNG path, or None.
     Never raises. `timeframe` picks the cached series (default: the trade's
-    `ltf`, else 1d, else whatever the cache holds for the symbol)."""
+    `ltf`, else 1d, else whatever the cache holds for the symbol). In scale_out
+    mode the +1R partial and the runner exit are both marked and the badge
+    shows the blended R."""
     cv = None
     try:
         sym = (trade or {}).get("symbol")
@@ -875,8 +956,22 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         tl = list(trade.get("targets") or [])
         target = _finite(tl[1]) if len(tl) > 1 else None
         is_long = _dir_is_long(trade.get("direction"))
+        mg = _management(trade, management)
+        lv = (scale_out_levels(entry, stop, is_long, mg)
+              if mg.get("mode") == "scale_out" and scale_out_levels is not None else None)
+        if lv:
+            target = lv["l1"]
         if target is not None and (target > entry) != is_long:
             target = None
+        # The partial / runner markers are scale_out drawing only; a ladder T2
+        # partial keeps the unchanged fixed/ladder chart.
+        p_px = (_finite(trade.get("partial_price"))
+                if lv and trade.get("partial_taken") else None)
+        peak_px = None
+        if lv and p_px is not None:
+            pk = _finite(trade.get("runner_peak_r"))
+            if pk is not None and pk > lv["l1_r"]:
+                peak_px = entry + (1 if is_long else -1) * pk * lv["risk"]
 
         times = frame["t"]
         i_x = _bar_index(times, trade.get("close_time"))
@@ -891,6 +986,11 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         win = frame.iloc[start:end + 1].reset_index(drop=True)
         xf, xx = i_f - start, i_x - start
         live_x = (n_live - start) if (n_live is not None and start <= n_live <= end) else None
+        xp = None
+        if p_px is not None:
+            i_p = _bar_index(times, trade.get("partial_time"))
+            i_p = i_x if i_p is None else min(max(i_p, i_f), i_x)
+            xp = i_p - start
 
         r = _finite(trade.get("r_multiple", trade.get("trade_r_multiple")))
         if r is None or (r == 0 and close != fill):
@@ -902,12 +1002,25 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         res_col = UP if good > 0 else (DOWN if good < 0 else NEUTRAL)
         reason = _reason_label(trade.get("close_reason"), r)
         dec = price_decimals(sym, entry)
+        t_name = (f"+{_fmt_r(lv['l1_r'])}R ({_frac_txt(lv['fraction'])})" if lv else "Target")
+        x_name = "Runner exit" if xp is not None else "Exit"
+        if xp is not None:
+            # Blended scale-out result, e.g. "50% at +1R, runner BE".
+            rs_ = str(trade.get("close_reason") or "").lower()
+            xr = ((close - entry) if is_long else (entry - close)) / abs(entry - stop)
+            runner = {"breakeven": "runner BE", "trail": f"runner +{_r_text(xr)}R lock",
+                      "runner_target": f"runner target +{_r_text(xr)}R"}.get(
+                rs_, f"runner {xr:+.1f}R")
+            pr = ((p_px - entry) if is_long else (entry - p_px)) / abs(entry - stop)
+            pq, rem = _finite(trade.get("partial_qty")) or 0.0, _finite(trade.get("position_size")) or 0.0
+            frac = pq / (pq + rem) if pq + rem > 0 else (lv["fraction"] if lv else 0.5)
+            reason = f"{_frac_txt(frac)} at +{_r_text(pr)}R, {runner}"
 
         tags = [(f"Entry {_fmt_px(entry, dec)}", entry, ENTRY, "white"),
                 (f"Stop {_fmt_px(stop, dec)}", stop, DOWN, "white")]
         if target is not None:
-            tags.append((f"Target {_fmt_px(target, dec)}", target, UP, "white"))
-        tags.append((f"Exit {_fmt_px(close, dec)}", close, res_col, "white"))
+            tags.append((f"{t_name} {_fmt_px(target, dec)}", target, UP, "white"))
+        tags.append((f"{x_name} {_fmt_px(close, dec)}", close, res_col, "white"))
         try:
             cv = _Canvas([t[0] for t in tags])
         except Exception as exc:
@@ -917,8 +1030,9 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
 
         n = len(win)
         x_right = n - 1 + RESULT_RIGHT_PAD + 0.5
-        ys = list(win["low"]) + list(win["high"]) + [entry, stop, target, fill, close]
-        y0, y1 = _y_limits(ys, levels=[entry, stop, target, close],
+        ys = list(win["low"]) + list(win["high"]) + [entry, stop, target, fill, close,
+                                                     p_px, peak_px]
+        y0, y1 = _y_limits(ys, levels=[entry, stop, target, close, peak_px],
                            axes_px=ax.bbox.height, headroom_px=52)
         ax.set_xlim(-0.8, x_right)
         ax.set_ylim(y0, y1)
@@ -931,6 +1045,11 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         if target is not None:
             ax.add_patch(Rectangle((a, min(entry, target)), b - a, abs(target - entry),
                                    facecolor=_rgba(UP, 0.22), edgecolor="none", zorder=2))
+        if xp is not None and target is not None and peak_px is not None:
+            ra = xp - 0.45
+            ax.add_patch(Rectangle((ra, min(target, peak_px)), b - ra, abs(peak_px - target),
+                                   facecolor=_rgba(UP, 0.08), edgecolor=_rgba(RUNNER, 0.75),
+                                   linewidth=1.0, linestyle=(0, (5, 3)), zorder=2))
         if live_x is not None:
             _draw_candles(ax, win.iloc[:live_x], 0, min_body)
             _draw_live(ax, win.iloc[live_x], live_x, min_body)
@@ -945,16 +1064,29 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
             ax.hlines(y, -0.8, a, colors=colr, linewidth=1.0, alpha=0.35, zorder=3)
             ax.hlines(y, a, b, colors=colr, linewidth=lw, zorder=7)
 
-        ax.plot([xf, xx], [fill, close], color=TEXT, linewidth=1.6, linestyle=(0, (4, 3)),
+        path_x, path_y = [xf, xx], [fill, close]
+        if xp is not None:
+            path_x, path_y = [xf, xp, xx], [fill, p_px, close]
+        ax.plot(path_x, path_y, color=TEXT, linewidth=1.6, linestyle=(0, (4, 3)),
                 alpha=0.85, zorder=16)
         ax.scatter([xf], [fill], marker="^" if is_long else "v", s=230, color=ENTRY,
                    edgecolors="white", linewidths=1.2, zorder=17)
         ax.scatter([xx], [close], marker="X", s=240, color=res_col, edgecolors="white",
                    linewidths=1.2, zorder=17)
+        captions = [("Fill", xf, fill, is_long)]
+        if xp is not None:
+            ax.scatter([xp], [p_px], marker="D", s=170, color=UP, edgecolors="white",
+                       linewidths=1.2, zorder=17)
+            captions.append((f"{_frac_txt(lv['fraction'] if lv else 0.5)} off +"
+                             f"{_fmt_r(lv['l1_r']) if lv else '1'}R",
+                             xp, p_px, not is_long))
+            captions.append(("Runner exit", xx, close, close < p_px))
+        else:
+            captions.append(("Exit", xx, close, close < fill))
         # Marker captions on the side away from the connecting line, flipped when
         # that would push them out of the plot.
         bb = ax.bbox
-        for text, x, y, below in (("Fill", xf, fill, is_long), ("Exit", xx, close, close < fill)):
+        for text, x, y, below in captions:
             py = cv.y_to_px(y)
             if below and py - bb.y0 < 48:
                 below = False
@@ -987,8 +1119,8 @@ def generate_trade_result_chart(trade: dict, ohlcv_cache: dict,
         cv.chips([(f"Entry {_fmt_px(entry, dec)}", ENTRY, "white"),
                   (f"Fill {_fmt_px(fill, dec)}", "#383A40", TEXT),
                   (f"Stop {_fmt_px(stop, dec)}", DOWN, "white")]
-                 + ([(f"Target {_fmt_px(target, dec)}", UP, "white")] if target is not None else [])
-                 + [(f"Exit {_fmt_px(close, dec)}", res_col, "white")])
+                 + ([(f"{t_name} {_fmt_px(target, dec)}", UP, "white")] if target is not None else [])
+                 + [(f"{x_name} {_fmt_px(close, dec)}", res_col, "white")])
         cv.watermark()
         return cv.save(f"azalyst_result_{_safe_name(sym)}_")
     except Exception as e:

@@ -28,7 +28,9 @@ def cfg(**risk):
                       "max_daily_loss_usd": 150.0, "max_total_loss_usd": 300.0,
                       "daily_reset_hour_utc": 22},
         "risk": r,
-        "stop_loss": {"breakeven_at_half_target": True},
+        # These tests exercise the ladder path explicitly (the default became
+        # scale_out on 2026-09-28; see test_paper_trader_scale_out.py).
+        "stop_loss": {"management": "ladder", "breakeven_at_half_target": True},
         "entry_distance": {"default_max_r": 3.0, "max_r_to_entry_pending": {"weekly": 3.0},
                            "default_max_pct": 15.0, "max_pct_to_entry": {"weekly": 15.0}},
     }
@@ -82,7 +84,7 @@ def test_kill_switch_restores_immediate_fill_and_disables_replay(monkeypatch):
     pid = t.submit_signal(signal(price_at_zone=True, pending_order=True))
     assert t.positions[pid].status == TradeStatus.ACTIVE
     ev = t.replay_bars("EURUSD=X", bars("2026-07-30T11:00Z", [(1.09, 1.09, 1.08, 1.085)]))
-    assert ev == {"fills": [], "closed": [], "cancelled": []}
+    assert ev == {"fills": [], "closed": [], "cancelled": [], "partials": []}
     assert t.positions[pid].status == TradeStatus.ACTIVE
 
 
@@ -279,7 +281,7 @@ def test_weekend_no_bars_nothing_happens():
     empty = bars("2026-08-01T00:00Z", [(1, 1, 1, 1)]).iloc[0:0]
     for df in (empty, None):
         ev = t.replay_bars("EURUSD=X", df)
-        assert ev == {"fills": [], "closed": [], "cancelled": []}
+        assert ev == {"fills": [], "closed": [], "cancelled": [], "partials": []}
     p = t.positions[pid]
     assert (p.current_stop, p.last_priced_ts, t.balance) == before
 

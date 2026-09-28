@@ -57,6 +57,20 @@ except Exception as _chart_exc:  # pragma: no cover - depends on environment
     print(f"[discord] charts disabled: {_chart_exc}", file=sys.stderr)
     draw_chart = None
 
+# Trade-management settings: the ONE reader shared with the paper trader and
+# the charts (stop_loss.management in BP_config.yaml), so the alert describes
+# what the paper trader actually does. Pure python + yaml; the fallback only
+# guards a broken checkout.
+try:
+    from BP_management import resolve_management, scale_out_levels, fmt_r as _fmt_r
+except Exception as _mg_exc:  # pragma: no cover - depends on environment
+    print(f"[discord] management settings unavailable: {_mg_exc}", file=sys.stderr)
+    resolve_management = None
+    scale_out_levels = None
+
+    def _fmt_r(r):
+        return f"{r:g}"
+
 # ── Paths ──────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT  = SCRIPT_DIR.parent
@@ -321,6 +335,89 @@ def _levels_line(p: Dict) -> str:
     return f"         SL:{_px(sl)}   T1:{_px(t1)}  T2:{_px(t2)}  T3:{_px(t3)}"
 
 
+# ── trade management (2026-09-28) ─────────────────────────────────────────
+
+def _mgmt(scan: Optional[Dict] = None, s: Optional[Dict] = None,
+          mgmt: Optional[Dict] = None) -> Dict:
+    """Management settings for a message: an explicit dict, else what the
+    signal / scan was produced under (run_scanner publishes results
+    ['management']), else BP_config.yaml. Same reader as the paper trader."""
+    cands = [mgmt, (s or {}).get("management") if isinstance(s, dict) else None,
+             (scan or {}).get("management") if isinstance(scan, dict) else None]
+    if resolve_management is not None:
+        return resolve_management(*cands)
+    for c in cands:
+        if isinstance(c, dict) and c.get("mode"):
+            return c
+    return {"mode": "fixed"}
+
+
+def _is_scale_out(m: Optional[Dict]) -> bool:
+    return bool(m) and m.get("mode") == "scale_out"
+
+
+def _frac_txt(f) -> str:
+    f = _num(f)
+    return f"{f * 100:g}%" if f is not None else MISSING
+
+
+def _is_long(p: Dict) -> bool:
+    return str(p.get("direction", "")).lower() == "long"
+
+
+def _r_of(p: Dict, price) -> Optional[float]:
+    """R of `price` from the planned entry, in units of the planned risk."""
+    e, st, x = _num(p.get("entry_price")), _num(p.get("stop_price")), _num(price)
+    if e is None or st is None or x is None or e == st:
+        return None
+    return (x - e) * (1.0 if _is_long(p) else -1.0) / abs(e - st)
+
+
+def _stop_r_label(p: Dict, stop) -> str:
+    """'breakeven' / '+1R locked' / '+0.37R' for a runner stop."""
+    r = _r_of(p, stop)
+    if r is None:
+        return MISSING
+    if abs(r) < 0.05:
+        return "breakeven"
+    if abs(r - round(r)) < 0.02:
+        return f"{round(r):+d}R locked"
+    return f"{r:+.2f}R"
+
+
+def _scale_out_booked(p: Dict) -> Optional[Tuple[float, float, float]]:
+    """(fraction closed, $ booked, R booked) of a partialled position/trade."""
+    if not p.get("partial_taken"):
+        return None
+    pq, rem = _num(p.get("partial_qty")) or 0.0, _num(p.get("position_size")) or 0.0
+    orig = pq + rem
+    if orig <= 0:
+        return None
+    e, st = _num(p.get("entry_price")), _num(p.get("stop_price"))
+    fill = _num(p.get("fill_price"))
+    fill = fill if fill is not None else e
+    px = _num(p.get("partial_price"))
+    if e is None or st is None or px is None or fill is None or e == st:
+        return None
+    sign = 1.0 if _is_long(p) else -1.0
+    usd = (px - fill) * sign * pq
+    return pq / orig, usd, usd / (orig * abs(e - st))
+
+
+def _runner_exit_text(p: Dict) -> str:
+    reason = str(p.get("close_reason") or "").strip().lower()
+    xr = _r_of(p, p.get("close_price"))
+    if reason == "breakeven":
+        return "runner breakeven"
+    if reason == "trail":
+        return f"runner stopped at {_stop_r_label(p, p.get('close_price'))}"
+    if reason == "runner_target":
+        return f"runner target {xr:+.0f}R" if xr is not None else "runner target"
+    if xr is not None:
+        return f"runner {reason or 'closed'} {xr:+.2f}R"
+    return f"runner {reason or 'closed'}"
+
+
 # ───────────────────────────────────────────────────────────────────────
 # Message blocks
 # ───────────────────────────────────────────────────────────────────────
@@ -533,7 +630,7 @@ def _signal_verdict_header() -> List[str]:
     ]
 
 
-def _format_signal_block(s: Dict, take_bar: float) -> str:
+def _format_signal_block(s: Dict, take_bar: float, mgmt: Optional[Dict] = None) -> str:
     """Render ONE signal's full block (entry/SL/TP1-3 + risk + R:R + bias).
 
     Kept as a standalone, never-split unit so callers can truncate on whole
@@ -564,10 +661,28 @@ def _format_signal_block(s: Dict, take_bar: float) -> str:
     _now = _num(s.get("current_price"))
     if _now is not None:
         out.append(f"    Price now      : {fmt_price(_now, 12)}")
+    m = _mgmt(s=s, mgmt=mgmt)
+    lv = None
+    if _is_scale_out(m) and scale_out_levels is not None and entry is not None \
+            and stop is not None:
+        lv = scale_out_levels(entry, stop, dir_ == "LONG", m)
     out.append(f"    Entry          : {fmt_price(entry, 12)}")
     out.append(f"    Stop Loss      : {fmt_price(stop, 12)}")
-    for i, t in enumerate(targets[:3], 1):
-        out.append(f"    Target {i} ({i}R)  : {fmt_price(t, 12)}")
+    if lv:
+        # scale_out (2026-09-28): the engine's 1R/2R/3R targets are not
+        # take-profits any more. Show what the paper trader will actually do.
+        r1 = _fmt_r(lv["l1_r"])
+        lab = f"+{r1}R close {_frac_txt(lv['fraction'])}"
+        out.append(f"    {lab:15s}: {fmt_price(lv['l1'], 12)}  stop -> BE")
+        for peak_r, peak_px, lock_r, _lock_px in lv["locks"]:
+            lab = f"+{_fmt_r(peak_r)}R runner"
+            out.append(f"    {lab:15s}: {fmt_price(peak_px, 12)}  stop -> +{_fmt_r(lock_r)}R")
+        if lv["runner_target"] is not None:
+            lab = f"+{_fmt_r(lv['runner_target_r'])}R runner TP"
+            out.append(f"    {lab:15s}: {fmt_price(lv['runner_target'], 12)}  close the rest")
+    else:
+        for i, t in enumerate(targets[:3], 1):
+            out.append(f"    Target {i} ({i}R)  : {fmt_price(t, 12)}")
     # The number to type into FundingPips. Shown prominently.
     if lot_size:
         out.append(f"    >> LOT SIZE    : {fmt_qty(lot_size, min_dp=2):>12} lots")
@@ -594,20 +709,48 @@ def _format_signal_block(s: Dict, take_bar: float) -> str:
         note = s.get("sizing_note")
         if note:
             out.append(f"        {str(note)[:48]}")
-    out.append(f"    R:R (to T2)    : " + (f"1:{rr_t2:>5.2f}" if rr_t2 is not None else MISSING))
-    out.append("    >> MANAGEMENT  : stop never moves; close 100% at Target 2")
+    if lv:
+        out.extend(_scale_out_management_lines(lv, m))
+    else:
+        out.append(f"    R:R (to T2)    : " + (f"1:{rr_t2:>5.2f}" if rr_t2 is not None else MISSING))
+        out.append("    >> MANAGEMENT  : stop never moves; close 100% at Target 2")
     if composite:
         out.append(f"    Composite      : {float(composite):>5.2f} / 10")
     return "\n".join(out)
 
 
-def new_signals_block(new_signals: List[Dict]) -> str:
+def _scale_out_management_lines(lv: Dict, m: Dict) -> List[str]:
+    """The truthful R:R + management lines of a scale_out signal."""
+    r1 = _fmt_r(lv["l1_r"])
+    frac, rest = _frac_txt(lv["fraction"]), _frac_txt(1.0 - lv["fraction"])
+    runner = ("runner open" if lv["runner_target"] is None
+              else f"runner to +{_fmt_r(lv['runner_target_r'])}R")
+    out = [f"    First take     : +{r1}R on {frac}; {runner}",
+           "    >> MANAGEMENT  (scale-out):",
+           f"       At +{r1}R: {_px(lv['l1'])} close {frac} + stop to breakeven"]
+    if m.get("runner_trail") == "r_steps":
+        steps = ", ".join(f"+{_fmt_r(a)}R -> stop +{_fmt_r(c)}R" for a, _b, c, _d in lv["locks"])
+        out.append(f"       Runner {rest} trails in 1R steps:")
+        if steps:
+            out.append(f"       {steps}, ...")
+    else:
+        out.append(f"       Runner {rest} stays at breakeven (no trail)")
+    if lv["runner_target"] is None:
+        out.append("       No runner take-profit: it exits on its stop.")
+    else:
+        out.append(f"       Runner closes at +{_fmt_r(lv['runner_target_r'])}R "
+                   f"{_px(lv['runner_target'])}")
+    out.append("       Move the stop at the broker when the bot says so.")
+    return out
+
+
+def new_signals_block(new_signals: List[Dict], mgmt: Optional[Dict] = None) -> str:
     """One block per signal. Show entry/SL/TP1/T2/T3 + risk + R:R + bias."""
     if not new_signals:
         return ""
     _take_bar = _load_min_composite()
     header = _signal_verdict_header()
-    body = "\n\n".join(_format_signal_block(s, _take_bar) for s in new_signals)
+    body = "\n\n".join(_format_signal_block(s, _take_bar, mgmt) for s in new_signals)
     return "\n".join(header) + "\n" + body
 
 
@@ -653,6 +796,13 @@ def open_positions_block(positions: List[Dict]) -> str:
             f"{_signed_money(pnl)}  {_signed_r(r_mult)}"
         )
         out.append(_levels_line(p))
+        booked = _scale_out_booked(p)
+        if booked:
+            frac, usd, rb = booked
+            out.append(f"         Booked {_frac_txt(frac)} at {_px(p.get('partial_price'))}: "
+                       f"{_signed_money(usd)} ({_signed_r(rb)})")
+            out.append(f"         Runner {_frac_txt(1.0 - frac)} open, stop "
+                       f"{_px(p.get('current_stop'))} = {_stop_r_label(p, p.get('current_stop'))}")
     if len(positions) > 6:
         out.append(f"  ... and {len(positions) - 6} more open")
     return "\n".join(out)
@@ -697,6 +847,38 @@ def fills_block(fills: List[Dict]) -> str:
     return "\n".join(out)
 
 
+def partials_block(partials: List[Dict]) -> str:
+    """Scale-out partial closes at +1R and runner stop moves since the last
+    post (2026-09-28). The user mirrors the paper trades by hand, so every stop
+    move has to be repeated at the broker."""
+    if not partials:
+        return ""
+    out = ["PARTIAL CLOSES / STOP MOVES   (move the stop at the broker)"]
+    for e in partials[:8]:
+        sym = (e.get("display_name") or e.get("symbol", "?"))[:10]
+        dir_ = str(e.get("direction", "?")).upper()
+        if e.get("event") == "partial_close":
+            at_r = _num(e.get("at_r"))
+            if at_r is None:
+                at_r = _r_of(e, e.get("price"))
+            r_txt = f"+{_fmt_r(round(at_r, 2))}R" if at_r is not None else "Target"
+            frac = _num(e.get("fraction"))
+            out.append(f"  {sym:10s} {dir_:5s}  {r_txt} reached: closed {_frac_txt(frac)} "
+                       f"at {_px(e.get('price'))}")
+            out.append(f"    {_signed_money(e.get('pnl'))}, {_signed_r(e.get('r_booked'))} booked"
+                       f"  {fmt_when(e.get('at'))}")
+            rest = _frac_txt(1.0 - frac) if frac is not None else "rest"
+            out.append(f"    stop to breakeven {_px(e.get('new_stop'))}, runner {rest} open")
+        else:
+            nr = _num(e.get("new_stop_r"))
+            lock = (f"{nr:+.0f}R locked" if nr is not None and abs(nr - round(nr)) < 0.02
+                    else (f"{nr:+.2f}R" if nr is not None else MISSING))
+            out.append(f"  {sym:10s} {dir_:5s}  runner stop -> {_px(e.get('new_stop'))} ({lock})")
+    if len(partials) > 8:
+        out.append(f"  ... and {len(partials) - 8} more")
+    return "\n".join(out)
+
+
 def cancelled_block(cancelled: List[Dict]) -> str:
     """Resting orders the bot withdrew without a fill (expired / drifted /
     cancelled). The user copies orders to FundingPips by hand, so a silently
@@ -734,15 +916,30 @@ def closed_block(closed_this_scan: List[Dict]) -> str:
         out.append(
             f"  {sym:10s}  {dir_:5s}  {pnl_s}  {r_s}  {_reason(p)}"
         )
+        booked = _scale_out_booked(p)
+        if booked:
+            # Blended scale-out result, e.g. "+0.50R: 50% at +1R, runner breakeven".
+            pr = _r_of(p, p.get("partial_price"))
+            pr_s = f"{pr:+.0f}R" if pr is not None and abs(pr - round(pr)) < 0.02 else (
+                f"{pr:+.2f}R" if pr is not None else MISSING)
+            tot = f"{r_mult:+.2f}R" if r_mult is not None else MISSING
+            out.append(f"      = {tot}: {_frac_txt(booked[0])} at {pr_s}, {_runner_exit_text(p)}")
     return "\n".join(out)
 
 
-def track_record_block(history: List[Dict]) -> str:
+def track_record_block(history: List[Dict], mgmt: Optional[Dict] = None) -> str:
     if not history:
+        m = _mgmt(mgmt=mgmt)
+        if _is_scale_out(m):
+            how = (f"  {_frac_txt(m.get('scale_out_fraction'))} closes at "
+                   f"+{_fmt_r(m.get('scale_out_at_r') or 1.0)}R (stop to breakeven);\n"
+                   "  the runner exits on its stop (trails in 1R steps).")
+        else:
+            how = "  Each position closes at its stop or 100% at Target 2 (stop never moves)."
         return (
             "TRACK RECORD\n"
             "  No completed trades yet. Building track record.\n"
-            "  Each position closes at its stop or 100% at Target 2 (stop never moves)."
+            + how
         )
     out = ["TRACK RECORD (last 5 trades)   (E=entry  SL=stop  X=exit)"]
     for p in history[-5:][::-1]:
@@ -965,13 +1162,78 @@ def compute_events(scan: Dict, prev: Dict) -> Dict:
             rec.update({k: v for k, v in extra.items() if v is not None})
         cancelled.append(rec)
 
+    partials = _partial_events(scan, ids_prev, pos_by_id, hist_by_id)
+
     return {
         "new_signals": new_signals,
         "fills": list(fills.values()),
         "closed": closed,
         "cancelled": cancelled,
+        "partials": partials,
         "reset": reset,
     }
+
+
+def _partial_key(e: Dict) -> str:
+    pid = str(e.get("position_id") or e.get("id") or "")
+    if e.get("event") == "partial_close":
+        return f"{pid}|partial"
+    st = _num(e.get("new_stop"))
+    return f"{pid}|stop|{st:.10g}" if st is not None else f"{pid}|stop|?"
+
+
+def _partial_events(scan: Dict, prev: Dict, pos_by_id: Dict, hist_by_id: Dict) -> List[Dict]:
+    """Scale-out partial closes and runner stop moves to report (2026-09-28).
+
+    Primary source: this run's results['partials_this_run']. Backstop from the
+    open positions vs the last SAVED state (partial_events_seen /
+    runner_stops_seen), so a partial or a lock is still reported when the run
+    that produced it failed to post. Each event carries '_key' for build_state."""
+    seen = set(prev.get("partial_events_seen") or [])
+    runner_prev = prev.get("runner_stops_seen")
+    runner_prev = runner_prev if isinstance(runner_prev, dict) else {}
+    out: List[Dict] = []
+    keys = set()
+
+    def _add(rec: Dict) -> None:
+        k = _partial_key(rec)
+        if k in seen or k in keys:
+            return
+        rec["_key"] = k
+        keys.add(k)
+        out.append(rec)
+
+    for e in scan.get("partials_this_run") or []:
+        if not isinstance(e, dict):
+            continue
+        pid = e.get("position_id") or e.get("id")
+        base = pos_by_id.get(pid) or hist_by_id.get(pid) or {}
+        rec = {k: base.get(k) for k in ("display_name", "entry_price", "stop_price",
+                                         "fill_price") if base.get(k) is not None}
+        rec.update({k: v for k, v in e.items() if v is not None})
+        _add(rec)
+
+    for pid, p in pos_by_id.items():
+        if not p.get("partial_taken"):
+            continue
+        booked = _scale_out_booked(p)
+        if pid not in runner_prev and f"{pid}|partial" not in seen and booked:
+            _add({"event": "partial_close", "position_id": pid, "symbol": p.get("symbol"),
+                  "display_name": p.get("display_name"), "direction": p.get("direction"),
+                  "entry_price": p.get("entry_price"), "stop_price": p.get("stop_price"),
+                  "price": p.get("partial_price"), "fraction": booked[0], "pnl": booked[1],
+                  "r_booked": booked[2], "new_stop": p.get("fill_price") or p.get("entry_price"),
+                  "at": p.get("partial_time")})
+        prev_stop, cur = _num(runner_prev.get(pid)), _num(p.get("current_stop"))
+        if prev_stop is None or cur is None:
+            continue
+        tighter = cur > prev_stop if _is_long(p) else cur < prev_stop
+        if tighter:
+            _add({"event": "stop_moved", "position_id": pid, "symbol": p.get("symbol"),
+                  "display_name": p.get("display_name"), "direction": p.get("direction"),
+                  "entry_price": p.get("entry_price"), "stop_price": p.get("stop_price"),
+                  "price": cur, "new_stop": cur, "new_stop_r": _r_of(p, cur)})
+    return out
 
 
 def diff(scan: Dict, prev_state: Dict) -> Tuple[List[Dict], List[Dict]]:
@@ -994,7 +1256,8 @@ def decide_post(scan: Dict, prev: Dict, events: Dict, now_utc: datetime,
     if events.get("reset"):
         return "reset"
     shown, _ = split_shown_signals(events.get("new_signals") or [])
-    if shown or events.get("fills") or events.get("closed") or events.get("cancelled"):
+    if (shown or events.get("fills") or events.get("closed") or events.get("cancelled")
+            or events.get("partials")):
         return "news"
     breached = bool(((scan.get("account") or {}).get("prop_firm") or {}).get("breached"))
     if breached and not prev.get("breached"):
@@ -1050,6 +1313,12 @@ def build_state(scan: Dict, prev: Dict, events: Dict, now_utc: datetime,
     order_ids += [s.get("paper_trade_id") for s in signals]
     closed_ids = list(prev.get("closed_ids_seen") or [])
     closed_ids += [h.get("id") for h in history if isinstance(h, dict)]
+    # Scale-out (2026-09-28): partial/stop-move events already reported, and the
+    # runner stop of every partialled open position (backstop in compute_events).
+    partial_keys = [] if events.get("reset") else list(prev.get("partial_events_seen") or [])
+    partial_keys += [e.get("_key") or _partial_key(e) for e in (events.get("partials") or [])]
+    runner_stops = {p["id"]: p.get("current_stop") for p in positions
+                    if isinstance(p, dict) and p.get("id") and p.get("partial_taken")}
 
     last_status_date = prev.get("last_status_date")
     if posted and now_utc >= _daily_due_at(now_utc):
@@ -1066,6 +1335,8 @@ def build_state(scan: Dict, prev: Dict, events: Dict, now_utc: datetime,
         "pending_orders_seen": {p["id"]: _compact_order(p) for p in pending if p.get("id")},
         "open_position_ids_seen": [p.get("id") for p in positions if p.get("id")],
         "closed_ids_seen": _dedupe_tail(closed_ids, ID_MEMORY_MAX),
+        "partial_events_seen": _dedupe_tail(partial_keys, ID_MEMORY_MAX),
+        "runner_stops_seen": runner_stops,
         "last_status_date": last_status_date,
         "last_sent_at": now_utc.isoformat() if posted else prev.get("last_sent_at"),
     }
@@ -1154,7 +1425,8 @@ def build_status_messages(scan: Dict, closed_trades: List[Dict],
                           fills: Optional[List[Dict]] = None,
                           cancelled: Optional[List[Dict]] = None,
                           title: str = "STATUS",
-                          now_utc: Optional[datetime] = None) -> List[str]:
+                          now_utc: Optional[datetime] = None,
+                          partials: Optional[List[Dict]] = None) -> List[str]:
     """Portfolio status: header + what changed (FILLED / CLOSED / CANCELLED)
     + account + stats + OPEN + PENDING + TRACK RECORD, as 1..3 messages.
 
@@ -1162,6 +1434,7 @@ def build_status_messages(scan: Dict, closed_trades: List[Dict],
     message exists, so they must never be the part cut for length."""
     blocks: List[str] = [header_block(scan.get("scan_time"), title)]
     blocks.append(fills_block(fills or []))
+    blocks.append(partials_block(partials or []))
     blocks.append(closed_block(closed_trades or []))
     blocks.append(cancelled_block(cancelled or []))
     blocks.append(account_block(scan.get("account") or {}, now_utc))
@@ -1172,7 +1445,7 @@ def build_status_messages(scan: Dict, closed_trades: List[Dict],
     ))
     blocks.append(open_positions_block(scan.get("positions") or []))
     blocks.append(pending_orders_block(scan.get("pending_orders") or []))
-    blocks.append(track_record_block(scan.get("trade_history") or []))
+    blocks.append(track_record_block(scan.get("trade_history") or [], _mgmt(scan)))
     blocks.append(below_bar_block(scan))
     blocks.append(footer_block(scan))
     return _paginate(blocks)
@@ -1193,7 +1466,8 @@ def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[Dict]:
     ohlcv_cache = scan.get("ohlcv_cache", {}) or {}
     total = len(new_signals)
     for i, s in enumerate(new_signals, 1):
-        block = _format_signal_block(s, take_bar)
+        m = _mgmt(scan, s)
+        block = _format_signal_block(s, take_bar, m)
         body = (f"AZALYST PROPFIRM SCANNER  —  NEW SIGNAL {i}/{total}\n{ts_line}"
                 + SECTION_SEP + header + "\n\n" + block).strip()
         # A single pathological block must never exceed Discord's limit, or the
@@ -1206,7 +1480,8 @@ def build_signals_messages(scan: Dict, new_signals: List[Dict]) -> List[Dict]:
         img_path = None
         if draw_chart is not None:
             try:
-                img_path = draw_chart.generate_chart(s, ohlcv_cache, asof=scan.get("scan_time"))
+                img_path = draw_chart.generate_chart(s, ohlcv_cache, asof=scan.get("scan_time"),
+                                                     management=m)
             except Exception as exc:   # generate_chart should not raise; belt and braces
                 print(f"[discord] chart failed for {s.get('symbol')}: {exc}", file=sys.stderr)
                 img_path = None
@@ -1247,7 +1522,8 @@ def build_result_images(scan: Dict, closed_trades: List[Dict],
         rec = dict(hist.get(t.get("id") or t.get("position_id")) or {})
         rec.update({k: v for k, v in t.items() if v is not None})
         try:
-            path = draw_chart.generate_trade_result_chart(rec, cache, timeframe=scan.get("ltf"))
+            path = draw_chart.generate_trade_result_chart(rec, cache, timeframe=scan.get("ltf"),
+                                                          management=_mgmt(scan))
         except Exception as exc:   # should not raise; belt and braces
             print(f"[discord] result chart failed for {rec.get('symbol')}: {exc}",
                   file=sys.stderr)
@@ -1283,8 +1559,8 @@ def build_message(scan: Dict, new_signals: List[Dict], closed_trades: List[Dict]
     blocks.append(closed_block(closed_trades or []))
     blocks.append(open_positions_block(scan.get("positions") or []))
     blocks.append(pending_orders_block(scan.get("pending_orders") or []))
-    blocks.append(track_record_block(scan.get("trade_history") or []))
-    blocks.append(new_signals_block(new_signals))
+    blocks.append(track_record_block(scan.get("trade_history") or [], _mgmt(scan)))
+    blocks.append(new_signals_block(new_signals, _mgmt(scan)))
     blocks.append(below_bar_block(scan))
     blocks.append(footer_block(scan))
     return _assemble(blocks)
@@ -1401,7 +1677,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     breached = bool(((scan.get("account") or {}).get("prop_firm") or {}).get("breached"))
 
     if reason is None:
-        print(f"[discord] Nothing new (no signal / fill / close / cancellation) and the "
+        print(f"[discord] Nothing new (no signal / fill / partial / close / cancellation) and the "
               f"daily status is not due ({now_utc.strftime('%Y-%m-%d %H:%M UTC')}); skipping.")
         if not args.dry_run and args.webhook_url:
             # Keep the setup memory fresh even on quiet runs (content is date
@@ -1411,7 +1687,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     status_msgs = build_status_messages(
         scan, events["closed"], fills=events["fills"], cancelled=events["cancelled"],
-        title=_TITLES.get(reason, "STATUS"), now_utc=now_utc)
+        title=_TITLES.get(reason, "STATUS"), now_utc=now_utc,
+        partials=events.get("partials"))
     signals_msgs = build_signals_messages(scan, new_signals) if new_signals else []
 
     if args.dry_run:
@@ -1424,7 +1701,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"[discord] dry-run: would post (reason={reason}) at "
               f"{now_utc.strftime('%Y-%m-%d %H:%M UTC')}: {len(status_msgs)} status + "
               f"{len(signals_msgs)} signal message(s); fills={len(events['fills'])} "
-              f"closed={len(events['closed'])} cancelled={len(events['cancelled'])}")
+              f"closed={len(events['closed'])} cancelled={len(events['cancelled'])} "
+              f"partials={len(events.get('partials') or [])}")
         for i, m in enumerate(status_msgs, 1):
             print(f"\n--- STATUS MESSAGE {i}/{len(status_msgs)} ---\n")
             print(m)

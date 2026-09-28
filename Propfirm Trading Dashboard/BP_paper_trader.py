@@ -15,6 +15,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 
 from BP_rules_engine import RulesEngine
+from BP_management import management_settings
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,12 @@ def _finite(*vals) -> bool:
         return False
 
 
+def new_events() -> Dict[str, List[Dict]]:
+    """Empty events dict every producer returns. 'partials' (2026-09-28) holds
+    scale-out 'partial_close' and runner 'stop_moved' events."""
+    return {'fills': [], 'closed': [], 'cancelled': [], 'partials': []}
+
+
 class TradeDirection(str, Enum):
     LONG = "long"
     SHORT = "short"
@@ -161,6 +168,13 @@ class Position:
     # a stop that gaps through at the (worse) open, so it can differ from
     # entry_price, which stays the ORDER level the R-multiples are measured in.
     fill_price: Optional[float] = None
+    # --- 2026-09-28 scale-out fields (stop_loss.management: scale_out) ------
+    # runner_peak_r: best favourable excursion so far, in R of the PLANNED risk
+    #   from the planned entry, from bar extremes after the fill bar. Drives the
+    #   runner's whole-R stop locks (+2R locks +1R, +3R locks +2R, ...).
+    # partial_time: start of the bar on which the partial was taken.
+    runner_peak_r: float = 0.0
+    partial_time: Optional[datetime] = None
 
 
 @dataclass
@@ -248,12 +262,24 @@ class PaperTrader:
         self.breakeven_at_half = bool(self.stop_cfg.get('breakeven_at_half_target', True))
         self.type_ladders = os.environ.get('BP_TYPE_LADDERS') == '1'
 
-        # Set-and-forget management (user decision 2026-09-27): the stop never
-        # moves and 100% closes at T<take_profit_target>. The half-T1 breakeven
-        # was closing trades at $0 when price came back to entry before TP.
-        # stop_loss.management: ladder restores breakeven / T2 partial / trail / T3.
-        self.fixed_bracket = str(self.stop_cfg.get('management', 'ladder')).lower() == 'fixed'
-        self.fixed_tp_index = max(0, int(self.stop_cfg.get('take_profit_target', 2)) - 1)
+        # Trade management -- stop_loss.management, read through the ONE helper
+        # (BP_management.management_settings) that send_discord and draw_chart
+        # also use, so the alert text and charts describe what the paper trader
+        # actually does.
+        #   scale_out (default, user decision 2026-09-28): 50% off at +1R, stop
+        #             to breakeven, runner trails in whole-R steps.
+        #   fixed     (2026-09-27): stop never moves, 100% at T<take_profit_target>.
+        #   ladder    (pre-2026-09-27): half-T1/T1 breakeven, 50% at T2, trail, T3.
+        self.management = management_settings(config)
+        self.mode = self.management['mode']
+        self.fixed_bracket = self.mode == 'fixed'
+        self.scale_out = self.mode == 'scale_out'
+        self.ladder = self.mode == 'ladder'
+        self.fixed_tp_index = max(0, int(self.management['take_profit_target']) - 1)
+        self.scale_out_at_r = float(self.management['scale_out_at_r'])
+        self.scale_out_fraction = float(self.management['scale_out_fraction'])
+        self.runner_trail = self.management['runner_trail']
+        self.runner_target_r = self.management['runner_target_r']
 
         # Read once per trader so a run cannot mix the two pricing models.
         self.bar_replay = bar_replay_enabled()
@@ -723,7 +749,8 @@ class PaperTrader:
             out.append(asdict(p))
         return out
 
-    def update_positions(self, current_prices: Dict[str, Dict[str, float]]) -> List[Dict]:
+    def update_positions(self, current_prices: Dict[str, Dict[str, float]],
+                         events: Optional[Dict[str, List[Dict]]] = None) -> List[Dict]:
         """
         LEGACY single-bar path (BP_BAR_REPLAY=0). The live path is replay_bars().
 
@@ -732,11 +759,17 @@ class PaperTrader:
 
         Args:
             current_prices: Dict[symbol] -> {'bid': price, 'ask': price, 'high': price, 'low': price}
+                (an optional 'open' enables the gap-through-stop rule in scale_out mode)
+            events: optional events dict; scale-out partial closes / runner stop
+                moves are appended to events['partials'] (2026-09-28).
 
         Returns:
             List of closed position events
         """
         closed_events = []
+        if events is None:
+            events = new_events()
+        events.setdefault('partials', [])
 
         for pos_id, pos in list(self.positions.items()):
             if pos.status != TradeStatus.ACTIVE:
@@ -755,11 +788,29 @@ class PaperTrader:
             if current_price == 0:
                 continue
 
+            # Scale-out (default, 2026-09-28): the same per-bar rules as the 1h
+            # replay path -- the stop in force is checked first, then the +1R
+            # partial / runner locks, whose stop moves apply from the next bar.
+            if self.scale_out:
+                _o = prices.get('open')
+                _o = float(_o) if _finite(_o) else None
+                _ev = new_events()
+                _when = utcnow()
+                _exit = self._stop_exit_px(pos, _o, current_high, current_low)
+                if _exit is not None:
+                    self._close_at(pos, _exit, _when, self._stop_close_reason(pos), _ev)
+                else:
+                    self._scale_out_manage(pos, _when, _o, current_high, current_low,
+                                           current_price, _ev)
+                closed_events.extend(_ev['closed'])
+                events['partials'].extend(_ev['partials'])
+                continue
+
             # Half-target breakeven: per live trading practice, move stop to
             # entry once price has travelled half the distance to T1. Saves
             # us from giving back open profit when a setup fades. Only
             # applies before T1 has been hit (then the T1 BE block takes over).
-            if (self.breakeven_at_half and not self.fixed_bracket
+            if (self.breakeven_at_half and self.ladder
                     and not pos.breakeven_triggered and pos.targets):
                 t1 = pos.targets[0]
                 halfway = (pos.entry_price + t1) / 2.0
@@ -772,8 +823,8 @@ class PaperTrader:
                     pos.breakeven_triggered = True
                     logger.info(f"[{pos.symbol}] Half-target BE triggered at {halfway:.4f}")
 
-            # Advance trailing stop if partial taken
-            if pos.partial_taken and pos.trail_stop_level is not None:
+            # Advance trailing stop if partial taken (ladder only)
+            if self.ladder and pos.partial_taken and pos.trail_stop_level is not None:
                 risk = abs(pos.entry_price - pos.stop_price)
                 if pos.direction == TradeDirection.LONG:
                     # Trail in 1R increments (zone-distal trailing is applied
@@ -990,7 +1041,9 @@ class PaperTrader:
     #     * the stop in force at the START of the bar is checked first (a gap
     #       through exits at the open); if the bar reaches both the stop and a
     #       target, the stop wins;
-    #     * then half-T1 breakeven, T1 breakeven, T2 partial / counter-trend
+    #     * scale_out (default): +1R partial + breakeven, runner locks in whole-R
+    #       steps (_scale_out_manage); fixed: the one take-profit; ladder:
+    #       half-T1 breakeven, T1 breakeven, T2 partial / counter-trend
     #       close, T3, trailing. A stop MOVE caused on bar k takes effect from
     #       bar k+1: on bar k the order of "high then low" is unknowable, and
     #       the old path always assumed the worst (armed BE, then scratched).
@@ -1042,9 +1095,10 @@ class PaperTrader:
 
         bars_df columns: timestamp (bar START, UTC), open, high, low, close.
         Rows with a non-finite price are skipped. Returns
-        {'fills': [...], 'closed': [...], 'cancelled': [...]} event dicts.
+        {'fills': [...], 'closed': [...], 'cancelled': [...], 'partials': [...]}
+        event dicts ('partials': scale-out partial closes and runner stop moves).
         """
-        events: Dict[str, List[Dict]] = {'fills': [], 'closed': [], 'cancelled': []}
+        events: Dict[str, List[Dict]] = new_events()
         if not self.bar_replay:
             logger.warning("replay_bars called with BP_BAR_REPLAY=0 -- ignored "
                            "(the legacy single-bar path prices this run)")
@@ -1197,13 +1251,14 @@ class PaperTrader:
         # 1) The stop in force when the bar opened. Checked before any target:
         #    if a bar reaches both, the stop wins (the order inside the bar is
         #    unknown, so assume the worse one).
-        stop = float(pos.current_stop)
-        if is_long:
-            exit_px = o if o <= stop else (stop if l <= stop else None)
-        else:
-            exit_px = o if o >= stop else (stop if h >= stop else None)
+        exit_px = self._stop_exit_px(pos, o, h, l)
         if exit_px is not None:
             self._close_at(pos, exit_px, start, self._stop_close_reason(pos), events)
+            return
+
+        # Scale-out (default since 2026-09-28): +1R partial, breakeven, runner.
+        if self.scale_out:
+            self._scale_out_manage(pos, start, o, h, l, c, events)
             return
 
         def reached(level: float) -> bool:
@@ -1288,6 +1343,136 @@ class PaperTrader:
             if (new_stop > pos.current_stop) if is_long else (new_stop < pos.current_stop):
                 pos.current_stop = new_stop
 
+    @staticmethod
+    def _stop_exit_px(pos: 'Position', o: Optional[float], h: float, l: float) -> Optional[float]:
+        """Exit price if the stop in force at the bar open is hit on this bar:
+        a gap through exits at the open (when the open is known), otherwise at
+        the stop. None when the stop is not reached."""
+        stop = float(pos.current_stop)
+        if pos.direction == TradeDirection.LONG:
+            if o is not None and o <= stop:
+                return o
+            return stop if l <= stop else None
+        if o is not None and o >= stop:
+            return o
+        return stop if h >= stop else None
+
+    def _scale_out_manage(self, pos: 'Position', when: datetime, o: Optional[float],
+                          h: float, l: float, c: float,
+                          events: Dict[str, List[Dict]]) -> None:
+        """Favourable side of one bar in scale_out mode, AFTER the stop in force
+        was checked (and not hit) -- never called on the fill bar.
+
+        1. Track the peak favourable excursion (bar extreme) in R of the planned
+           risk from the planned entry.
+        2. Before the partial: a bar reaching L1 = entry +/- scale_out_at_r * risk
+           closes scale_out_fraction of the ORIGINAL size at L1 (or a better
+           gapped open) and moves the stop to breakeven (the fill price).
+        3. After the partial: runner_target_r (if set) closes the rest at its
+           level; runner_trail r_steps locks entry +/- k*risk with
+           k = floor(peak_R) - 1 once the peak reaches +2R.
+        Stop moves take effect from the next bar and never loosen the stop.
+        """
+        is_long = pos.direction == TradeDirection.LONG
+        sign = 1.0 if is_long else -1.0
+        entry = float(pos.entry_price)
+        fill = pos.fill_price if pos.fill_price is not None else entry
+        risk_unit = abs(entry - float(pos.stop_price))
+        if not risk_unit > 0:
+            return
+
+        def reached(level: float) -> bool:
+            return (h >= level) if is_long else (l <= level)
+
+        def tp_px(level: float) -> float:
+            # A resting take-profit fills at its level, or at a better gapped open.
+            if o is None:
+                return level
+            return max(level, o) if is_long else min(level, o)
+
+        def better(a: Optional[float], b: float) -> float:
+            if a is None:
+                return b
+            return max(a, b) if is_long else min(a, b)
+
+        def r_of(px: float) -> float:
+            return (px - entry) * sign / risk_unit
+
+        peak = r_of(h if is_long else l)
+        if peak > (pos.runner_peak_r or 0.0):
+            pos.runner_peak_r = peak
+
+        at = when.isoformat() if hasattr(when, 'isoformat') else str(when)
+        new_stop: Optional[float] = None
+
+        # 2) The +1R partial.
+        if not pos.partial_taken:
+            l1 = entry + sign * self.scale_out_at_r * risk_unit
+            if not reached(l1):
+                return
+            px = tp_px(l1)
+            orig = float(pos.position_size)
+            if self.scale_out_fraction >= 1.0:
+                self._close_at(pos, px, when, 'scale_out', events)
+                return
+            qty = orig * self.scale_out_fraction
+            pnl = (px - fill) * sign * qty
+            pos.realized_pnl += pnl
+            pos.partial_taken = True
+            pos.partial_qty = qty
+            pos.partial_price = px
+            pos.partial_time = to_utc(when)
+            pos.position_size = orig - qty
+            pos.breakeven_triggered = True
+            new_stop = better(new_stop, fill)
+            # Not added to closed_pnl_total here: it is booked once, with the
+            # rest of realized_pnl, in _close_position (same as the ladder T2).
+            events.setdefault('partials', []).append({
+                'event': 'partial_close', 'position_id': pos.id, 'symbol': pos.symbol,
+                'direction': pos.direction.value, 'price': px,
+                'fraction': self.scale_out_fraction, 'pnl': pnl,
+                'r_booked': pnl / (orig * risk_unit) if orig > 0 else 0.0,
+                'at_r': self.scale_out_at_r,
+                'new_stop': fill, 'new_stop_r': r_of(fill), 'at': at,
+                'entry_price': entry, 'stop_price': float(pos.stop_price),
+                'runner_fraction': 1.0 - self.scale_out_fraction,
+            })
+            logger.info(f"[{pos.symbol}] Scale-out: {self.scale_out_fraction:.0%} closed at "
+                        f"{px:.5f} (+{self.scale_out_at_r:g}R), PnL={pnl:.2f}; stop -> "
+                        f"breakeven {fill:.5f} from next bar")
+
+        # 3) The runner.
+        if self.runner_target_r:
+            tgt = entry + sign * float(self.runner_target_r) * risk_unit
+            if reached(tgt):
+                self._close_at(pos, tp_px(tgt), when, 'runner_target', events)
+                return
+
+        if self.runner_trail == 'r_steps' and pos.runner_peak_r >= 2.0 - 1e-9:
+            k = int(math.floor(pos.runner_peak_r + 1e-9)) - 1
+            if k >= 1:
+                lock = entry + sign * k * risk_unit
+                effective = better(new_stop, float(pos.current_stop))
+                if (lock > effective + 1e-12) if is_long else (lock < effective - 1e-12):
+                    pos.trail_stop_level = lock
+                    new_stop = better(new_stop, lock)
+                    events.setdefault('partials', []).append({
+                        'event': 'stop_moved', 'position_id': pos.id, 'symbol': pos.symbol,
+                        'direction': pos.direction.value, 'price': lock,
+                        'fraction': None, 'pnl': 0.0, 'r_booked': 0.0,
+                        'new_stop': lock, 'new_stop_r': float(k),
+                        'peak_r': pos.runner_peak_r, 'at': at,
+                        'entry_price': entry, 'stop_price': float(pos.stop_price),
+                    })
+                    logger.info(f"[{pos.symbol}] Runner peak +{pos.runner_peak_r:.2f}R: stop -> "
+                                f"{lock:.5f} (+{k}R locked) from next bar")
+
+        # Apply now; this bar's stop test already ran, so in effect it starts
+        # with the next bar. Never loosen a stop.
+        if new_stop is not None:
+            if (new_stop > pos.current_stop) if is_long else (new_stop < pos.current_stop):
+                pos.current_stop = new_stop
+
     def _close_at(self, pos: 'Position', exit_px: float, when: datetime, reason: str,
                   events: Dict[str, List[Dict]]) -> None:
         """Close the remaining size at `exit_px` on the bar starting `when`."""
@@ -1344,7 +1529,7 @@ class PaperTrader:
         normal max age plus `grace_days` (covers a weekend), cancel it anyway.
         """
         now = to_utc(now) if now is not None else utcnow()
-        events: Dict[str, List[Dict]] = {'fills': [], 'closed': [], 'cancelled': []}
+        events: Dict[str, List[Dict]] = new_events()
         for pos in list(self.positions.values()):
             if pos.status != TradeStatus.PENDING:
                 continue
@@ -1548,6 +1733,11 @@ class PaperTrader:
             symbol_zones: mapping of symbol -> list of detected zones, each
                 with keys zone_type/proximal/distal.
         """
+        if not self.ladder:
+            # fixed never partials; scale_out's runner trails in whole-R steps
+            # only (stop_loss.runner_trail) -- a zone trail would contradict
+            # what the alert told the user to do.
+            return
         for pos in self.positions.values():
             if pos.status != TradeStatus.ACTIVE or not pos.partial_taken:
                 continue

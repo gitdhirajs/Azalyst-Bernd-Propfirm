@@ -417,14 +417,29 @@ patterns:
 
 stop_loss:
   fibonacci_extension_pct: 33.0
-  # Trade management (user decision 2026-09-27): "fixed" = set-and-forget.
-  # The stop never moves and the whole position closes at take_profit_target
-  # (2 = T2 = 2R). No breakeven, no partial, no trailing. On the Jul-Sep live
-  # ledger 5 of 13 $0 closes were trades that armed half-T1 breakeven and came
-  # back to entry. "ladder" restores the old path: breakeven (settings below),
-  # 50% at T2, trail, close at T3.
-  management: fixed
-  take_profit_target: 2
+  # Trade management. Read by BP_management.management_settings() -- the paper
+  # trader, the Discord text and the charts all use that one reader.
+  #
+  # scale_out (user decision 2026-09-28, verbatim: "when 1r reach close 50%
+  #   move to breakeven n then let 50% run till possible"):
+  #   at +scale_out_at_r (1R of the PLANNED risk |entry - stop|, from the
+  #   planned entry) close scale_out_fraction (50%) of the original size and
+  #   move the stop to breakeven (the fill price) from the next bar. The runner
+  #   then trails in whole-R steps (runner_trail: r_steps): peak +2R -> stop
+  #   +1R, +3R -> +2R, ... and exits only on its stop, or at runner_target_r
+  #   when set (null = no cap, "run till possible"). runner_trail: none = the
+  #   runner rides at breakeven. A 50% at +1R + runner stopped at breakeven
+  #   books +0.50R (a win).
+  # fixed (2026-09-27): set-and-forget. The stop never moves and the whole
+  #   position closes at take_profit_target (2 = T2 = 2R). REVERT to this with
+  #   `management: fixed`.
+  # ladder (pre-2026-09-27): breakeven (settings below), 50% at T2, trail, T3.
+  management: scale_out
+  scale_out_at_r: 1.0          # scale_out: partial trigger in R from the planned entry
+  scale_out_fraction: 0.5      # scale_out: fraction of the ORIGINAL size closed at the trigger
+  runner_trail: r_steps        # scale_out: r_steps | none
+  runner_target_r: null        # scale_out: optional hard runner take-profit in R; null = no cap
+  take_profit_target: 2        # fixed only: the one take-profit (T2 = 2R)
   breakeven_at_r: 1.0                # ladder only: BE at T1 (textbook)
   breakeven_at_half_target: false    # ladder only: BE at half-way to T1 (Bernd's live)
   partial_take_r: 2.0

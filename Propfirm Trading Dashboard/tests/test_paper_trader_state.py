@@ -32,7 +32,7 @@ CFG = {
     "prop_firm": {"enabled": True, "account_size": 5000.0, "max_daily_loss_usd": 150.0,
                   "max_total_loss_usd": 300.0},
     "risk": {"max_open_positions": 20, "correlation_check_enabled": False},
-    "stop_loss": {"breakeven_at_half_target": True},
+    "stop_loss": {"management": "ladder", "breakeven_at_half_target": True},
 }
 
 

@@ -1,0 +1,142 @@
+======================================================================
+1) NEW SIGNAL  (GBPNZD short, scale_out)
+======================================================================
+```
+AZALYST PROPFIRM SCANNER  —  NEW SIGNAL 1/1
+28 Sep 2026  12:05 UTC
+────────────────────────────────────────────────────────
+NEW SIGNALS THIS SCAN
+  [TAKE] = pinged + paper-traded. No signal is skipped or downgraded.
+
+
+  GBPNZD          SHORT
+    >> VERDICT     : [TAKE]  composite 8.4/10
+    Order          : SELL-LIMIT at entry (fills if price trades UP to entry)
+    Location       : PENDING - resting order; price not at the zone yet
+    Price now      :      2.34620
+    Entry          :      2.34939
+    Stop Loss      :      2.35340
+    +1R close 50%  :      2.34538  stop -> BE
+    +2R runner     :      2.34137  stop -> +1R
+    +3R runner     :      2.33736  stop -> +2R
+    >> LOT SIZE    :         0.12 lots
+       (units)     :       12,000
+    Risk (actual)  : $       50.00  (~1.00% of account)
+    >> EXACT 1%    : set platform Risk Mode = 1% + the Stop
+       Loss above; that lot IS your 1% (this is a cross-check).
+    First take     : +1R on 50%; runner open
+    >> MANAGEMENT  (scale-out):
+       At +1R: 2.34538 close 50% + stop to breakeven
+       Runner 50% trails in 1R steps:
+       +2R -> stop +1R, +3R -> stop +2R, ...
+       No runner take-profit: it exits on its stop.
+       Move the stop at the broker when the bot says so.
+    Composite      :  8.40 / 10
+```
+
+======================================================================
+2) +1R PARTIAL  (decide_post -> 'news')
+======================================================================
+```
+AZALYST PROPFIRM SCANNER  —  TRADE UPDATE
+26 Aug 2026  14:05 UTC
+
+────────────────────────────────────────────────────────
+PARTIAL CLOSES / STOP MOVES   (move the stop at the broker)
+  GBPNZD=X   SHORT  +1R reached: closed 50% at 2.34538
+    +$25.00, +0.50R booked  26 Aug 14:00 UTC
+    stop to breakeven 2.34939, runner 50% open
+────────────────────────────────────────────────────────
+Account Equity       :  $  5,025.00
+Account Size         :  $  5,000.00
+Overall Return       : +     0.50%
+────────────────────────────────────────────────────────
+Realised PnL (total) : +$     25.00
+Unrealised PnL       : +$      0.00
+────────────────────────────────────────────────────────
+Daily Loss Used      :  $      0.00  /  $    150.00
+Daily Loss Remaining :  $    150.00
+Total Loss Used      :  $      0.00  /  $    300.00
+Total Loss Remaining :  $    300.00
+Account Status       :      ACTIVE
+────────────────────────────────────────────────────────
+Challenge Target     :       8.0%   ($  5,400.00)
+Progress to Target   :      6.3%  (Day 0 since reset)
+────────────────────────────────────────────────────────
+Open Positions       :               1
+Closed Trades        :               0
+Win Rate             : n/a (0 scratches)
+Winners / Losers     :           0 / 0
+Avg R per Trade      :          +0.00R
+────────────────────────────────────────────────────────
+OPEN POSITIONS   (E=entry  Now=live  SL=stop  T1/T2/T3=targets)
+  T0001 GBPNZD=X   SHORT E:2.34939  Now:2.34470  +$25.00  -
+         SL:2.34939   T1:2.34538  T2:2.34137  T3:2.33736
+         Booked 50% at 2.34538: +$25.00 (+0.50R)
+         Runner 50% open, stop 2.34939 = breakeven
+────────────────────────────────────────────────────────
+TRACK RECORD
+  No completed trades yet. Building track record.
+  50% closes at +1R (stop to breakeven);
+  the runner exits on its stop (trails in 1R steps).
+```
+```
+(continued 2/2)
+Azalyst Propfirm  |  Simulated paper trades.  Not financial advice.
+41 symbols scanned  •  0 errors  •  next scan in ~1h
+Quiet hours post nothing; status posts daily after 21:30 UTC.
+```
+
+-- runner lock event (partials block alone) --
+PARTIAL CLOSES / STOP MOVES   (move the stop at the broker)
+  GBPNZD=X   SHORT  runner stop -> 2.34538 (+1R locked)
+
+======================================================================
+3) CLOSED SCALE-OUT TRADES
+======================================================================
+```
+AZALYST PROPFIRM SCANNER  —  TRADE UPDATE
+05 Sep 2026  10:05 UTC
+
+────────────────────────────────────────────────────────
+CLOSED SINCE LAST UPDATE
+  GBPNZD=X    SHORT  +$   25.00  +0.50R  breakeven
+      = +0.50R: 50% at +1R, runner breakeven
+  GBPNZD=X    SHORT  +$   75.00  +1.50R  trail
+      = +1.50R: 50% at +1R, runner stopped at +2R locked
+────────────────────────────────────────────────────────
+Account Equity       :  $  5,100.00
+Account Size         :  $  5,000.00
+Overall Return       : +     2.00%
+────────────────────────────────────────────────────────
+Realised PnL (total) : +$    100.00
+Unrealised PnL       : +$      0.00
+────────────────────────────────────────────────────────
+Daily Loss Used      :  $      0.00  /  $    150.00
+Daily Loss Remaining :  $    150.00
+Total Loss Used      :  $      0.00  /  $    300.00
+Total Loss Remaining :  $    300.00
+Account Status       :      ACTIVE
+────────────────────────────────────────────────────────
+Challenge Target     :       8.0%   ($  5,400.00)
+Progress to Target   :     25.0%  (Day 0 since reset)
+────────────────────────────────────────────────────────
+Open Positions       :               0
+Closed Trades        :               2
+Win Rate             :          100.0%
+Winners / Losers     :           2 / 0
+Avg R per Trade      :          +1.00R
+────────────────────────────────────────────────────────
+OPEN POSITIONS
+  (none)
+────────────────────────────────────────────────────────
+TRACK RECORD (last 5 trades)   (E=entry  SL=stop  X=exit)
+  GBPNZD=X   SHORT E:2.34939 SL:2.35340 X:2.34137  +$75.00 +1.50R  trail
+  GBPNZD=X   SHORT E:2.34939 SL:2.35340 X:2.34939  +$25.00 +0.50R  breakeven
+```
+```
+(continued 2/2)
+Azalyst Propfirm  |  Simulated paper trades.  Not financial advice.
+41 symbols scanned  •  0 errors  •  next scan in ~1h
+Quiet hours post nothing; status posts daily after 21:30 UTC.
+```

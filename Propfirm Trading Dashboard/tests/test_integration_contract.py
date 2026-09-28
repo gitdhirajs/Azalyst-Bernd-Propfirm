@@ -210,7 +210,7 @@ def test_replay_open_orders_with_no_new_bars_changes_nothing(monkeypatch):
     monkeypatch.setattr(fetcher, "_fetch_one", feed)
     _pin_now(monkeypatch, "2026-08-01T12:00Z")                 # Saturday
     events, last_close = rs.replay_open_orders(trader, fetcher)
-    assert events == {"fills": [], "closed": [], "cancelled": []} and last_close == {}
+    assert events == {"fills": [], "closed": [], "cancelled": [], "partials": []} and last_close == {}
     assert trader.positions[pid].status == TradeStatus.PENDING
     assert trader.positions[pid].last_priced_ts is None
 

@@ -68,7 +68,7 @@ _load_secrets_from_bat()
 
 from BP_data_fetcher import DataFetcher, get_cftc_code
 from BP_rules_engine import RulesEngine
-from BP_paper_trader import PaperTrader, to_utc, bar_replay_enabled
+from BP_paper_trader import PaperTrader, to_utc, bar_replay_enabled, new_events
 from BP_position_sizer import compute_lots, build_usd_quote_table
 
 # ---------------------------------------------------------------------------
@@ -412,7 +412,8 @@ def _write_slim_artifact(results: Dict) -> None:
 # ===================================================================
 
 # Position fields that hold datetimes (stored as ISO-8601 UTC strings).
-_POSITION_DT_FIELDS = ("entry_time", "close_time", "placed_at", "filled_at", "last_priced_ts")
+_POSITION_DT_FIELDS = ("entry_time", "close_time", "placed_at", "filled_at", "last_priced_ts",
+                       "partial_time")
 
 
 def _position_to_dict(pos) -> Dict:
@@ -888,7 +889,7 @@ def replay_open_orders(trader: PaperTrader, fetcher: DataFetcher):
     scale as the order levels.
     """
     import math as _m
-    events: Dict[str, List[Dict]] = {"fills": [], "closed": [], "cancelled": []}
+    events: Dict[str, List[Dict]] = new_events()
     last_close: Dict[str, float] = {}
     symbols = trader.open_symbols()
     if not symbols:
@@ -938,7 +939,21 @@ def replay_open_orders(trader: PaperTrader, fetcher: DataFetcher):
     for ev in events["cancelled"]:
         print(f"  {YELLOW}[CANCELLED]{RESET} {ev['symbol']} {ev['direction']} "
               f"{ev.get('order_type', '')} ({ev['close_reason']}) {ev.get('why', '')}")
+    _print_partials(events.get("partials", []))
     return events, last_close
+
+
+def _print_partials(partials: List[Dict]) -> None:
+    """Console lines for scale-out partial closes and runner stop moves."""
+    for ev in partials or []:
+        if ev.get("event") == "partial_close":
+            print(f"  {GREEN}[PARTIAL]{RESET} {ev['symbol']} {ev['direction']} "
+                  f"{(ev.get('fraction') or 0) * 100:.0f}% closed at {ev.get('price')} "
+                  f"(${ev.get('pnl', 0):,.2f}, {ev.get('r_booked', 0):+.2f}R booked); "
+                  f"stop -> breakeven {ev.get('new_stop')} at {ev.get('at', '')}")
+        else:
+            print(f"  {CYAN}[STOP MOVED]{RESET} {ev['symbol']} {ev['direction']} runner stop -> "
+                  f"{ev.get('new_stop')} ({ev.get('new_stop_r', 0):+.0f}R locked) at {ev.get('at', '')}")
 
 
 # ===================================================================
@@ -1001,7 +1016,7 @@ def scan_all_markets(
     # BP_BAR_REPLAY=0 -> the legacy single-bar block after the scan loop.
     # ----------------------------------------------------------------
     _bar_replay = bar_replay_enabled()
-    replay_events: Dict[str, List[Dict]] = {"fills": [], "closed": [], "cancelled": []}
+    replay_events: Dict[str, List[Dict]] = new_events()
     replay_last_close: Dict[str, float] = {}
     if _bar_replay:
         replay_events, replay_last_close = replay_open_orders(trader, fetcher)
@@ -1175,6 +1190,8 @@ def scan_all_markets(
 
     closed_events: List[Dict] = list(replay_events.get("closed", []))
     legacy_fills: List[Dict] = []
+    # Legacy-path scale-out partial closes / runner stop moves (2026-09-28).
+    legacy_events: Dict[str, List[Dict]] = new_events()
     # LEGACY single-bar pricing (BP_BAR_REPLAY=0 only). Under bar replay the
     # carried-over orders/positions were already priced at the top of this
     # function, bar by bar; current_prices is then only the display fallback.
@@ -1206,12 +1223,13 @@ def scan_all_markets(
                       for pid in list(trader.positions)
                       if pid not in restored_position_ids or pid in newly_filled_ids}
         try:
-            closed_events = trader.update_positions(current_prices)
+            closed_events = trader.update_positions(current_prices, events=legacy_events)
         finally:
             trader.positions.update(_set_aside)
         for ev in closed_events:
             print(f"  {MAGENTA}[CLOSED]{RESET} {ev['symbol']} {ev['direction']} "
                   f"PnL=${ev['realized_pnl']:,.2f} ({ev['r_multiple']:+.2f}R)")
+        _print_partials(legacy_events.get("partials", []))
 
     # Display price per symbol for the "Now" column / distance-to-entry: the
     # close of the last REPLAYED 1h bar (the price the trader actually used),
@@ -1423,6 +1441,8 @@ def scan_all_markets(
             po["distance_pct"]  = round(abs(now - entry) / now * 100, 3)
 
     all_fills = list(replay_events.get("fills", [])) + legacy_fills
+    all_partials = (list(replay_events.get("partials", []) or [])
+                    + list(legacy_events.get("partials", []) or []))
 
     results = {
         "scan_time":           scan_start.isoformat(),
@@ -1445,6 +1465,12 @@ def scan_all_markets(
         "fills":               json_safe(all_fills),
         "closed_this_run":     json_safe(closed_events),
         "cancelled_this_run":  json_safe(replay_events.get("cancelled", [])),
+        # 2026-09-28 scale-out: partial closes at +1R and runner stop moves this
+        # run (send_discord posts them; the stop must be moved at the broker).
+        "partials_this_run":   json_safe(all_partials),
+        # The management the paper trader ran under, so the alert text and
+        # charts describe the same thing (BP_management.management_settings).
+        "management":          json_safe(trader.management),
         "pricing_mode":        "bar_replay_1h" if _bar_replay else "legacy_single_bar",
         "ohlcv_cache":         ohlcv_cache,
         "indicators":          indicators_by_symbol,
@@ -1511,6 +1537,21 @@ def save_results(results: Dict) -> None:
                 "close_time":   c.get("close_time"),
             }
             for c in results.get("closed_this_run", []) or []
+        ],
+        "partials": [
+            {
+                "symbol":     p.get("symbol"),
+                "direction":  p.get("direction"),
+                "event":      p.get("event"),
+                "price":      p.get("price"),
+                "fraction":   p.get("fraction"),
+                "pnl":        p.get("pnl"),
+                "r_booked":   p.get("r_booked"),
+                "new_stop":   p.get("new_stop"),
+                "new_stop_r": p.get("new_stop_r"),
+                "at":         p.get("at"),
+            }
+            for p in results.get("partials_this_run", []) or []
         ],
     }
 

@@ -2473,3 +2473,13 @@ candles only, no orders once price is past the entry/stop, E3b as stop orders, f
 1h candles (`BP_BAR_REPLAY`), setup re-entry dedup, UTC timestamps, hourly schedule.
 User decisions: **1% risk; stop never moves; 100% closes at T2** (`stop_loss.management: fixed`);
 fresh $5k challenge. Goldtest A/B of these fixes has NOT been run yet.
+
+### 2026-09-28 — scale-out management (50% at +1R, breakeven, runner)
+
+Full note: `research/SESSION_2026-09-28.md`. User decision (verbatim): "when 1r reach close 50% move to
+breakeven n then let 50% run till possible". New default `stop_loss.management: scale_out`
+(`scale_out_at_r: 1.0`, `scale_out_fraction: 0.5`, `runner_trail: r_steps`, `runner_target_r: null`):
+at +1R close 50% and move the stop to breakeven from the next bar; the runner locks +1R at a +2R peak,
++2R at +3R, ... and exits only on its stop. 50% at +1R + breakeven runner = +0.50R (a win).
+One reader (`BP_management.py`) feeds the paper trader, Discord text and charts. `fixed`/`ladder`
+unchanged when configured. **Revert: `stop_loss.management: fixed`.** Branch `feat/scale-out-runner`, not pushed.

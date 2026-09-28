@@ -41,10 +41,13 @@ def filled(trader):
     return pid
 
 
-def test_live_config_is_fixed_at_t2():
+def test_fixed_config_is_fixed_at_t2():
+    # The live default became scale_out on 2026-09-28; `management: fixed` in
+    # the live file must still give the 2026-09-27 set-and-forget bracket.
     live = yaml.safe_load((Path(__file__).resolve().parents[1] / "BP_config.yaml").read_text(encoding="utf-8"))
+    live["stop_loss"]["management"] = "fixed"
     t = PaperTrader(live)
-    assert t.fixed_bracket and t.fixed_tp_index == 1
+    assert t.fixed_bracket and not t.scale_out and t.fixed_tp_index == 1
 
 
 def test_return_to_entry_after_half_t1_does_not_close():
