@@ -48,7 +48,7 @@
       "trade_context": "standard",
       "placed_at": "2026-09-28T06:57:21.337775+00:00",
       "filled_at": null,
-      "last_priced_ts": "2026-09-29T01:00:00+00:00",
+      "last_priced_ts": "2026-09-29T08:00:00+00:00",
       "order_type": "limit",
       "setup_key": "NZDJPY=X|long|88.134|87.242",
       "fill_price": null,
@@ -91,7 +91,7 @@
       "trade_context": "standard",
       "placed_at": "2026-09-28T06:57:21.338224+00:00",
       "filled_at": null,
-      "last_priced_ts": "2026-09-29T01:00:00+00:00",
+      "last_priced_ts": "2026-09-29T08:00:00+00:00",
       "order_type": "limit",
       "setup_key": "CADCHF=X|short|0.59502|0.59858",
       "fill_price": null,
@@ -148,5 +148,5 @@
       "scale_out_single": false
     }
   ],
-  "saved_at": "2026-09-29T02:00:46.184642+00:00"
+  "saved_at": "2026-09-29T08:34:51.955656+00:00"
 }
