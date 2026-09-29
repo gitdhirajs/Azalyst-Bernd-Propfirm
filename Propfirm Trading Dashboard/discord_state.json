@@ -3,11 +3,11 @@
   "challenge_started_at": "2026-09-27T13:45:25.355334+00:00",
   "breached": false,
   "signal_keys_seen": {
-    "GBPNZD=X|short|2.3494|2.3534": "2026-09-28",
-    "NZDJPY=X|long|88.134|87.242": "2026-09-28",
+    "GBPNZD=X|short|2.3494|2.3534": "2026-09-29",
+    "NZDJPY=X|long|88.134|87.242": "2026-09-29",
     "NZDCHF=X|long|0.46562|0.464": "2026-09-27",
-    "CADCHF=X|short|0.59502|0.59858": "2026-09-28",
-    "EURNZD=X|short|2.0189|2.0236": "2026-09-28"
+    "CADCHF=X|short|0.59502|0.59858": "2026-09-29",
+    "EURNZD=X|short|2.0189|2.0236": "2026-09-29"
   },
   "order_ids_seen": [
     "eb9cb892-2ec",
