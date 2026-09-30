@@ -7,7 +7,8 @@
     "NZDJPY=X|long|88.134|87.242": "2026-09-30",
     "NZDCHF=X|long|0.46562|0.464": "2026-09-27",
     "CADCHF=X|short|0.59502|0.59858": "2026-09-30",
-    "EURNZD=X|short|2.0189|2.0236": "2026-09-30"
+    "EURNZD=X|short|2.0189|2.0236": "2026-09-30",
+    "USDCAD=X|short|1.4238|1.4294": "2026-09-30"
   },
   "order_ids_seen": [
     "eb9cb892-2ec",
@@ -32,5 +33,5 @@
   "runner_stops_seen": {},
   "management_mode": "scale_out",
   "last_status_date": "2026-09-28",
-  "last_sent_at": "2026-09-30T00:31:03.464006+00:00"
+  "last_sent_at": "2026-09-30T19:23:50.857624+00:00"
 }
