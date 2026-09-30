@@ -11,7 +11,7 @@
   "daily_pnl": 0.0,
   "daily_trades": 0,
   "today_starting_equity": 5000.0,
-  "current_date": "2026-09-29",
+  "current_date": "2026-09-30",
   "account_blown": false,
   "zone_memory": {},
   "challenge_started_at": "2026-09-27T13:45:25.355334+00:00",
@@ -30,8 +30,8 @@
       ],
       "position_size": 50.738242,
       "risk_amount": 45.26,
-      "entry_time": "2026-09-28T06:57:21.337775+00:00",
-      "status": "pending",
+      "entry_time": "2026-09-29T21:00:00+00:00",
+      "status": "active",
       "realized_pnl": 0.0,
       "partial_taken": false,
       "partial_qty": 0.0,
@@ -47,16 +47,16 @@
       "income_strategy": "weekly",
       "trade_context": "standard",
       "placed_at": "2026-09-28T06:57:21.337775+00:00",
-      "filled_at": null,
-      "last_priced_ts": "2026-09-29T20:00:00+00:00",
+      "filled_at": "2026-09-29T21:00:00+00:00",
+      "last_priced_ts": "2026-09-30T00:00:00+00:00",
       "order_type": "limit",
       "setup_key": "NZDJPY=X|long|88.134|87.242",
-      "fill_price": null,
-      "runner_peak_r": 0.0,
+      "fill_price": 88.134003,
+      "runner_peak_r": 0.7309369138693631,
       "partial_time": null,
       "booked_pnl": 0.0,
       "fill_bar_extreme": null,
-      "management_mode": "",
+      "management_mode": "scale_out",
       "scale_out_single": false
     },
     {
@@ -91,7 +91,7 @@
       "trade_context": "standard",
       "placed_at": "2026-09-28T06:57:21.338224+00:00",
       "filled_at": null,
-      "last_priced_ts": "2026-09-29T20:00:00+00:00",
+      "last_priced_ts": "2026-09-30T00:00:00+00:00",
       "order_type": "limit",
       "setup_key": "CADCHF=X|short|0.59502|0.59858",
       "fill_price": null,
@@ -148,5 +148,5 @@
       "scale_out_single": false
     }
   ],
-  "saved_at": "2026-09-29T20:50:57.066259+00:00"
+  "saved_at": "2026-09-30T00:31:02.530737+00:00"
 }
