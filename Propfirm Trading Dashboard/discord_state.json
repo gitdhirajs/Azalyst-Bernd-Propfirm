@@ -9,14 +9,15 @@
     "CADCHF=X|short|0.59502|0.59858": "2026-10-01",
     "EURNZD=X|short|2.0189|2.0236": "2026-10-01",
     "USDCAD=X|short|1.4238|1.4294": "2026-10-01",
-    "GBPCHF=X|long|1.094|1.0899": "2026-10-01"
+    "GBPCHF=X|long|1.094|1.0899": "2026-10-01",
+    "NZDCHF=X|long|0.45901|0.4568": "2026-10-01"
   },
   "order_ids_seen": [
     "eb9cb892-2ec",
     "08744f7e-63b",
     "ecd20a74-0ea",
-    "2b8b5b8e-f7d",
-    "0bdcc3c5-4b8"
+    "0bdcc3c5-4b8",
+    "2b8b5b8e-f7d"
   ],
   "pending_orders_seen": {
     "0bdcc3c5-4b8": {
@@ -45,6 +46,6 @@
   ],
   "runner_stops_seen": {},
   "management_mode": "scale_out",
-  "last_status_date": "2026-09-30",
-  "last_sent_at": "2026-10-01T18:59:18.785267+00:00"
+  "last_status_date": "2026-10-01",
+  "last_sent_at": "2026-10-01T23:15:51.416867+00:00"
 }
