@@ -548,5 +548,52 @@
     "fills": [],
     "closed": [],
     "partials": []
+  },
+  {
+    "scan_time": "2026-10-01T05:54:21.360001+00:00",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 3,
+    "auto_traded": 0,
+    "account_balance": 5022.63,
+    "closed_pnl": 22.63,
+    "win_rate": null,
+    "total_trades": 0,
+    "signals_summary": [
+      {
+        "symbol": "USDCAD=X",
+        "direction": "short",
+        "entry": 1.42378,
+        "composite": 9.25
+      },
+      {
+        "symbol": "NZDJPY=X",
+        "direction": "long",
+        "entry": 88.134003,
+        "composite": 9.3
+      },
+      {
+        "symbol": "CADCHF=X",
+        "direction": "short",
+        "entry": 0.59502,
+        "composite": 7.75
+      }
+    ],
+    "fills": [],
+    "closed": [],
+    "partials": [
+      {
+        "symbol": "NZDJPY=X",
+        "direction": "long",
+        "event": "partial_close",
+        "price": 89.02600900000002,
+        "fraction": 0.5,
+        "pnl": 22.629408146726234,
+        "r_booked": 0.5,
+        "new_stop": 88.134003,
+        "new_stop_r": 0.0,
+        "at": "2026-10-01T01:00:00+00:00"
+      }
+    ]
   }
 ]
