@@ -5,10 +5,11 @@
   "signal_keys_seen": {
     "GBPNZD=X|short|2.3494|2.3534": "2026-09-30",
     "NZDJPY=X|long|88.134|87.242": "2026-10-01",
-    "NZDCHF=X|long|0.46562|0.464": "2026-09-27",
+    "NZDCHF=X|long|0.46562|0.464": "2026-10-01",
     "CADCHF=X|short|0.59502|0.59858": "2026-10-01",
     "EURNZD=X|short|2.0189|2.0236": "2026-09-30",
-    "USDCAD=X|short|1.4238|1.4294": "2026-10-01"
+    "USDCAD=X|short|1.4238|1.4294": "2026-10-01",
+    "GBPCHF=X|long|1.094|1.0899": "2026-10-01"
   },
   "order_ids_seen": [
     "eb9cb892-2ec",
@@ -37,5 +38,5 @@
   },
   "management_mode": "scale_out",
   "last_status_date": "2026-09-30",
-  "last_sent_at": "2026-10-01T05:58:24.631005+00:00"
+  "last_sent_at": "2026-10-01T13:17:58.887160+00:00"
 }
