@@ -18,18 +18,10 @@
     "08744f7e-63b",
     "ecd20a74-0ea",
     "2b8b5b8e-f7d",
-    "0bdcc3c5-4b8",
-    "c163f209-532"
+    "c163f209-532",
+    "0bdcc3c5-4b8"
   ],
   "pending_orders_seen": {
-    "0bdcc3c5-4b8": {
-      "symbol": "GBPCHF=X",
-      "direction": "long",
-      "entry_price": 1.09396,
-      "stop_price": 1.08992,
-      "order_type": "limit",
-      "placed_at": "2026-10-01T18:59:17.844728+00:00"
-    },
     "c163f209-532": {
       "symbol": "USDCAD=X",
       "direction": "short",
@@ -39,7 +31,9 @@
       "placed_at": "2026-10-02T02:20:47.712781+00:00"
     }
   },
-  "open_position_ids_seen": [],
+  "open_position_ids_seen": [
+    "0bdcc3c5-4b8"
+  ],
   "closed_ids_seen": [
     "ecd20a74-0ea"
   ],
@@ -49,5 +43,5 @@
   "runner_stops_seen": {},
   "management_mode": "scale_out",
   "last_status_date": "2026-10-01",
-  "last_sent_at": "2026-10-02T02:20:48.637035+00:00"
+  "last_sent_at": "2026-10-02T08:41:10.840177+00:00"
 }

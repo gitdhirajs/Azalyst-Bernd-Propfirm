@@ -788,5 +788,47 @@
     "fills": [],
     "closed": [],
     "partials": []
+  },
+  {
+    "scan_time": "2026-10-02T08:37:20.065655+00:00",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 3,
+    "auto_traded": 0,
+    "account_balance": 5022.63,
+    "closed_pnl": 22.63,
+    "win_rate": 1.0,
+    "total_trades": 1,
+    "signals_summary": [
+      {
+        "symbol": "GBPCHF=X",
+        "direction": "long",
+        "entry": 1.09396,
+        "composite": 8.95
+      },
+      {
+        "symbol": "NZDJPY=X",
+        "direction": "long",
+        "entry": 88.134003,
+        "composite": 8.85
+      },
+      {
+        "symbol": "NZDCHF=X",
+        "direction": "long",
+        "entry": 0.45901,
+        "composite": 9.7
+      }
+    ],
+    "fills": [
+      {
+        "symbol": "GBPCHF=X",
+        "direction": "long",
+        "order_type": "limit",
+        "fill_price": 1.09396,
+        "filled_at": "2026-10-02T06:00:00+00:00"
+      }
+    ],
+    "closed": [],
+    "partials": []
   }
 ]
