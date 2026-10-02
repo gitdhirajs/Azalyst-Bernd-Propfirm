@@ -18,8 +18,8 @@
     "08744f7e-63b",
     "ecd20a74-0ea",
     "2b8b5b8e-f7d",
-    "c163f209-532",
-    "0bdcc3c5-4b8"
+    "0bdcc3c5-4b8",
+    "c163f209-532"
   ],
   "pending_orders_seen": {
     "c163f209-532": {
@@ -31,11 +31,10 @@
       "placed_at": "2026-10-02T02:20:47.712781+00:00"
     }
   },
-  "open_position_ids_seen": [
-    "0bdcc3c5-4b8"
-  ],
+  "open_position_ids_seen": [],
   "closed_ids_seen": [
-    "ecd20a74-0ea"
+    "ecd20a74-0ea",
+    "0bdcc3c5-4b8"
   ],
   "partial_events_seen": [
     "ecd20a74-0ea|partial"
@@ -43,5 +42,5 @@
   "runner_stops_seen": {},
   "management_mode": "scale_out",
   "last_status_date": "2026-10-01",
-  "last_sent_at": "2026-10-02T08:41:10.840177+00:00"
+  "last_sent_at": "2026-10-02T15:52:32.626769+00:00"
 }
