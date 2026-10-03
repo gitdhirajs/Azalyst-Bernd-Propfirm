@@ -4,16 +4,16 @@
   "breached": false,
   "signal_keys_seen": {
     "GBPNZD=X|short|2.3494|2.3534": "2026-09-30",
-    "NZDJPY=X|long|88.134|87.242": "2026-10-02",
+    "NZDJPY=X|long|88.134|87.242": "2026-10-03",
     "NZDCHF=X|long|0.46562|0.464": "2026-10-01",
     "CADCHF=X|short|0.59502|0.59858": "2026-10-02",
     "EURNZD=X|short|2.0189|2.0236": "2026-10-02",
     "USDCAD=X|short|1.4238|1.4294": "2026-10-01",
     "GBPCHF=X|long|1.094|1.0899": "2026-10-02",
     "NZDCHF=X|long|0.45901|0.4568": "2026-10-02",
-    "USDCAD=X|short|1.4292|1.4333": "2026-10-02",
-    "NZDUSD=X|long|0.55508|0.54907": "2026-10-02",
-    "EURGBP=X|long|0.84328|0.84103": "2026-10-02"
+    "USDCAD=X|short|1.4292|1.4333": "2026-10-03",
+    "NZDUSD=X|long|0.55508|0.54907": "2026-10-03",
+    "EURGBP=X|long|0.84328|0.84103": "2026-10-03"
   },
   "order_ids_seen": [
     "eb9cb892-2ec",
@@ -21,9 +21,9 @@
     "ecd20a74-0ea",
     "2b8b5b8e-f7d",
     "0bdcc3c5-4b8",
+    "5b8e4c58-60e",
     "c163f209-532",
-    "9c3f3d7b-992",
-    "5b8e4c58-60e"
+    "9c3f3d7b-992"
   ],
   "pending_orders_seen": {
     "c163f209-532": {
@@ -41,14 +41,6 @@
       "stop_price": 0.84103,
       "order_type": "limit",
       "placed_at": "2026-10-02T20:49:56.738944+00:00"
-    },
-    "5b8e4c58-60e": {
-      "symbol": "NZDCHF=X",
-      "direction": "long",
-      "entry_price": 0.45901,
-      "stop_price": 0.4568,
-      "order_type": "limit",
-      "placed_at": "2026-10-02T20:49:56.739320+00:00"
     }
   },
   "open_position_ids_seen": [],
@@ -62,5 +54,5 @@
   "runner_stops_seen": {},
   "management_mode": "scale_out",
   "last_status_date": "2026-10-01",
-  "last_sent_at": "2026-10-02T20:49:57.647791+00:00"
+  "last_sent_at": "2026-10-03T00:33:17.885894+00:00"
 }
