@@ -1502,5 +1502,63 @@
         "at": "2026-10-05T08:00:00+00:00"
       }
     ]
+  },
+  {
+    "scan_time": "2026-10-05T18:28:18.724069+00:00",
+    "strategy": "weekly",
+    "watchlist_scanned": 41,
+    "signals_found": 7,
+    "auto_traded": 0,
+    "account_balance": 4998.79,
+    "closed_pnl": -1.21,
+    "win_rate": 0.5,
+    "total_trades": 2,
+    "signals_summary": [
+      {
+        "symbol": "NZDUSD=X",
+        "direction": "long",
+        "entry": 0.555081,
+        "composite": 9.0
+      },
+      {
+        "symbol": "USDCAD=X",
+        "direction": "short",
+        "entry": 1.4292,
+        "composite": 6.7
+      },
+      {
+        "symbol": "EURGBP=X",
+        "direction": "long",
+        "entry": 0.84328,
+        "composite": 10.0
+      },
+      {
+        "symbol": "EURAUD=X",
+        "direction": "long",
+        "entry": 1.57826,
+        "composite": 10.0
+      },
+      {
+        "symbol": "EURNZD=X",
+        "direction": "short",
+        "entry": 2.01885,
+        "composite": 8.25
+      },
+      {
+        "symbol": "NZDJPY=X",
+        "direction": "long",
+        "entry": 88.134003,
+        "composite": 8.85
+      },
+      {
+        "symbol": "NZDCHF=X",
+        "direction": "long",
+        "entry": 0.45901,
+        "composite": 9.7
+      }
+    ],
+    "fills": [],
+    "closed": [],
+    "partials": []
   }
 ]
