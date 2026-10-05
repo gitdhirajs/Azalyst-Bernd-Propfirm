@@ -13,7 +13,8 @@
     "NZDCHF=X|long|0.45901|0.4568": "2026-10-05",
     "USDCAD=X|short|1.4292|1.4333": "2026-10-05",
     "NZDUSD=X|long|0.55508|0.54907": "2026-10-05",
-    "EURGBP=X|long|0.84328|0.84103": "2026-10-05"
+    "EURGBP=X|long|0.84328|0.84103": "2026-10-05",
+    "EURAUD=X|long|1.5783|1.5667": "2026-10-05"
   },
   "order_ids_seen": [
     "eb9cb892-2ec",
@@ -22,18 +23,10 @@
     "2b8b5b8e-f7d",
     "0bdcc3c5-4b8",
     "5b8e4c58-60e",
-    "c163f209-532",
-    "9c3f3d7b-992"
+    "9c3f3d7b-992",
+    "c163f209-532"
   ],
   "pending_orders_seen": {
-    "c163f209-532": {
-      "symbol": "USDCAD=X",
-      "direction": "short",
-      "entry_price": 1.4292,
-      "stop_price": 1.43333,
-      "order_type": "limit",
-      "placed_at": "2026-10-02T02:20:47.712781+00:00"
-    },
     "9c3f3d7b-992": {
       "symbol": "EURGBP=X",
       "direction": "long",
@@ -43,16 +36,21 @@
       "placed_at": "2026-10-02T20:49:56.738944+00:00"
     }
   },
-  "open_position_ids_seen": [],
+  "open_position_ids_seen": [
+    "c163f209-532"
+  ],
   "closed_ids_seen": [
     "ecd20a74-0ea",
     "0bdcc3c5-4b8"
   ],
   "partial_events_seen": [
-    "ecd20a74-0ea|partial"
+    "ecd20a74-0ea|partial",
+    "c163f209-532|partial"
   ],
-  "runner_stops_seen": {},
+  "runner_stops_seen": {
+    "c163f209-532": 1.4292
+  },
   "management_mode": "scale_out",
   "last_status_date": "2026-10-04",
-  "last_sent_at": "2026-10-04T23:14:34.578687+00:00"
+  "last_sent_at": "2026-10-05T09:09:04.515596+00:00"
 }
