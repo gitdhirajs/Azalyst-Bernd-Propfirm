@@ -51,11 +51,11 @@
       "trade_context": "standard",
       "placed_at": "2026-10-02T02:20:47.712781+00:00",
       "filled_at": "2026-10-05T04:00:00+00:00",
-      "last_priced_ts": "2026-10-06T07:00:00+00:00",
+      "last_priced_ts": "2026-10-06T15:00:00+00:00",
       "order_type": "limit",
       "setup_key": "USDCAD=X|short|1.4292|1.4333",
       "fill_price": 1.4292,
-      "runner_peak_r": 1.4285646858862067,
+      "runner_peak_r": 1.7191409371955833,
       "partial_time": "2026-10-05T08:00:00+00:00",
       "booked_pnl": 24.672486026929803,
       "fill_bar_extreme": null,
@@ -94,7 +94,7 @@
       "trade_context": "standard",
       "placed_at": "2026-10-02T20:49:56.738944+00:00",
       "filled_at": null,
-      "last_priced_ts": "2026-10-06T07:00:00+00:00",
+      "last_priced_ts": "2026-10-06T15:00:00+00:00",
       "order_type": "limit",
       "setup_key": "EURGBP=X|long|0.84328|0.84103",
       "fill_price": null,
@@ -366,5 +366,5 @@
       "scale_out_single": false
     }
   ],
-  "saved_at": "2026-10-06T07:37:26.410814+00:00"
+  "saved_at": "2026-10-06T15:17:11.943146+00:00"
 }
